@@ -10,45 +10,40 @@
 //#include "Metal/ITMMultiVisualisationEngine_Metal.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
-	/**
-	 * \brief This struct provides functions that can be used to construct visualisation engines.
-	 */
-	struct ITMMultiVisualisationEngineFactory
-	{
-		//#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
+/**
+ * \brief This struct provides functions that can be used to construct visualisation engines.
+ */
+struct ITMMultiVisualisationEngineFactory {
+  //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
-		/**
-		 * \brief Makes a visualisation engine.
-		 *
-		 * \param deviceType  The device on which the visualisation engine should operate.
-		 */
-		template <typename TVoxel, typename TIndex>
-		static ITMMultiVisualisationEngine<TVoxel, TIndex> *MakeVisualisationEngine(ITMLibSettings::DeviceType deviceType)
-		{
-			ITMMultiVisualisationEngine<TVoxel, TIndex> *visualisationEngine = NULL;
+  /**
+   * \brief Makes a visualisation engine.
+   *
+   * \param deviceType  The device on which the visualisation engine should operate.
+   */
+  template<typename TVoxel, typename TIndex>
+  static ITMMultiVisualisationEngine<TVoxel, TIndex> *MakeVisualisationEngine(ITMLibSettings::DeviceType deviceType) {
+    ITMMultiVisualisationEngine<TVoxel, TIndex> *visualisationEngine = NULL;
 
-			switch (deviceType)
-			{
-			case ITMLibSettings::DEVICE_CPU:
-				visualisationEngine = new ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>;
-				break;
-			case ITMLibSettings::DEVICE_CUDA:
+    switch (deviceType) {
+      case ITMLibSettings::DEVICE_CPU: visualisationEngine = new ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>;
+        break;
+      case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-				visualisationEngine = new ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>;
+        visualisationEngine = new ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>;
 #endif
-				break;
-			case ITMLibSettings::DEVICE_METAL:
+        break;
+      case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-				visualisationEngine = new ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>;
+        visualisationEngine = new ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>;
 #endif
-				break;
-			}
+        break;
+    }
 
-			return visualisationEngine;
-		}
-	};
+    return visualisationEngine;
+  }
+};
 
 }

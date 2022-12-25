@@ -10,7 +10,7 @@
 #if defined(__CUDACC__) && defined(__CUDA_ARCH__)
 #define _CPU_AND_GPU_CODE_ __device__	// for CUDA device code
 #else
-#define _CPU_AND_GPU_CODE_ 
+#define _CPU_AND_GPU_CODE_
 #endif
 
 #if defined(__CUDACC__)

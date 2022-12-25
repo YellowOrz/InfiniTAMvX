@@ -7,8 +7,7 @@
 #include "ITMSurfelVisualisationEngine_Settings.h"
 #include "../../../Objects/Scene/ITMRepresentationAccess.h"
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### HELPERS ####################
 
@@ -33,9 +32,19 @@ namespace ITMLib
  * \param maxY                    The upper y bound of a bounding box around the circle in the index image (clamped to the image bounds).
  */
 _CPU_AND_GPU_CODE_
-inline void calculate_projected_surfel_bounds(int locId, int indexImageWidth, int indexImageHeight, const ITMIntrinsics& intrinsics, float radius, float z,
-                                              int& cx, int& cy, int& projectedRadiusSquared, int& minX, int& minY, int& maxX, int& maxY)
-{
+inline void calculate_projected_surfel_bounds(int locId,
+                                              int indexImageWidth,
+                                              int indexImageHeight,
+                                              const ITMIntrinsics &intrinsics,
+                                              float radius,
+                                              float z,
+                                              int &cx,
+                                              int &cy,
+                                              int &projectedRadiusSquared,
+                                              int &minX,
+                                              int &minY,
+                                              int &maxX,
+                                              int &maxY) {
   // Calculate the (x,y) coordinates of the pixel in the index image to which the surfel's centre projects.
   cx = locId % indexImageWidth, cy = locId / indexImageWidth;
 
@@ -49,10 +58,10 @@ inline void calculate_projected_surfel_bounds(int locId, int indexImageWidth, in
   minY = cy - projectedRadius, maxY = cy + projectedRadius;
 
   // Clamp these bounds to the image bounds.
-  if(minX < 0) minX = 0;
-  if(maxX >= indexImageWidth) maxX = indexImageWidth - 1;
-  if(minY < 0) minY = 0;
-  if(maxY >= indexImageHeight) maxY = indexImageHeight - 1;
+  if (minX < 0) minX = 0;
+  if (maxX >= indexImageWidth) maxX = indexImageWidth - 1;
+  if (minY < 0) minY = 0;
+  if (maxY >= indexImageHeight) maxY = indexImageHeight - 1;
 }
 
 /**
@@ -62,14 +71,13 @@ inline void calculate_projected_surfel_bounds(int locId, int indexImageWidth, in
  * \return  A colour representation of the normal vector.
  */
 _CPU_AND_GPU_CODE_
-inline Vector4u colourise_normal(const Vector3f& n)
-{
+inline Vector4u colourise_normal(const Vector3f &n) {
   // FIXME: Borrowed from drawPixelNormal - refactor.
   return Vector4u(
-    (uchar)((0.3f + (-n.x + 1.0f)*0.35f)*255.0f),
-    (uchar)((0.3f + (-n.y + 1.0f)*0.35f)*255.0f),
-    (uchar)((0.3f + (-n.z + 1.0f)*0.35f)*255.0f),
-    255
+      (uchar) ((0.3f + (-n.x + 1.0f) * 0.35f) * 255.0f),
+      (uchar) ((0.3f + (-n.y + 1.0f) * 0.35f) * 255.0f),
+      (uchar) ((0.3f + (-n.z + 1.0f) * 0.35f) * 255.0f),
+      255
   );
 }
 
@@ -87,12 +95,11 @@ inline Vector4u colourise_normal(const Vector3f& n)
  * \param scaledZ           An integer representation of the depth value for storage in the depth buffer.
  * \return                  true, if the surfel projected to a pixel within the bounds of the index image, or false otherwise.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline bool project_surfel_to_index_image(const TSurfel& surfel, const Matrix4f& invT, const ITMIntrinsics& intrinsics,
+inline bool project_surfel_to_index_image(const TSurfel &surfel, const Matrix4f &invT, const ITMIntrinsics &intrinsics,
                                           int indexImageWidth, int indexImageHeight, int scaleFactor,
-                                          int& locId, float& z, int& scaledZ)
-{
+                                          int &locId, float &z, int &scaledZ) {
   // Convert the surfel point into the coordinates of the current frame using v_i = T_i^{-1} v_i^g.
   Vector3f p = surfel.position;
   Vector4f vg(p.x, p.y, p.z, 1.0f);
@@ -100,7 +107,7 @@ inline bool project_surfel_to_index_image(const TSurfel& surfel, const Matrix4f&
 
   // If the point isn't in front of the viewer, early out.
   z = v.z;
-  if(z <= 0.0f) return false;
+  if (z <= 0.0f) return false;
 
   // Project the point onto the image plane of the current frame.
   float ux = intrinsics.projectionParamsSimple.fx * v.x / z + intrinsics.projectionParamsSimple.px;
@@ -111,7 +118,7 @@ inline bool project_surfel_to_index_image(const TSurfel& surfel, const Matrix4f&
   int y = static_cast<int>(uy * scaleFactor + 0.5f);
 
   // If the resulting point is outside the index image, early out.
-  if(x < 0 || x >= indexImageWidth || y < 0 || y >= indexImageHeight) return false;
+  if (x < 0 || x >= indexImageWidth || y < 0 || y >= indexImageHeight) return false;
 
   // Calculate the raster position of the point in the index image.
   locId = y * indexImageWidth + x;
@@ -132,8 +139,7 @@ inline bool project_surfel_to_index_image(const TSurfel& surfel, const Matrix4f&
  * \param depthBuffer       The depth buffer for the index image.
  */
 _CPU_AND_GPU_CODE_
-inline void clear_surfel_index_image(int locId, unsigned int *surfelIndexImage, int *depthBuffer)
-{
+inline void clear_surfel_index_image(int locId, unsigned int *surfelIndexImage, int *depthBuffer) {
   surfelIndexImage[locId] = 0;
   depthBuffer[locId] = INT_MAX;
 }
@@ -147,10 +153,13 @@ inline void clear_surfel_index_image(int locId, unsigned int *surfelIndexImage, 
  * \param oldPositions    The buffer into which to store the "old" position of the surfel from its most recent merge.
  * \param correspondences The buffer into which to store the "new" and "old" positions of the surfel for the purpose of rendering a line segment between them.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void copy_correspondences_to_buffers(int surfelId, const TSurfel *surfels, float *newPositions, float *oldPositions, float *correspondences)
-{
+inline void copy_correspondences_to_buffers(int surfelId,
+                                            const TSurfel *surfels,
+                                            float *newPositions,
+                                            float *oldPositions,
+                                            float *correspondences) {
 #if DEBUG_CORRESPONDENCES
   TSurfel surfel = surfels[surfelId];
   Vector3f np = surfel.newPosition;
@@ -186,24 +195,27 @@ inline void copy_correspondences_to_buffers(int surfelId, const TSurfel *surfels
  * \param pointsMap                   A buffer into which to write the surfel's position.
  * \param normalsMap                  A buffer into which to write the surfel's normal.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void copy_surfel_data_to_icp_maps(int locId, const TSurfel *surfels, const unsigned int *surfelIndexImage, const Matrix4f& invT,
-                                         float trackingSurfelMaxDepth, float trackingSurfelMinConfidence, Vector4f *pointsMap, Vector4f *normalsMap)
-{
+inline void copy_surfel_data_to_icp_maps(int locId,
+                                         const TSurfel *surfels,
+                                         const unsigned int *surfelIndexImage,
+                                         const Matrix4f &invT,
+                                         float trackingSurfelMaxDepth,
+                                         float trackingSurfelMinConfidence,
+                                         Vector4f *pointsMap,
+                                         Vector4f *normalsMap) {
   int surfelIndex = surfelIndexImage[locId] - 1;
 
   // If the specified raster position in the index image refers to a valid surfel:
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     TSurfel surfel = surfels[surfelIndex];
-    const Vector3f& p = surfel.position;
-    const Vector3f& n = surfel.normal;
+    const Vector3f &p = surfel.position;
+    const Vector3f &n = surfel.normal;
 
     // If the surfel is sufficiently close to the camera and has a sufficiently high confidence value:
     Vector3f v = transform_point(invT, p);
-    if(v.z <= trackingSurfelMaxDepth || surfel.confidence >= trackingSurfelMinConfidence)
-    {
+    if (v.z <= trackingSurfelMaxDepth || surfel.confidence >= trackingSurfelMinConfidence) {
       // Write the surfel's position and normal into the buffers.
       pointsMap[locId] = Vector4f(p.x, p.y, p.z, 1.0f);
       normalsMap[locId] = Vector4f(n.x, n.y, n.z, 0.0f);
@@ -213,7 +225,8 @@ inline void copy_surfel_data_to_icp_maps(int locId, const TSurfel *surfels, cons
 
   // Otherwise, write a dummy position and normal into the buffers.
   Vector4f dummy;
-  dummy.x = dummy.y = dummy.z = 0.0f; dummy.w = -1.0f;
+  dummy.x = dummy.y = dummy.z = 0.0f;
+  dummy.w = -1.0f;
   pointsMap[locId] = dummy;
   normalsMap[locId] = dummy;
 }
@@ -227,29 +240,31 @@ inline void copy_surfel_data_to_icp_maps(int locId, const TSurfel *surfels, cons
  * \param normals   A buffer into which to write the surfel's normal.
  * \param colours   A buffer into which to write the surfel's colour.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void copy_surfel_to_buffers(int surfelId, const TSurfel *surfels, float *positions, unsigned char *normals, unsigned char *colours)
-{
+inline void copy_surfel_to_buffers(int surfelId,
+                                   const TSurfel *surfels,
+                                   float *positions,
+                                   unsigned char *normals,
+                                   unsigned char *colours) {
   TSurfel surfel = surfels[surfelId];
   int offset = surfelId * 3;
 
   Vector3f p = surfel.position;
   positions[offset] = p.x;
-  positions[offset+1] = p.y;
-  positions[offset+2] = p.z;
+  positions[offset + 1] = p.y;
+  positions[offset + 2] = p.z;
 
   Vector4u n = colourise_normal(surfel.normal);
   normals[offset] = n.x;
-  normals[offset+1] = n.y;
-  normals[offset+2] = n.z;
+  normals[offset + 1] = n.y;
+  normals[offset + 2] = n.z;
 
-  if(colours != NULL)
-  {
+  if (colours != NULL) {
     Vector3u c = SurfelColourManipulator<TSurfel::hasColourInformation>::read(surfel);
     colours[offset] = c.r;
-    colours[offset+1] = c.g;
-    colours[offset+2] = c.b;
+    colours[offset + 1] = c.g;
+    colours[offset + 2] = c.b;
   }
 }
 
@@ -261,15 +276,16 @@ inline void copy_surfel_to_buffers(int surfelId, const TSurfel *surfels, float *
  * \param surfels           The surfels in the scene.
  * \param outputImage       The output image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-void shade_pixel_colour(int locId, const unsigned int *surfelIndexImage, const TSurfel *surfels, Vector4u *outputImage)
-{
+void shade_pixel_colour(int locId,
+                        const unsigned int *surfelIndexImage,
+                        const TSurfel *surfels,
+                        Vector4u *outputImage) {
   Vector4u col4(0, 255, 255, 255);
 
   int surfelIndex = surfelIndexImage[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     Vector3u col3 = SurfelColourManipulator<TSurfel::hasColourInformation>::read(surfels[surfelIndex]);
     col4 = Vector4u(col3.x, col3.y, col3.z, 255);
   }
@@ -286,20 +302,22 @@ void shade_pixel_colour(int locId, const unsigned int *surfelIndexImage, const T
  * \param stableSurfelConfidence  The confidence value a surfel must have in order for it to be considered "stable".
  * \param outputImage             The output image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-void shade_pixel_confidence(int locId, const unsigned int *surfelIndexImage, const TSurfel *surfels, float stableSurfelConfidence, Vector4u *outputImage)
-{
+void shade_pixel_confidence(int locId,
+                            const unsigned int *surfelIndexImage,
+                            const TSurfel *surfels,
+                            float stableSurfelConfidence,
+                            Vector4u *outputImage) {
   Vector4u col4(0, 0, 0, 255);
 
   int surfelIndex = surfelIndexImage[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     float confidence = surfels[surfelIndex].confidence;
-    if(confidence > stableSurfelConfidence) confidence = stableSurfelConfidence;
+    if (confidence > stableSurfelConfidence) confidence = stableSurfelConfidence;
 
     // Colourise the surfel's confidence value (red = unstable, green = stable).
-    uchar g = (uchar)(255.0f * confidence / stableSurfelConfidence);
+    uchar g = (uchar) (255.0f * confidence / stableSurfelConfidence);
     col4 = Vector4u(255 - g, g, 0, 255);
   }
 
@@ -315,17 +333,18 @@ void shade_pixel_confidence(int locId, const unsigned int *surfelIndexImage, con
  * \param cameraPosition    The camera position.
  * \param outputImage       The output image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-void shade_pixel_depth(int locId, const unsigned int *surfelIndexImage, const TSurfel *surfels, const Vector3f& cameraPosition,
-                       float *outputImage)
-{
+void shade_pixel_depth(int locId,
+                       const unsigned int *surfelIndexImage,
+                       const TSurfel *surfels,
+                       const Vector3f &cameraPosition,
+                       float *outputImage) {
   // FIXME: This should be set to a less arbitrary value.
   float value = -1.0f;
 
   int surfelIndex = surfelIndexImage[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     Vector3f p = surfels[surfelIndex].position;
     float dx = fabs(cameraPosition.x - p.x);
     float dy = fabs(cameraPosition.y - p.y);
@@ -347,21 +366,24 @@ void shade_pixel_depth(int locId, const unsigned int *surfelIndexImage, const TS
  * \param lightingType      The type of lighting model to use (e.g. Lambertian or Phong).
  * \param outputImage       The output image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-void shade_pixel_grey(int locId, const unsigned int *surfelIndexImage, const TSurfel *surfels, const Vector3f& lightPos, const Vector3f& viewerPos,
-                      SurfelLightingType lightingType, Vector4u *outputImage)
-{
+void shade_pixel_grey(int locId,
+                      const unsigned int *surfelIndexImage,
+                      const TSurfel *surfels,
+                      const Vector3f &lightPos,
+                      const Vector3f &viewerPos,
+                      SurfelLightingType lightingType,
+                      Vector4u *outputImage) {
   const float ambient = lightingType == SLT_PHONG ? 0.3f : 0.2f;
   const float lambertianCoefficient = lightingType == SLT_PHONG ? 0.35f : 0.8f;
   const float phongCoefficient = 0.35f;
   const float phongExponent = 20.0f;
 
-  Vector4u value((uchar)0);
+  Vector4u value((uchar) 0);
 
   int surfelIndex = surfelIndexImage[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     TSurfel surfel = surfels[surfelIndex];
 
     // Calculate the Lambertian lighting term.
@@ -374,19 +396,18 @@ void shade_pixel_grey(int locId, const unsigned int *surfelIndexImage, const TSu
     float intensity = lightingType != SLT_FLAT ? ambient + lambertianCoefficient * lambertian : 1.0f;
 
     // If we're using Phong lighting:
-    if(lightingType == SLT_PHONG)
-    {
+    if (lightingType == SLT_PHONG) {
       // Calculate the Phong lighting term.
       Vector3f R = 2.0f * N * NdotL - L;
       Vector3f V = normalize(viewerPos - surfel.position);
-      float phong = pow(CLAMP(dot(R,V), 0.0f, 1.0f), phongExponent);
+      float phong = pow(CLAMP(dot(R, V), 0.0f, 1.0f), phongExponent);
 
       // Add the Phong lighting term to the intensity.
       intensity += phongCoefficient * phong;
     }
 
     // Fill in the final value for the pixel.
-    value = Vector4u((uchar)(intensity * 255.0f));
+    value = Vector4u((uchar) (intensity * 255.0f));
   }
 
   outputImage[locId] = value;
@@ -400,15 +421,16 @@ void shade_pixel_grey(int locId, const unsigned int *surfelIndexImage, const TSu
  * \param surfels           The surfels in the scene.
  * \param outputImage       The output image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-void shade_pixel_normal(int locId, const unsigned int *surfelIndexImage, const TSurfel *surfels, Vector4u *outputImage)
-{
-  Vector4u value((uchar)0);
+void shade_pixel_normal(int locId,
+                        const unsigned int *surfelIndexImage,
+                        const TSurfel *surfels,
+                        Vector4u *outputImage) {
+  Vector4u value((uchar) 0);
 
   int surfelIndex = surfelIndexImage[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     value = colourise_normal(surfels[surfelIndex].normal);
   }
 
@@ -435,49 +457,60 @@ void shade_pixel_normal(int locId, const unsigned int *surfelIndexImage, const T
  * \param unstableSurfelZOffset       The z offset to apply to unstable surfels when trying to ensure that they are only rendered if there is no stable alternative.
  * \param depthBuffer                 The depth buffer for the index image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_TEMPLATE_
-inline void update_depth_buffer_for_surfel(int surfelId, const TSurfel *surfels, const Matrix4f& invT, const ITMIntrinsics& intrinsics,
-                                           int indexImageWidth, int indexImageHeight, int scaleFactor, bool useRadii,
-                                           UnstableSurfelRenderingMode unstableSurfelRenderingMode, float stableSurfelConfidence,
-                                           int unstableSurfelZOffset, int *depthBuffer)
-{
+inline void update_depth_buffer_for_surfel(int surfelId,
+                                           const TSurfel *surfels,
+                                           const Matrix4f &invT,
+                                           const ITMIntrinsics &intrinsics,
+                                           int indexImageWidth,
+                                           int indexImageHeight,
+                                           int scaleFactor,
+                                           bool useRadii,
+                                           UnstableSurfelRenderingMode unstableSurfelRenderingMode,
+                                           float stableSurfelConfidence,
+                                           int unstableSurfelZOffset,
+                                           int *depthBuffer) {
   const TSurfel surfel = surfels[surfelId];
 
   // Check whether the surfel is unstable. If it is, and we're not rendering unstable surfels, early out.
   bool unstableSurfel = surfel.confidence < stableSurfelConfidence;
-  if(unstableSurfel && unstableSurfelRenderingMode == USR_DONOTRENDER) return;
+  if (unstableSurfel && unstableSurfelRenderingMode == USR_DONOTRENDER) return;
 
   // If the projection of the surfel falls within the bounds of the index image:
   int locId, scaledZ;
   float z;
-  if(project_surfel_to_index_image(surfel, invT, intrinsics, indexImageWidth, indexImageHeight, scaleFactor, locId, z, scaledZ))
-  {
+  if (project_surfel_to_index_image(surfel,
+                                    invT,
+                                    intrinsics,
+                                    indexImageWidth,
+                                    indexImageHeight,
+                                    scaleFactor,
+                                    locId,
+                                    z,
+                                    scaledZ)) {
     // If the surfel's unstable and we're giving preference to stable surfels, add a z offset to ensure that
     // it will only be rendered if there's no stable alternative along the same ray.
-    if(unstableSurfel && unstableSurfelRenderingMode == USR_FAUTEDEMIEUX) scaledZ += unstableSurfelZOffset;
+    if (unstableSurfel && unstableSurfelRenderingMode == USR_FAUTEDEMIEUX) scaledZ += unstableSurfelZOffset;
 
-    if(useRadii)
-    {
+    if (useRadii) {
       // If we're rendering the surfel as a circle rather than a point, calculate the radius of the projected
       // surfel and its bounds within the index image.
       int cx, cy, minX, minY, maxX, maxY, projectedRadiusSquared;
       calculate_projected_surfel_bounds(
-        locId, indexImageWidth, indexImageHeight, intrinsics, surfel.radius, z,
-        cx, cy, projectedRadiusSquared, minX, minY, maxX, maxY
+          locId, indexImageWidth, indexImageHeight, intrinsics, surfel.radius, z,
+          cx, cy, projectedRadiusSquared, minX, minY, maxX, maxY
       );
 
       // Rasterise the circle into the depth buffer.
-      for(int y = minY; y <= maxY; ++y)
-      {
+      for (int y = minY; y <= maxY; ++y) {
         int yOffset = y - cy;
         int yOffsetSquared = yOffset * yOffset;
 
-        for(int x = minX; x <= maxX; ++x)
-        {
+        for (int x = minX; x <= maxX; ++x) {
           int xOffset = x - cx;
           int xOffsetSquared = xOffset * xOffset;
-          if(xOffsetSquared + yOffsetSquared > projectedRadiusSquared) continue;
+          if (xOffsetSquared + yOffsetSquared > projectedRadiusSquared) continue;
 
           int offset = y * indexImageWidth + x;
 
@@ -485,19 +518,17 @@ inline void update_depth_buffer_for_surfel(int surfelId, const TSurfel *surfels,
           atomicMin(&depthBuffer[offset], scaledZ);
 #else
           // Note: No synchronisation is needed for the CPU version because it's not parallelised.
-          if(scaledZ < depthBuffer[offset]) depthBuffer[offset] = scaledZ;
+          if (scaledZ < depthBuffer[offset]) depthBuffer[offset] = scaledZ;
 #endif
         }
       }
-    }
-    else
-    {
+    } else {
       // If we're rendering the surfel as a point, simply update the corresponding pixel in the depth buffer as necessary.
 #if defined(__CUDACC__) && defined(__CUDA_ARCH__)
       atomicMin(&depthBuffer[locId], scaledZ);
 #else
       // Note: No synchronisation is needed for the CPU version because it's not parallelised.
-      if(scaledZ < depthBuffer[locId]) depthBuffer[locId] = scaledZ;
+      if (scaledZ < depthBuffer[locId]) depthBuffer[locId] = scaledZ;
 #endif
     }
   }
@@ -520,76 +551,84 @@ inline void update_depth_buffer_for_surfel(int surfelId, const TSurfel *surfels,
  * \param unstableSurfelZOffset       The z offset to apply to unstable surfels when trying to ensure that they are only rendered if there is no stable alternative.
  * \param surfelIndexImage            The index image.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_TEMPLATE_
-inline void update_index_image_for_surfel(int surfelId, const TSurfel *surfels, const Matrix4f& invT, const ITMIntrinsics& intrinsics,
-                                          int indexImageWidth, int indexImageHeight, int scaleFactor, const int *depthBuffer, bool useRadii,
-                                          UnstableSurfelRenderingMode unstableSurfelRenderingMode, float stableSurfelConfidence,
-                                          int unstableSurfelZOffset, unsigned int *surfelIndexImage)
-{
+inline void update_index_image_for_surfel(int surfelId,
+                                          const TSurfel *surfels,
+                                          const Matrix4f &invT,
+                                          const ITMIntrinsics &intrinsics,
+                                          int indexImageWidth,
+                                          int indexImageHeight,
+                                          int scaleFactor,
+                                          const int *depthBuffer,
+                                          bool useRadii,
+                                          UnstableSurfelRenderingMode unstableSurfelRenderingMode,
+                                          float stableSurfelConfidence,
+                                          int unstableSurfelZOffset,
+                                          unsigned int *surfelIndexImage) {
   const TSurfel surfel = surfels[surfelId];
 
   // Check whether the surfel is unstable. If it is, and we're not rendering unstable surfels, early out.
   bool unstableSurfel = surfel.confidence < stableSurfelConfidence;
-  if(unstableSurfel && unstableSurfelRenderingMode == USR_DONOTRENDER) return;
+  if (unstableSurfel && unstableSurfelRenderingMode == USR_DONOTRENDER) return;
 
   // If the projection of the surfel falls within the bounds of the index image:
   int locId, scaledZ;
   float z;
-  if(project_surfel_to_index_image(surfel, invT, intrinsics, indexImageWidth, indexImageHeight, scaleFactor, locId, z, scaledZ))
-  {
+  if (project_surfel_to_index_image(surfel,
+                                    invT,
+                                    intrinsics,
+                                    indexImageWidth,
+                                    indexImageHeight,
+                                    scaleFactor,
+                                    locId,
+                                    z,
+                                    scaledZ)) {
     // If the surfel's unstable and we're giving preference to stable surfels, add a z offset to ensure that
     // it will only be rendered if there's no stable alternative along the same ray.
-    if(unstableSurfel && unstableSurfelRenderingMode == USR_FAUTEDEMIEUX) scaledZ += unstableSurfelZOffset;
+    if (unstableSurfel && unstableSurfelRenderingMode == USR_FAUTEDEMIEUX) scaledZ += unstableSurfelZOffset;
 
     unsigned int surfelIdPlusOne = static_cast<unsigned int>(surfelId + 1);
 
-    if(useRadii)
-    {
+    if (useRadii) {
       // If we're rendering the surfel as a circle rather than a point, calculate the radius of the projected
       // surfel and its bounds within the index image.
       int cx, cy, minX, minY, maxX, maxY, projectedRadiusSquared;
       calculate_projected_surfel_bounds(
-        locId, indexImageWidth, indexImageHeight, intrinsics, surfel.radius, z,
-        cx, cy, projectedRadiusSquared, minX, minY, maxX, maxY
+          locId, indexImageWidth, indexImageHeight, intrinsics, surfel.radius, z,
+          cx, cy, projectedRadiusSquared, minX, minY, maxX, maxY
       );
 
       // Rasterise the circle into the index image, taking account of the depths in the pre-computed depth buffer.
-      for(int y = minY; y <= maxY; ++y)
-      {
+      for (int y = minY; y <= maxY; ++y) {
         int yOffset = y - cy;
         int yOffsetSquared = yOffset * yOffset;
 
-        for(int x = minX; x <= maxX; ++x)
-        {
+        for (int x = minX; x <= maxX; ++x) {
           int xOffset = x - cx;
           int xOffsetSquared = xOffset * xOffset;
-          if(xOffsetSquared + yOffsetSquared > projectedRadiusSquared) continue;
+          if (xOffsetSquared + yOffsetSquared > projectedRadiusSquared) continue;
 
           int offset = y * indexImageWidth + x;
 
-          if(depthBuffer[offset] == scaledZ)
-          {
+          if (depthBuffer[offset] == scaledZ) {
 #if defined(__CUDACC__) && defined(__CUDA_ARCH__)
             atomicMax(&surfelIndexImage[offset], surfelIdPlusOne);
 #else
             // Note: No synchronisation is needed for the CPU version because it's not parallelised.
-            if(surfelIdPlusOne > surfelIndexImage[offset]) surfelIndexImage[offset] = surfelIdPlusOne;
+            if (surfelIdPlusOne > surfelIndexImage[offset]) surfelIndexImage[offset] = surfelIdPlusOne;
 #endif
           }
         }
       }
-    }
-    else
-    {
+    } else {
       // If we're rendering the surfel as a point, simply update the corresponding pixel in the index image as necessary.
-      if(depthBuffer[locId] == scaledZ)
-      {
+      if (depthBuffer[locId] == scaledZ) {
 #if defined(__CUDACC__) && defined(__CUDA_ARCH__)
         atomicMax(&surfelIndexImage[locId], surfelIdPlusOne);
 #else
         // Note: No synchronisation is needed for the CPU version because it's not parallelised.
-        if(surfelIdPlusOne > surfelIndexImage[locId]) surfelIndexImage[locId] = surfelIdPlusOne;
+        if (surfelIdPlusOne > surfelIndexImage[locId]) surfelIndexImage[locId] = surfelIdPlusOne;
 #endif
       }
     }

@@ -8,27 +8,23 @@
 #include "CUDA/ITMSurfelVisualisationEngine_CUDA.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
-template <typename TSurfel>
+template<typename TSurfel>
 ITMSurfelVisualisationEngine<TSurfel> *
-ITMSurfelVisualisationEngineFactory<TSurfel>::make_surfel_visualisation_engine(ITMLibSettings::DeviceType deviceType)
-{
+ITMSurfelVisualisationEngineFactory<TSurfel>::make_surfel_visualisation_engine(ITMLibSettings::DeviceType deviceType) {
   ITMSurfelVisualisationEngine<TSurfel> *visualisationEngine = NULL;
 
-  if(deviceType == ITMLibSettings::DEVICE_CUDA)
-  {
+  if (deviceType == ITMLibSettings::DEVICE_CUDA) {
 #ifndef COMPILE_WITHOUT_CUDA
     visualisationEngine = new ITMSurfelVisualisationEngine_CUDA<TSurfel>;
 #else
-    throw std::runtime_error("Error: CUDA support not currently available. Reconfigure in CMake with the WITH_CUDA option set to on.");
+    throw std::runtime_error(
+        "Error: CUDA support not currently available. Reconfigure in CMake with the WITH_CUDA option set to on.");
 #endif
-  }
-  else
-  {
+  } else {
     visualisationEngine = new ITMSurfelVisualisationEngine_CPU<TSurfel>;
   }
 

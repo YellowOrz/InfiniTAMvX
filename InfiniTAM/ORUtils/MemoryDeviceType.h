@@ -5,8 +5,7 @@
 /**
  * \brief The values of this enumeration denote the different types of memory device on which code may be running.
  */
-enum MemoryDeviceType
-{
+enum MemoryDeviceType {
   MEMORYDEVICE_CPU,
   MEMORYDEVICE_CUDA
 };

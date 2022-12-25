@@ -73,7 +73,7 @@ typedef class ORUtils::Vector6<float> Vector6f;
 #endif
 
 #ifndef IS_EQUAL3
-#define IS_EQUAL3(a,b) (((a).x == (b).x) && ((a).y == (b).y) && ((a).z == (b).z))
+#define IS_EQUAL3(a, b) (((a).x == (b).x) && ((a).y == (b).y) && ((a).z == (b).z))
 #endif
 
 #else

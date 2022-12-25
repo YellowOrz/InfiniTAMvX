@@ -5,32 +5,33 @@
 
 #include "../CPU/ITMSceneReconstructionEngine_CPU.h"
 
-namespace ITMLib
-{
-    template<class TVoxel, class TIndex>
-    class ITMSceneReconstructionEngine_Metal : public ITMSceneReconstructionEngine_CPU<TVoxel,TIndex>
-    {};
-    
-    template<class TVoxel>
-    class ITMSceneReconstructionEngine_Metal<TVoxel,ITMVoxelBlockHash> : public ITMSceneReconstructionEngine_CPU<TVoxel,ITMVoxelBlockHash>
-    {
-    private:
-        void BuildAllocAndVisibleType(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
-                                      const ITMTrackingState *trackingState, const ITMRenderState *renderState);
-    public:
-        void IntegrateIntoScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
-                                const ITMRenderState *renderState);
-        
-        void AllocateSceneFromDepth(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
-                                    const ITMTrackingState *trackingState, const ITMRenderState *renderState,
-                                    bool onlyUpdateVisibleList = false, bool resetVisibleList = false);
-        
-        ITMSceneReconstructionEngine_Metal(void);
-    };
-    
-    template<class TVoxel>
-    class ITMSceneReconstructionEngine_Metal<TVoxel,ITMPlainVoxelArray> : public ITMSceneReconstructionEngine_CPU<TVoxel,ITMPlainVoxelArray>
-    { };
+namespace ITMLib {
+template<class TVoxel, class TIndex>
+class ITMSceneReconstructionEngine_Metal : public ITMSceneReconstructionEngine_CPU<TVoxel, TIndex> {};
+
+template<class TVoxel>
+class ITMSceneReconstructionEngine_Metal<TVoxel, ITMVoxelBlockHash> : public ITMSceneReconstructionEngine_CPU<TVoxel,
+                                                                                                              ITMVoxelBlockHash> {
+ private:
+  void BuildAllocAndVisibleType(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
+                                const ITMTrackingState *trackingState, const ITMRenderState *renderState);
+ public:
+  void IntegrateIntoScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
+                          const ITMView *view,
+                          const ITMTrackingState *trackingState,
+                          const ITMRenderState *renderState);
+
+  void AllocateSceneFromDepth(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
+                              const ITMTrackingState *trackingState, const ITMRenderState *renderState,
+                              bool onlyUpdateVisibleList = false, bool resetVisibleList = false);
+
+  ITMSceneReconstructionEngine_Metal(void);
+};
+
+template<class TVoxel>
+class ITMSceneReconstructionEngine_Metal<TVoxel, ITMPlainVoxelArray> : public ITMSceneReconstructionEngine_CPU<TVoxel,
+                                                                                                               ITMPlainVoxelArray> {
+};
 }
 
 #endif

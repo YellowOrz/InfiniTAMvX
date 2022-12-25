@@ -7,19 +7,16 @@
 #include "CUDA/ITMViewBuilder_CUDA.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
-ITMViewBuilder *ITMViewBuilderFactory::MakeViewBuilder(const ITMRGBDCalib& calib, ITMLibSettings::DeviceType deviceType)
-{
+ITMViewBuilder *ITMViewBuilderFactory::MakeViewBuilder(const ITMRGBDCalib &calib,
+                                                       ITMLibSettings::DeviceType deviceType) {
   ITMViewBuilder *viewBuilder = NULL;
 
-  switch(deviceType)
-  {
-    case ITMLibSettings::DEVICE_CPU:
-      viewBuilder = new ITMViewBuilder_CPU(calib);
+  switch (deviceType) {
+    case ITMLibSettings::DEVICE_CPU:viewBuilder = new ITMViewBuilder_CPU(calib);
       break;
     case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA

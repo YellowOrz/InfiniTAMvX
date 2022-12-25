@@ -6,76 +6,66 @@
 #include "../../Utils/ITMMath.h"
 #include "../../../ORUtils/Image.h"
 
-namespace ITMLib
-{
-	class ITMIntensityHierarchyLevel
-	{
-	public:
-		int levelId;
+namespace ITMLib {
+class ITMIntensityHierarchyLevel {
+ public:
+  int levelId;
 
-		TrackerIterationType iterationType;
+  TrackerIterationType iterationType;
 
-		ORUtils::Image<float> *intensity_current;
-		ORUtils::Image<float> *intensity_prev;
-		ORUtils::Image<Vector2f> *gradients;
-		Vector4f intrinsics;
+  ORUtils::Image<float> *intensity_current;
+  ORUtils::Image<float> *intensity_prev;
+  ORUtils::Image<Vector2f> *gradients;
+  Vector4f intrinsics;
 
-		bool manageData;
+  bool manageData;
 
-		ITMIntensityHierarchyLevel(Vector2i imgSize, int levelId, TrackerIterationType iterationType,
-			MemoryDeviceType memoryType, bool skipAllocation = false)
-		{
-			this->manageData = !skipAllocation;
-			this->levelId = levelId;
-			this->iterationType = iterationType;
+  ITMIntensityHierarchyLevel(Vector2i imgSize, int levelId, TrackerIterationType iterationType,
+                             MemoryDeviceType memoryType, bool skipAllocation = false) {
+    this->manageData = !skipAllocation;
+    this->levelId = levelId;
+    this->iterationType = iterationType;
 
-			if (!skipAllocation)
-			{
-				this->intensity_current = new ORUtils::Image<float>(imgSize, memoryType);
-				this->intensity_prev = new ORUtils::Image<float>(imgSize, memoryType);
-			}
-			else
-			{
-				this->intensity_current = NULL;
-				this->intensity_prev = NULL;
-			}
+    if (!skipAllocation) {
+      this->intensity_current = new ORUtils::Image<float>(imgSize, memoryType);
+      this->intensity_prev = new ORUtils::Image<float>(imgSize, memoryType);
+    } else {
+      this->intensity_current = NULL;
+      this->intensity_prev = NULL;
+    }
 
-			this->gradients = new ORUtils::Image<Vector2f>(imgSize, memoryType);
-		}
+    this->gradients = new ORUtils::Image<Vector2f>(imgSize, memoryType);
+  }
 
-		void UpdateHostFromDevice()
-		{ 
-			if (!this->intensity_current || !this->intensity_prev)
-				throw std::runtime_error("ITMIntensityHierarchyLevel: did not set intensity images.");
+  void UpdateHostFromDevice() {
+    if (!this->intensity_current || !this->intensity_prev)
+      throw std::runtime_error("ITMIntensityHierarchyLevel: did not set intensity images.");
 
-			this->intensity_current->UpdateHostFromDevice();
-			this->intensity_prev->UpdateHostFromDevice();
-			this->gradients->UpdateHostFromDevice();
-		}
+    this->intensity_current->UpdateHostFromDevice();
+    this->intensity_prev->UpdateHostFromDevice();
+    this->gradients->UpdateHostFromDevice();
+  }
 
-		void UpdateDeviceFromHost()
-		{ 
-			if (!this->intensity_current || !this->intensity_prev)
-				throw std::runtime_error("ITMIntensityHierarchyLevel: did not set intensity images.");
+  void UpdateDeviceFromHost() {
+    if (!this->intensity_current || !this->intensity_prev)
+      throw std::runtime_error("ITMIntensityHierarchyLevel: did not set intensity images.");
 
-			this->intensity_current->UpdateDeviceFromHost();
-			this->intensity_prev->UpdateDeviceFromHost();
-			this->gradients->UpdateDeviceFromHost();
-		}
+    this->intensity_current->UpdateDeviceFromHost();
+    this->intensity_prev->UpdateDeviceFromHost();
+    this->gradients->UpdateDeviceFromHost();
+  }
 
-		~ITMIntensityHierarchyLevel(void)
-		{
-			if (manageData)
-			{
-				delete intensity_current;
-				delete intensity_prev;
-			}
+  ~ITMIntensityHierarchyLevel(void) {
+    if (manageData) {
+      delete intensity_current;
+      delete intensity_prev;
+    }
 
-			delete gradients;
-		}
+    delete gradients;
+  }
 
-		// Suppress the default copy constructor and assignment operator
-		ITMIntensityHierarchyLevel(const ITMIntensityHierarchyLevel&);
-		ITMIntensityHierarchyLevel& operator=(const ITMIntensityHierarchyLevel&);
-	};
+  // Suppress the default copy constructor and assignment operator
+  ITMIntensityHierarchyLevel(const ITMIntensityHierarchyLevel &);
+  ITMIntensityHierarchyLevel &operator=(const ITMIntensityHierarchyLevel &);
+};
 }

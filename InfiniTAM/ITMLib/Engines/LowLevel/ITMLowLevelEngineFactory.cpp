@@ -7,19 +7,15 @@
 #include "CUDA/ITMLowLevelEngine_CUDA.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
-ITMLowLevelEngine *ITMLowLevelEngineFactory::MakeLowLevelEngine(ITMLibSettings::DeviceType deviceType)
-{
+ITMLowLevelEngine *ITMLowLevelEngineFactory::MakeLowLevelEngine(ITMLibSettings::DeviceType deviceType) {
   ITMLowLevelEngine *lowLevelEngine = NULL;
 
-  switch(deviceType)
-  {
-    case ITMLibSettings::DEVICE_CPU:
-      lowLevelEngine = new ITMLowLevelEngine_CPU();
+  switch (deviceType) {
+    case ITMLibSettings::DEVICE_CPU:lowLevelEngine = new ITMLowLevelEngine_CPU();
       break;
     case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA

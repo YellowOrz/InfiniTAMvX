@@ -11,38 +11,37 @@ namespace InputSource {
 /**
  * \brief An instance of this class can be used to compose multiple image source engines sequentially.
  */
-class CompositeImageSourceEngine : public ImageSourceEngine
-{
+class CompositeImageSourceEngine : public ImageSourceEngine {
   //#################### PRIVATE VARIABLES ####################
-private:
+ private:
   /** The index of the current sub-engine. */
   mutable size_t m_curSubengineIndex;
 
   /** The sequence of image source engines from which the composite will yield images. */
-  std::vector<ImageSourceEngine*> m_subengines;
+  std::vector<ImageSourceEngine *> m_subengines;
 
   //#################### CONSTRUCTORS ####################
-public:
+ public:
   /**
    * \brief Constructs a composite image source engine.
    */
   CompositeImageSourceEngine();
 
   //#################### DESTRUCTOR ####################
-public:
+ public:
   /**
    * \brief Destroys the composite image source engine.
    */
   ~CompositeImageSourceEngine();
 
   //#################### COPY CONSTRUCTOR & ASSIGNMENT OPERATOR ####################
-private:
+ private:
   // Deliberately private and unimplemented.
-  CompositeImageSourceEngine(const CompositeImageSourceEngine&);
-  CompositeImageSourceEngine& operator=(const CompositeImageSourceEngine&);
+  CompositeImageSourceEngine(const CompositeImageSourceEngine &);
+  CompositeImageSourceEngine &operator=(const CompositeImageSourceEngine &);
 
   //#################### PUBLIC MEMBER FUNCTIONS ####################
-public:
+ public:
   /**
    * \brief Adds an image source engine to the composite.
    *
@@ -76,7 +75,7 @@ public:
   virtual bool hasMoreImages(void) const;
 
   //#################### PRIVATE MEMBER FUNCTIONS ####################
-private:
+ private:
   /**
    * \brief Advances to the sub-engine (if any) that can provide the next images.
    *

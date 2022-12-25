@@ -3,11 +3,11 @@
 #include "ITMSurfelSceneReconstructionEngine_CUDA.h"
 
 #ifdef _MSC_VER
-  // Suppress some VC++ warnings that are produced when including the Thrust headers.
-  #pragma warning(disable:4267)
+// Suppress some VC++ warnings that are produced when including the Thrust headers.
+#pragma warning(disable:4267)
 #else
-  // Suppress some GCC warnings that are produced when including the Thrust headers.
-  #pragma GCC diagnostic ignored "-Wunused-private-field"
+// Suppress some GCC warnings that are produced when including the Thrust headers.
+#pragma GCC diagnostic ignored "-Wunused-private-field"
 #endif
 
 #include <thrust/device_ptr.h>
@@ -16,168 +16,247 @@
 
 // Reenable the suppressed warnings for the rest of the translation unit.
 #ifdef _MSC_VER
-  #pragma warning(default:4267)
+#pragma warning(default:4267)
 #else
-  #pragma GCC diagnostic warning "-Wunused-private-field"
+#pragma GCC diagnostic warning "-Wunused-private-field"
 #endif
 
 #include "../Shared/ITMSurfelSceneReconstructionEngine_Shared.h"
 
 #define DEBUGGING 0
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### CUDA KERNELS ####################
 
-template <typename TSurfel>
-__global__ void ck_add_new_surfel(int pixelCount, Matrix4f T, int timestamp, const unsigned short *newPointsMask, const unsigned int *newPointsPrefixSum,
-                                  const Vector4f *vertexMap, const Vector3f *normalMap, const float *radiusMap, const Vector4u *colourMap,
-                                  int depthMapWidth, int depthMapHeight, int colourMapWidth, int colourMapHeight,
-                                  Matrix4f depthToRGB, Vector4f projParamsRGB, bool useGaussianSampleConfidence, float gaussianConfidenceSigma,
-                                  float maxSurfelRadius, TSurfel *newSurfels)
-{
+template<typename TSurfel>
+__global__ void ck_add_new_surfel(int pixelCount,
+                                  Matrix4f T,
+                                  int timestamp,
+                                  const unsigned short *newPointsMask,
+                                  const unsigned int *newPointsPrefixSum,
+                                  const Vector4f *vertexMap,
+                                  const Vector3f *normalMap,
+                                  const float *radiusMap,
+                                  const Vector4u *colourMap,
+                                  int depthMapWidth,
+                                  int depthMapHeight,
+                                  int colourMapWidth,
+                                  int colourMapHeight,
+                                  Matrix4f depthToRGB,
+                                  Vector4f projParamsRGB,
+                                  bool useGaussianSampleConfidence,
+                                  float gaussianConfidenceSigma,
+                                  float maxSurfelRadius,
+                                  TSurfel *newSurfels) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     add_new_surfel(
-      locId, T, timestamp, newPointsMask, newPointsPrefixSum, vertexMap, normalMap, radiusMap, colourMap,
-      depthMapWidth, depthMapHeight, colourMapWidth, colourMapHeight,
-      depthToRGB, projParamsRGB, useGaussianSampleConfidence, gaussianConfidenceSigma,
-      maxSurfelRadius, newSurfels
+        locId, T, timestamp, newPointsMask, newPointsPrefixSum, vertexMap, normalMap, radiusMap, colourMap,
+        depthMapWidth, depthMapHeight, colourMapWidth, colourMapHeight,
+        depthToRGB, projParamsRGB, useGaussianSampleConfidence, gaussianConfidenceSigma,
+        maxSurfelRadius, newSurfels
     );
   }
 }
 
-__global__ void ck_calculate_normal(int pixelCount, const Vector4f *vertexMap, int width, int height, Vector3f *normalMap)
-{
+__global__ void ck_calculate_normal(int pixelCount,
+                                    const Vector4f *vertexMap,
+                                    int width,
+                                    int height,
+                                    Vector3f *normalMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     calculate_normal(locId, vertexMap, width, height, normalMap);
   }
 }
 
-__global__ void ck_calculate_radius(int pixelCount, const float *depthMap, const Vector3f *normalMap, ITMIntrinsics intrinsics, float *radiusMap)
-{
+__global__ void ck_calculate_radius(int pixelCount,
+                                    const float *depthMap,
+                                    const Vector3f *normalMap,
+                                    ITMIntrinsics intrinsics,
+                                    float *radiusMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     calculate_radius(locId, depthMap, normalMap, intrinsics, radiusMap);
   }
 }
 
-__global__ void ck_calculate_vertex_position(int pixelCount, int width, ITMIntrinsics intrinsics, const float *depthMap, Vector4f *vertexMap)
-{
+__global__ void ck_calculate_vertex_position(int pixelCount,
+                                             int width,
+                                             ITMIntrinsics intrinsics,
+                                             const float *depthMap,
+                                             Vector4f *vertexMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     calculate_vertex_position(locId, width, intrinsics, depthMap, vertexMap);
   }
 }
 
-__global__ void ck_clear_merge_target(int pixelCount, unsigned int *mergeTargetMap)
-{
+__global__ void ck_clear_merge_target(int pixelCount, unsigned int *mergeTargetMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     clear_merge_target(locId, mergeTargetMap);
   }
 }
 
-__global__ void ck_clear_removal_mask_entry(int surfelCount, unsigned int *surfelRemovalMask)
-{
+__global__ void ck_clear_removal_mask_entry(int surfelCount, unsigned int *surfelRemovalMask) {
   int surfelId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(surfelId < surfelCount)
-  {
+  if (surfelId < surfelCount) {
     clear_removal_mask_entry(surfelId, surfelRemovalMask);
   }
 }
 
-template <typename TSurfel>
-__global__ void ck_find_corresponding_surfel(int pixelCount, Matrix4f invT, const float *depthMap, int depthMapWidth, const Vector3f *normalMap, const unsigned int *indexMap,
-                                             int supersamplingFactor, const TSurfel *surfels, unsigned int *correspondenceMap, unsigned short *newPointsMask)
-{
+template<typename TSurfel>
+__global__ void ck_find_corresponding_surfel(int pixelCount,
+                                             Matrix4f invT,
+                                             const float *depthMap,
+                                             int depthMapWidth,
+                                             const Vector3f *normalMap,
+                                             const unsigned int *indexMap,
+                                             int supersamplingFactor,
+                                             const TSurfel *surfels,
+                                             unsigned int *correspondenceMap,
+                                             unsigned short *newPointsMask) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
-    find_corresponding_surfel(locId, invT, depthMap, depthMapWidth, normalMap, indexMap, supersamplingFactor, surfels, correspondenceMap, newPointsMask);
+  if (locId < pixelCount) {
+    find_corresponding_surfel(locId,
+                              invT,
+                              depthMap,
+                              depthMapWidth,
+                              normalMap,
+                              indexMap,
+                              supersamplingFactor,
+                              surfels,
+                              correspondenceMap,
+                              newPointsMask);
   }
 }
 
-template <typename TSurfel>
-__global__ void ck_find_mergeable_surfel(int pixelCount, const unsigned int *indexImage, int indexImageWidth, int indexImageHeight, const unsigned int *correspondenceMap,
-                                         const TSurfel *surfels, float stableSurfelConfidence, float maxMergeDist, float maxMergeAngle, float minRadiusOverlapFactor,
-                                         unsigned int *mergeTargetMap)
-{
+template<typename TSurfel>
+__global__ void ck_find_mergeable_surfel(int pixelCount,
+                                         const unsigned int *indexImage,
+                                         int indexImageWidth,
+                                         int indexImageHeight,
+                                         const unsigned int *correspondenceMap,
+                                         const TSurfel *surfels,
+                                         float stableSurfelConfidence,
+                                         float maxMergeDist,
+                                         float maxMergeAngle,
+                                         float minRadiusOverlapFactor,
+                                         unsigned int *mergeTargetMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
-    find_mergeable_surfel(locId, indexImage, indexImageWidth, indexImageHeight, correspondenceMap, surfels, stableSurfelConfidence, maxMergeDist, maxMergeAngle, minRadiusOverlapFactor, mergeTargetMap);
+  if (locId < pixelCount) {
+    find_mergeable_surfel(locId,
+                          indexImage,
+                          indexImageWidth,
+                          indexImageHeight,
+                          correspondenceMap,
+                          surfels,
+                          stableSurfelConfidence,
+                          maxMergeDist,
+                          maxMergeAngle,
+                          minRadiusOverlapFactor,
+                          mergeTargetMap);
   }
 }
 
-template <typename TSurfel>
-__global__ void ck_fuse_matched_point(int pixelCount, const unsigned int *correspondenceMap, Matrix4f T, int timestamp,
-                                      const Vector4f *vertexMap, const Vector3f *normalMap, const float *radiusMap, const Vector4u *colourMap,
-                                      int depthMapWidth, int depthMapHeight, int colourMapWidth, int colourMapHeight,
-                                      Matrix4f depthToRGB, Vector4f projParamsRGB, float deltaRadius,
-                                      bool useGaussianSampleConfidence, float gaussianConfidenceSigma, float maxSurfelRadius,
-                                      TSurfel *surfels)
-{
+template<typename TSurfel>
+__global__ void ck_fuse_matched_point(int pixelCount,
+                                      const unsigned int *correspondenceMap,
+                                      Matrix4f T,
+                                      int timestamp,
+                                      const Vector4f *vertexMap,
+                                      const Vector3f *normalMap,
+                                      const float *radiusMap,
+                                      const Vector4u *colourMap,
+                                      int depthMapWidth,
+                                      int depthMapHeight,
+                                      int colourMapWidth,
+                                      int colourMapHeight,
+                                      Matrix4f depthToRGB,
+                                      Vector4f projParamsRGB,
+                                      float deltaRadius,
+                                      bool useGaussianSampleConfidence,
+                                      float gaussianConfidenceSigma,
+                                      float maxSurfelRadius,
+                                      TSurfel *surfels) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     fuse_matched_point(
-      locId, correspondenceMap, T, timestamp, vertexMap, normalMap, radiusMap, colourMap, depthMapWidth, depthMapHeight, colourMapWidth, colourMapHeight,
-      depthToRGB, projParamsRGB, deltaRadius, useGaussianSampleConfidence, gaussianConfidenceSigma, maxSurfelRadius, surfels
+        locId,
+        correspondenceMap,
+        T,
+        timestamp,
+        vertexMap,
+        normalMap,
+        radiusMap,
+        colourMap,
+        depthMapWidth,
+        depthMapHeight,
+        colourMapWidth,
+        colourMapHeight,
+        depthToRGB,
+        projParamsRGB,
+        deltaRadius,
+        useGaussianSampleConfidence,
+        gaussianConfidenceSigma,
+        maxSurfelRadius,
+        surfels
     );
   }
 }
 
-template <typename TSurfel>
-__global__ void ck_mark_for_removal_if_unstable(int surfelCount, const TSurfel *surfels, int timestamp, float stableSurfelConfidence,
-                                                int unstableSurfelPeriod, unsigned int *surfelRemovalMask)
-{
+template<typename TSurfel>
+__global__ void ck_mark_for_removal_if_unstable(int surfelCount,
+                                                const TSurfel *surfels,
+                                                int timestamp,
+                                                float stableSurfelConfidence,
+                                                int unstableSurfelPeriod,
+                                                unsigned int *surfelRemovalMask) {
   int surfelId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(surfelId < surfelCount)
-  {
-    mark_for_removal_if_unstable(surfelId, surfels, timestamp, stableSurfelConfidence, unstableSurfelPeriod, surfelRemovalMask);
+  if (surfelId < surfelCount) {
+    mark_for_removal_if_unstable(surfelId,
+                                 surfels,
+                                 timestamp,
+                                 stableSurfelConfidence,
+                                 unstableSurfelPeriod,
+                                 surfelRemovalMask);
   }
 }
 
-template <typename TSurfel>
-__global__ void ck_perform_surfel_merge(int pixelCount, unsigned int *mergeTargetMap, TSurfel *surfels, unsigned int *surfelRemovalMask, const unsigned int *indexImage,
-                                        float maxSurfelRadius)
-{
+template<typename TSurfel>
+__global__ void ck_perform_surfel_merge(int pixelCount,
+                                        unsigned int *mergeTargetMap,
+                                        TSurfel *surfels,
+                                        unsigned int *surfelRemovalMask,
+                                        const unsigned int *indexImage,
+                                        float maxSurfelRadius) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     perform_surfel_merge(locId, mergeTargetMap, surfels, surfelRemovalMask, indexImage, maxSurfelRadius);
   }
 }
 
-__global__ void ck_prevent_merge_chain(int pixelCount, unsigned int *mergeTargetMap)
-{
+__global__ void ck_prevent_merge_chain(int pixelCount, unsigned int *mergeTargetMap) {
   int locId = threadIdx.x + blockDim.x * blockIdx.x;
-  if(locId < pixelCount)
-  {
+  if (locId < pixelCount) {
     prevent_merge_chain(locId, mergeTargetMap);
   }
 }
 
 //#################### CONSTRUCTORS ####################
 
-template <typename TSurfel>
-ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::ITMSurfelSceneReconstructionEngine_CUDA(const Vector2i& depthImageSize)
-: ITMSurfelSceneReconstructionEngine<TSurfel>(depthImageSize)
-{}
+template<typename TSurfel>
+ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::ITMSurfelSceneReconstructionEngine_CUDA(const Vector2i &depthImageSize)
+    : ITMSurfelSceneReconstructionEngine<TSurfel>(depthImageSize) {}
 
 //#################### PRIVATE MEMBER FUNCTIONS ####################
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::AddNewSurfels(ITMSurfelScene<TSurfel> *scene, const ITMView *view, const ITMTrackingState *trackingState) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::AddNewSurfels(ITMSurfelScene<TSurfel> *scene,
+                                                                     const ITMView *view,
+                                                                     const ITMTrackingState *trackingState) const {
   // Calculate the prefix sum of the new points mask.
   const unsigned short *newPointsMask = this->m_newPointsMaskMB->GetData(MEMORYDEVICE_CUDA);
   unsigned int *newPointsPrefixSum = this->m_newPointsPrefixSumMB->GetData(MEMORYDEVICE_CUDA);
@@ -191,34 +270,35 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::AddNewSurfels(ITMSurfelSc
 #endif
 
   // Add the new surfels to the scene.
-  const size_t newSurfelCount = static_cast<size_t>(this->m_newPointsPrefixSumMB->GetElement(pixelCount, MEMORYDEVICE_CUDA));
+  const size_t
+      newSurfelCount = static_cast<size_t>(this->m_newPointsPrefixSumMB->GetElement(pixelCount, MEMORYDEVICE_CUDA));
   TSurfel *newSurfels = scene->AllocateSurfels(newSurfelCount);
-  const ITMSurfelSceneParams& sceneParams = scene->GetParams();
-  if(newSurfels == NULL) return;
+  const ITMSurfelSceneParams &sceneParams = scene->GetParams();
+  if (newSurfels == NULL) return;
 
   int threadsPerBlock = 256;
   int numBlocks = (pixelCount + threadsPerBlock - 1) / threadsPerBlock;
 
-  ck_add_new_surfel<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    trackingState->pose_d->GetInvM(),
-    this->m_timestamp,
-    newPointsMask,
-    newPointsPrefixSum,
-    this->m_vertexMapMB->GetData(MEMORYDEVICE_CUDA),
-    this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
-    this->m_radiusMapMB->GetData(MEMORYDEVICE_CUDA),
-    view->rgb->GetData(MEMORYDEVICE_CUDA),
-    view->depth->noDims.x,
-    view->depth->noDims.y,
-    view->rgb->noDims.x,
-    view->rgb->noDims.y,
-    view->calib.trafo_rgb_to_depth.calib_inv,
-    view->calib.intrinsics_rgb.projectionParamsSimple.all,
-    sceneParams.useGaussianSampleConfidence,
-    sceneParams.gaussianConfidenceSigma,
-    sceneParams.maxSurfelRadius,
-    newSurfels
+  ck_add_new_surfel<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          trackingState->pose_d->GetInvM(),
+          this->m_timestamp,
+          newPointsMask,
+          newPointsPrefixSum,
+          this->m_vertexMapMB->GetData(MEMORYDEVICE_CUDA),
+          this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
+          this->m_radiusMapMB->GetData(MEMORYDEVICE_CUDA),
+          view->rgb->GetData(MEMORYDEVICE_CUDA),
+          view->depth->noDims.x,
+          view->depth->noDims.y,
+          view->rgb->noDims.x,
+          view->rgb->noDims.y,
+          view->calib.trafo_rgb_to_depth.calib_inv,
+          view->calib.intrinsics_rgb.projectionParamsSimple.all,
+          sceneParams.useGaussianSampleConfidence,
+          sceneParams.gaussianConfidenceSigma,
+          sceneParams.maxSurfelRadius,
+          newSurfels
   );
   ORcudaKernelCheck;
 
@@ -227,26 +307,27 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::AddNewSurfels(ITMSurfelSc
 #endif
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::FindCorrespondingSurfels(const ITMSurfelScene<TSurfel> *scene, const ITMView *view, const ITMTrackingState *trackingState,
-                                                                                const ITMSurfelRenderState *renderState) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::FindCorrespondingSurfels(const ITMSurfelScene<TSurfel> *scene,
+                                                                                const ITMView *view,
+                                                                                const ITMTrackingState *trackingState,
+                                                                                const ITMSurfelRenderState *renderState) const {
   const int pixelCount = static_cast<int>(view->depth->dataSize);
 
   int threadsPerBlock = 256;
   int numBlocks = (pixelCount + threadsPerBlock - 1) / threadsPerBlock;
 
-  ck_find_corresponding_surfel<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    trackingState->pose_d->GetM(),
-    view->depth->GetData(MEMORYDEVICE_CUDA),
-    view->depth->noDims.x,
-    this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
-    renderState->GetIndexImageSuper()->GetData(MEMORYDEVICE_CUDA),
-    scene->GetParams().supersamplingFactor,
-    scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA),
-    this->m_correspondenceMapMB->GetData(MEMORYDEVICE_CUDA),
-    this->m_newPointsMaskMB->GetData(MEMORYDEVICE_CUDA)
+  ck_find_corresponding_surfel<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          trackingState->pose_d->GetM(),
+          view->depth->GetData(MEMORYDEVICE_CUDA),
+          view->depth->noDims.x,
+          this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
+          renderState->GetIndexImageSuper()->GetData(MEMORYDEVICE_CUDA),
+          scene->GetParams().supersamplingFactor,
+          scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA),
+          this->m_correspondenceMapMB->GetData(MEMORYDEVICE_CUDA),
+          this->m_newPointsMaskMB->GetData(MEMORYDEVICE_CUDA)
   );
   ORcudaKernelCheck;
 
@@ -256,49 +337,49 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::FindCorrespondingSurfels(
 #endif
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::FuseMatchedPoints(ITMSurfelScene<TSurfel> *scene, const ITMView *view, const ITMTrackingState *trackingState) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::FuseMatchedPoints(ITMSurfelScene<TSurfel> *scene,
+                                                                         const ITMView *view,
+                                                                         const ITMTrackingState *trackingState) const {
   const int pixelCount = static_cast<int>(view->depth->dataSize);
 
   int threadsPerBlock = 256;
   int numBlocks = (pixelCount + threadsPerBlock - 1) / threadsPerBlock;
 
-  const ITMSurfelSceneParams& sceneParams = scene->GetParams();
+  const ITMSurfelSceneParams &sceneParams = scene->GetParams();
 
-  ck_fuse_matched_point<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    this->m_correspondenceMapMB->GetData(MEMORYDEVICE_CUDA),
-    trackingState->pose_d->GetInvM(),
-    this->m_timestamp,
-    this->m_vertexMapMB->GetData(MEMORYDEVICE_CUDA),
-    this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
-    this->m_radiusMapMB->GetData(MEMORYDEVICE_CUDA),
-    view->rgb->GetData(MEMORYDEVICE_CUDA),
-    view->depth->noDims.x,
-    view->depth->noDims.y,
-    view->rgb->noDims.x,
-    view->rgb->noDims.y,
-    view->calib.trafo_rgb_to_depth.calib_inv,
-    view->calib.intrinsics_rgb.projectionParamsSimple.all,
-    sceneParams.deltaRadius,
-    sceneParams.useGaussianSampleConfidence,
-    sceneParams.gaussianConfidenceSigma,
-    sceneParams.maxSurfelRadius,
-    scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA)
+  ck_fuse_matched_point<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          this->m_correspondenceMapMB->GetData(MEMORYDEVICE_CUDA),
+          trackingState->pose_d->GetInvM(),
+          this->m_timestamp,
+          this->m_vertexMapMB->GetData(MEMORYDEVICE_CUDA),
+          this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA),
+          this->m_radiusMapMB->GetData(MEMORYDEVICE_CUDA),
+          view->rgb->GetData(MEMORYDEVICE_CUDA),
+          view->depth->noDims.x,
+          view->depth->noDims.y,
+          view->rgb->noDims.x,
+          view->rgb->noDims.y,
+          view->calib.trafo_rgb_to_depth.calib_inv,
+          view->calib.intrinsics_rgb.projectionParamsSimple.all,
+          sceneParams.deltaRadius,
+          sceneParams.useGaussianSampleConfidence,
+          sceneParams.gaussianConfidenceSigma,
+          sceneParams.maxSurfelRadius,
+          scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA)
   );
   ORcudaKernelCheck;
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MarkBadSurfels(ITMSurfelScene<TSurfel> *scene) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MarkBadSurfels(ITMSurfelScene<TSurfel> *scene) const {
   const int surfelCount = static_cast<int>(scene->GetSurfelCount());
 
   // If the scene is empty, early out.
-  if(surfelCount == 0) return;
+  if (surfelCount == 0) return;
 
-  const ITMSurfelSceneParams& sceneParams = scene->GetParams();
+  const ITMSurfelSceneParams &sceneParams = scene->GetParams();
   unsigned int *surfelRemovalMask = this->m_surfelRemovalMaskMB->GetData(MEMORYDEVICE_CUDA);
   TSurfel *surfels = scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA);
 
@@ -306,20 +387,20 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MarkBadSurfels(ITMSurfelS
   int numBlocks = (surfelCount + threadsPerBlock - 1) / threadsPerBlock;
 
   // Clear the surfel removal mask.
-  ck_clear_removal_mask_entry<<<numBlocks,threadsPerBlock>>>(
-    surfelCount,
-    surfelRemovalMask
+  ck_clear_removal_mask_entry<<<numBlocks, threadsPerBlock>>>(
+      surfelCount,
+          surfelRemovalMask
   );
   ORcudaKernelCheck;
 
   // Mark long-term unstable surfels for removal.
-  ck_mark_for_removal_if_unstable<<<numBlocks,threadsPerBlock>>>(
-    surfelCount,
-    surfels,
-    this->m_timestamp,
-    sceneParams.stableSurfelConfidence,
-    sceneParams.unstableSurfelPeriod,
-    surfelRemovalMask
+  ck_mark_for_removal_if_unstable<<<numBlocks, threadsPerBlock>>>(
+      surfelCount,
+          surfels,
+          this->m_timestamp,
+          sceneParams.stableSurfelConfidence,
+          sceneParams.unstableSurfelPeriod,
+          surfelRemovalMask
   );
   ORcudaKernelCheck;
 
@@ -329,16 +410,16 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MarkBadSurfels(ITMSurfelS
 #endif
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MergeSimilarSurfels(ITMSurfelScene<TSurfel> *scene, const ITMSurfelRenderState *renderState) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MergeSimilarSurfels(ITMSurfelScene<TSurfel> *scene,
+                                                                           const ITMSurfelRenderState *renderState) const {
   const unsigned int *correspondenceMap = this->m_correspondenceMapMB->GetData(MEMORYDEVICE_CUDA);
   const unsigned int *indexImage = renderState->GetIndexImage()->GetData(MEMORYDEVICE_CUDA);
   const int indexImageHeight = renderState->GetIndexImage()->noDims.y;
   const int indexImageWidth = renderState->GetIndexImage()->noDims.x;
   unsigned int *mergeTargetMap = this->m_mergeTargetMapMB->GetData(MEMORYDEVICE_CUDA);
   const int pixelCount = static_cast<int>(renderState->GetIndexImage()->dataSize);
-  const ITMSurfelSceneParams& sceneParams = scene->GetParams();
+  const ITMSurfelSceneParams &sceneParams = scene->GetParams();
   TSurfel *surfels = scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA);
   unsigned int *surfelRemovalMask = this->m_surfelRemovalMaskMB->GetData(MEMORYDEVICE_CUDA);
 
@@ -346,40 +427,40 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::MergeSimilarSurfels(ITMSu
   int threadsPerBlock = 256;
   int numBlocks = (pixelCount + threadsPerBlock - 1) / threadsPerBlock;
 
-  ck_clear_merge_target<<<numBlocks,threadsPerBlock>>>(pixelCount, mergeTargetMap);
+  ck_clear_merge_target<<<numBlocks, threadsPerBlock>>>(pixelCount, mergeTargetMap);
   ORcudaKernelCheck;
 
   // Find pairs of surfels that can be merged.
-  ck_find_mergeable_surfel<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    indexImage,
-    indexImageWidth,
-    indexImageHeight,
-    correspondenceMap,
-    surfels,
-    sceneParams.stableSurfelConfidence,
-    sceneParams.maxMergeDist,
-    sceneParams.maxMergeAngle,
-    sceneParams.minRadiusOverlapFactor,
-    mergeTargetMap
+  ck_find_mergeable_surfel<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          indexImage,
+          indexImageWidth,
+          indexImageHeight,
+          correspondenceMap,
+          surfels,
+          sceneParams.stableSurfelConfidence,
+          sceneParams.maxMergeDist,
+          sceneParams.maxMergeAngle,
+          sceneParams.minRadiusOverlapFactor,
+          mergeTargetMap
   );
   ORcudaKernelCheck;
 
   // Prevent any merge chains.
-  ck_prevent_merge_chain<<<numBlocks,threadsPerBlock>>>(pixelCount, mergeTargetMap);
+  ck_prevent_merge_chain<<<numBlocks, threadsPerBlock>>>(pixelCount, mergeTargetMap);
   ORcudaKernelCheck;
 
   // Merge the relevant surfels.
-  ck_perform_surfel_merge<<<numBlocks,threadsPerBlock>>>(pixelCount, mergeTargetMap, surfels, surfelRemovalMask, indexImage, sceneParams.maxSurfelRadius);
+  ck_perform_surfel_merge<<<numBlocks, threadsPerBlock>>>(pixelCount, mergeTargetMap, surfels, surfelRemovalMask, indexImage, sceneParams.maxSurfelRadius);
   ORcudaKernelCheck;
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const ITMView *view, const ITMSurfelSceneParams& sceneParams) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const ITMView *view,
+                                                                          const ITMSurfelSceneParams &sceneParams) const {
   const float *depthMap = view->depth->GetData(MEMORYDEVICE_CUDA);
   const int height = view->depth->noDims.y;
-  const ITMIntrinsics& intrinsics = view->calib.intrinsics_d;
+  const ITMIntrinsics &intrinsics = view->calib.intrinsics_d;
   Vector3f *normalMap = this->m_normalMapMB->GetData(MEMORYDEVICE_CUDA);
   const int pixelCount = static_cast<int>(view->depth->dataSize);
   float *radiusMap = this->m_radiusMapMB->GetData(MEMORYDEVICE_CUDA);
@@ -390,12 +471,12 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const 
   int threadsPerBlock = 256;
   int numBlocks = (pixelCount + threadsPerBlock - 1) / threadsPerBlock;
 
-  ck_calculate_vertex_position<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    width,
-    intrinsics,
-    depthMap,
-    vertexMap
+  ck_calculate_vertex_position<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          width,
+          intrinsics,
+          depthMap,
+          vertexMap
   );
   ORcudaKernelCheck;
 
@@ -404,12 +485,12 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const 
 #endif
 
   // Calculate the normal map.
-  ck_calculate_normal<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    vertexMap,
-    width,
-    height,
-    normalMap
+  ck_calculate_normal<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          vertexMap,
+          width,
+          height,
+          normalMap
   );
   ORcudaKernelCheck;
 
@@ -418,12 +499,12 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const 
 #endif
 
   // Calculate the radius map.
-  ck_calculate_radius<<<numBlocks,threadsPerBlock>>>(
-    pixelCount,
-    depthMap,
-    normalMap,
-    intrinsics,
-    radiusMap
+  ck_calculate_radius<<<numBlocks, threadsPerBlock>>>(
+      pixelCount,
+          depthMap,
+          normalMap,
+          intrinsics,
+          radiusMap
   );
   ORcudaKernelCheck;
 
@@ -432,13 +513,12 @@ void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::PreprocessDepthMap(const 
 #endif
 }
 
-template <typename TSurfel>
-void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::RemoveMarkedSurfels(ITMSurfelScene<TSurfel> *scene) const
-{
+template<typename TSurfel>
+void ITMSurfelSceneReconstructionEngine_CUDA<TSurfel>::RemoveMarkedSurfels(ITMSurfelScene<TSurfel> *scene) const {
   const int surfelCount = static_cast<int>(scene->GetSurfelCount());
 
   // If the scene is empty, early out.
-  if(surfelCount == 0) return;
+  if (surfelCount == 0) return;
 
   unsigned int *surfelRemovalMask = this->m_surfelRemovalMaskMB->GetData(MEMORYDEVICE_CUDA);
   TSurfel *surfels = scene->GetSurfels()->GetData(MEMORYDEVICE_CUDA);

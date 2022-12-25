@@ -4,11 +4,10 @@
 
 #include "SlamGraphErrorFunction.h"
 
-namespace MiniSlamGraph 
-{
-	class LevenbergMarquardtMethod {
-	public:
-		static int minimize(const SlamGraphErrorFunction & function, SlamGraphErrorFunction::Parameters & initialization);
-	};
+namespace MiniSlamGraph {
+class LevenbergMarquardtMethod {
+ public:
+  static int minimize(const SlamGraphErrorFunction &function, SlamGraphErrorFunction::Parameters &initialization);
+};
 }
 

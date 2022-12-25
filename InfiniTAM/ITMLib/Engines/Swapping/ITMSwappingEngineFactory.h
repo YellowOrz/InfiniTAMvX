@@ -10,14 +10,12 @@
 #include "Metal/ITMSwappingEngine_Metal.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 /**
  * \brief This struct provides functions that can be used to construct swapping engines.
  */
-struct ITMSwappingEngineFactory
-{
+struct ITMSwappingEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
@@ -25,19 +23,16 @@ struct ITMSwappingEngineFactory
    *
    * \param deviceType  The device on which the swapping engine should operate.
    */
-  template <typename TVoxel, typename TIndex>
-  static ITMSwappingEngine<TVoxel,TIndex> *MakeSwappingEngine(ITMLibSettings::DeviceType deviceType)
-  {
-    ITMSwappingEngine<TVoxel,TIndex> *swappingEngine = NULL;
+  template<typename TVoxel, typename TIndex>
+  static ITMSwappingEngine<TVoxel, TIndex> *MakeSwappingEngine(ITMLibSettings::DeviceType deviceType) {
+    ITMSwappingEngine<TVoxel, TIndex> *swappingEngine = NULL;
 
-    switch(deviceType)
-    {
-      case ITMLibSettings::DEVICE_CPU:
-        swappingEngine = new ITMSwappingEngine_CPU<TVoxel,TIndex>;
+    switch (deviceType) {
+      case ITMLibSettings::DEVICE_CPU:swappingEngine = new ITMSwappingEngine_CPU<TVoxel, TIndex>;
         break;
       case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        swappingEngine = new ITMSwappingEngine_CUDA<TVoxel,TIndex>;
+        swappingEngine = new ITMSwappingEngine_CUDA<TVoxel, TIndex>;
 #endif
         break;
       case ITMLibSettings::DEVICE_METAL:

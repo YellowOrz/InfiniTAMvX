@@ -5,106 +5,104 @@
 #include "../../../ORUtils/Image.h"
 #include "../../Utils/ITMMath.h"
 
-namespace ITMLib
-{
+namespace ITMLib {
+/**
+ * \brief An instance of this class can be used to hold surfel index images.
+ */
+class ITMSurfelRenderState {
+  //#################### PRIVATE VARIABLES ####################
+ private:
+  /** The depth buffer for the normal index image. */
+  ORUtils::Image<int> *depthBuffer;
+
+  /** The depth buffer for the supersampled index image. */
+  ORUtils::Image<int> *depthBufferSuper;
+
+  /** The normal index image. */
+  ORUtils::Image<unsigned int> *surfelIndexImage;
+
+  /** The supersampled index image. */
+  ORUtils::Image<unsigned int> *surfelIndexImageSuper;
+
+  //#################### CONSTRUCTORS ####################
+ public:
   /**
-   * \brief An instance of this class can be used to hold surfel index images.
+   * \brief Constructs a surfel render state.
+   *
+   * \param indexImageSize      The size of the normal index image.
+   * \param supersamplingFactor The supersampling scaling factor (applied to each axis separately).
    */
-  class ITMSurfelRenderState
-  {
-    //#################### PRIVATE VARIABLES ####################
-  private:
-    /** The depth buffer for the normal index image. */
-    ORUtils::Image<int> *depthBuffer;
+  ITMSurfelRenderState(const Vector2i &indexImageSize, int supersamplingFactor);
 
-    /** The depth buffer for the supersampled index image. */
-    ORUtils::Image<int> *depthBufferSuper;
+  //#################### DESTRUCTOR ####################
+ public:
+  /**
+   * \brief Destroys the render state.
+   */
+  ~ITMSurfelRenderState();
 
-    /** The normal index image. */
-    ORUtils::Image<unsigned int> *surfelIndexImage;
+  //#################### COPY CONSTRUCTOR & ASSIGNMENT OPERATOR ####################
+ private:
+  // Deliberately private and unimplemented.
+  ITMSurfelRenderState(const ITMSurfelRenderState &);
+  ITMSurfelRenderState &operator=(const ITMSurfelRenderState &);
 
-    /** The supersampled index image. */
-    ORUtils::Image<unsigned int> *surfelIndexImageSuper;
+  //#################### PUBLIC MEMBER FUNCTIONS ####################
+ public:
+  /**
+   * \brief Gets the depth buffer for the normal index image.
+   *
+   * \return  The depth buffer for the normal index image.
+   */
+  ORUtils::Image<int> *GetDepthBuffer();
 
-    //#################### CONSTRUCTORS ####################
-  public:
-    /**
-     * \brief Constructs a surfel render state.
-     *
-     * \param indexImageSize      The size of the normal index image.
-     * \param supersamplingFactor The supersampling scaling factor (applied to each axis separately).
-     */
-    ITMSurfelRenderState(const Vector2i& indexImageSize, int supersamplingFactor);
+  /**
+   * \brief Gets the depth buffer for the normal index image.
+   *
+   * \return  The depth buffer for the normal index image.
+   */
+  const ORUtils::Image<int> *GetDepthBuffer() const;
 
-    //#################### DESTRUCTOR ####################
-  public:
-    /**
-     * \brief Destroys the render state.
-     */
-    ~ITMSurfelRenderState();
+  /**
+   * \brief Gets the depth buffer for the supersampled index image.
+   *
+   * \return  The depth buffer for the supersampled index image.
+   */
+  ORUtils::Image<int> *GetDepthBufferSuper();
 
-    //#################### COPY CONSTRUCTOR & ASSIGNMENT OPERATOR ####################
-  private:
-    // Deliberately private and unimplemented.
-    ITMSurfelRenderState(const ITMSurfelRenderState&);
-    ITMSurfelRenderState& operator=(const ITMSurfelRenderState&);
+  /**
+   * \brief Gets the depth buffer for the supersampled index image.
+   *
+   * \return  The depth buffer for the supersampled index image.
+   */
+  const ORUtils::Image<int> *GetDepthBufferSuper() const;
 
-    //#################### PUBLIC MEMBER FUNCTIONS ####################
-  public:
-    /**
-     * \brief Gets the depth buffer for the normal index image.
-     *
-     * \return  The depth buffer for the normal index image.
-     */
-    ORUtils::Image<int> *GetDepthBuffer();
+  /**
+   * \brief Gets the normal index image.
+   *
+   * \return  The normal index image.
+   */
+  ORUtils::Image<unsigned int> *GetIndexImage();
 
-    /**
-     * \brief Gets the depth buffer for the normal index image.
-     *
-     * \return  The depth buffer for the normal index image.
-     */
-    const ORUtils::Image<int> *GetDepthBuffer() const;
+  /**
+   * \brief Gets the normal index image.
+   *
+   * \return  The normal index image.
+   */
+  const ORUtils::Image<unsigned int> *GetIndexImage() const;
 
-    /**
-     * \brief Gets the depth buffer for the supersampled index image.
-     *
-     * \return  The depth buffer for the supersampled index image.
-     */
-    ORUtils::Image<int> *GetDepthBufferSuper();
+  /**
+   * \brief Gets the supersampled index image.
+   *
+   * \return  The supersampled index image.
+   */
+  ORUtils::Image<unsigned int> *GetIndexImageSuper();
 
-    /**
-     * \brief Gets the depth buffer for the supersampled index image.
-     *
-     * \return  The depth buffer for the supersampled index image.
-     */
-    const ORUtils::Image<int> *GetDepthBufferSuper() const;
-
-    /**
-     * \brief Gets the normal index image.
-     *
-     * \return  The normal index image.
-     */
-    ORUtils::Image<unsigned int> *GetIndexImage();
-
-    /**
-     * \brief Gets the normal index image.
-     *
-     * \return  The normal index image.
-     */
-    const ORUtils::Image<unsigned int> *GetIndexImage() const;
-
-    /**
-     * \brief Gets the supersampled index image.
-     *
-     * \return  The supersampled index image.
-     */
-    ORUtils::Image<unsigned int> *GetIndexImageSuper();
-
-    /**
-     * \brief Gets the supersampled index image.
-     *
-     * \return  The supersampled index image.
-     */
-    const ORUtils::Image<unsigned int> *GetIndexImageSuper() const;
-  };
+  /**
+   * \brief Gets the supersampled index image.
+   *
+   * \return  The supersampled index image.
+   */
+  const ORUtils::Image<unsigned int> *GetIndexImageSuper() const;
+};
 }

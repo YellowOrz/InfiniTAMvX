@@ -12,63 +12,62 @@
 #include "../../../ORUtils/HomkerMap.h"
 #include "../../../ORUtils/SVMClassifier.h"
 
-namespace ITMLib
-{
-	/** Base class for engine performing ICP based depth tracking.
-	    A typical example would be the original KinectFusion
-	    tracking algorithm.
-	*/
-	class ITMDepthTracker : public ITMTracker
-	{
-	private:
-		const ITMLowLevelEngine *lowLevelEngine;
-		ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;
-		ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy;
+namespace ITMLib {
+/** Base class for engine performing ICP based depth tracking.
+    A typical example would be the original KinectFusion
+    tracking algorithm.
+*/
+class ITMDepthTracker : public ITMTracker {
+ private:
+  const ITMLowLevelEngine *lowLevelEngine;
+  ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;
+  ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy;
 
-		ITMTrackingState *trackingState; const ITMView *view;
+  ITMTrackingState *trackingState;
+  const ITMView *view;
 
-		int *noIterationsPerLevel;
+  int *noIterationsPerLevel;
 
-		float terminationThreshold;
+  float terminationThreshold;
 
-		void PrepareForEvaluation();
-		void SetEvaluationParams(int levelId);
+  void PrepareForEvaluation();
+  void SetEvaluationParams(int levelId);
 
-		void ComputeDelta(float *delta, float *nabla, float *hessian, bool shortIteration) const;
-		void ApplyDelta(const Matrix4f & para_old, const float *delta, Matrix4f & para_new) const;
-		bool HasConverged(float *step) const;
+  void ComputeDelta(float *delta, float *nabla, float *hessian, bool shortIteration) const;
+  void ApplyDelta(const Matrix4f &para_old, const float *delta, Matrix4f &para_new) const;
+  bool HasConverged(float *step) const;
 
-		void SetEvaluationData(ITMTrackingState *trackingState, const ITMView *view);
+  void SetEvaluationData(ITMTrackingState *trackingState, const ITMView *view);
 
-		void UpdatePoseQuality(int noValidPoints_old, float *hessian_good, float f_old);
+  void UpdatePoseQuality(int noValidPoints_old, float *hessian_good, float f_old);
 
-		ORUtils::HomkerMap *map;
-		ORUtils::SVMClassifier *svmClassifier;
-		Vector4f mu, sigma;
-	protected:
-		float *distThresh;
+  ORUtils::HomkerMap *map;
+  ORUtils::SVMClassifier *svmClassifier;
+  Vector4f mu, sigma;
+ protected:
+  float *distThresh;
 
-		int levelId;
-		TrackerIterationType iterationType;
+  int levelId;
+  TrackerIterationType iterationType;
 
-		Matrix4f scenePose;
-		ITMSceneHierarchyLevel *sceneHierarchyLevel;
-		ITMTemplatedHierarchyLevel<ITMFloatImage> *viewHierarchyLevel;
+  Matrix4f scenePose;
+  ITMSceneHierarchyLevel *sceneHierarchyLevel;
+  ITMTemplatedHierarchyLevel<ITMFloatImage> *viewHierarchyLevel;
 
-		virtual int ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) = 0;
+  virtual int ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) = 0;
 
-	public:
-		void TrackCamera(ITMTrackingState *trackingState, const ITMView *view);
+ public:
+  void TrackCamera(ITMTrackingState *trackingState, const ITMView *view);
 
-		bool requiresColourRendering() const { return false; }
-		bool requiresDepthReliability() const { return false; }
-		bool requiresPointCloudRendering() const { return true; }
+  bool requiresColourRendering() const { return false; }
+  bool requiresDepthReliability() const { return false; }
+  bool requiresPointCloudRendering() const { return true; }
 
-		void SetupLevels(int numIterCoarse, int numIterFine, float distThreshCoarse, float distThreshFine);
+  void SetupLevels(int numIterCoarse, int numIterFine, float distThreshCoarse, float distThreshFine);
 
-		ITMDepthTracker(Vector2i imgSize, TrackerIterationType *trackingRegime, int noHierarchyLevels,
-			float terminationThreshold, float failureDetectorThreshold, 
-			const ITMLowLevelEngine *lowLevelEngine, MemoryDeviceType memoryType);
-		virtual ~ITMDepthTracker(void);
-	};
+  ITMDepthTracker(Vector2i imgSize, TrackerIterationType *trackingRegime, int noHierarchyLevels,
+                  float terminationThreshold, float failureDetectorThreshold,
+                  const ITMLowLevelEngine *lowLevelEngine, MemoryDeviceType memoryType);
+  virtual ~ITMDepthTracker(void);
+};
 }

@@ -6,8 +6,7 @@
 
 using namespace MiniSlamGraph;
 
-void PoseGraph::allocateGradientAndHessian(VariableLengthVector* & g, SparseBlockMatrix* & H) const
-{
-	H = new SparseRegularBlockMatrix<6, 6>();
-	g = new VariableLengthVector();
+void PoseGraph::allocateGradientAndHessian(VariableLengthVector *&g, SparseBlockMatrix *&H) const {
+  H = new SparseRegularBlockMatrix<6, 6>();
+  g = new VariableLengthVector();
 }

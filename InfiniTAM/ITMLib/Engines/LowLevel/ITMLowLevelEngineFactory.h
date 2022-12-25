@@ -5,14 +5,12 @@
 #include "Interface/ITMLowLevelEngine.h"
 #include "../../Utils/ITMLibSettings.h"
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 /**
  * \brief This struct provides functions that can be used to construct low-level engines.
  */
-struct ITMLowLevelEngineFactory
-{
+struct ITMLowLevelEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**

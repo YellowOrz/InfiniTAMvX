@@ -5,16 +5,14 @@
 #include "../../../Objects/Camera/ITMIntrinsics.h"
 #include "../../../Objects/Scene/ITMRepresentationAccess.h"
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### ENUMERATIONS ####################
 
 /**
  * \brief The values of this enumeration specify the different ways of computing the radius of the combined surfel when merging two input surfels.
  */
-enum RadiusCombinationMode
-{
+enum RadiusCombinationMode {
   /** Compute the radius of the combined surfel as a confidence-weighted average of the radii of the two input surfels. */
   RCM_CONFIDENCEWEIGHTEDAVERAGE,
 
@@ -24,8 +22,8 @@ enum RadiusCombinationMode
 
 //#################### HELPERS ####################
 
-_CPU_AND_GPU_CODE_ Vector3f transform_normal(const Matrix4f& T, const Vector3f& n);
-_CPU_AND_GPU_CODE_ Vector3f transform_point(const Matrix4f& T, const Vector3f& p);
+_CPU_AND_GPU_CODE_ Vector3f transform_normal(const Matrix4f &T, const Vector3f &n);
+_CPU_AND_GPU_CODE_ Vector3f transform_point(const Matrix4f &T, const Vector3f &p);
 
 /**
  * \brief Calculates a Gaussian-based confidence value for a depth sample.
@@ -39,8 +37,7 @@ _CPU_AND_GPU_CODE_ Vector3f transform_point(const Matrix4f& T, const Vector3f& p
  * \return        The calculated confidence value.
  */
 _CPU_AND_GPU_CODE_
-inline float calculate_gaussian_sample_confidence(int locId, int width, int height, float sigma)
-{
+inline float calculate_gaussian_sample_confidence(int locId, int width, int height, float sigma) {
   // Calculate the normalised radial distance of the depth sample from the camera centre.
   const int x = locId % width, y = locId / width;
   const float halfW = width / 2.0f, halfH = height / 2.0f;
@@ -48,7 +45,7 @@ inline float calculate_gaussian_sample_confidence(int locId, int width, int heig
   const float gamma = sqrtf((dx * dx + dy * dy) / (halfW * halfW + halfH * halfH));
 
   // Calculate and return the confidence value itself.
-  return expf(-gamma*gamma) / (2*sigma*sigma);
+  return expf(-gamma * gamma) / (2 * sigma * sigma);
 }
 
 /**
@@ -63,18 +60,20 @@ inline float calculate_gaussian_sample_confidence(int locId, int width, int heig
  * \return                The colour to assign to the surfel.
  */
 _CPU_AND_GPU_CODE_
-inline Vector3u compute_surfel_colour(const Vector3f& depthPos3D, const Matrix4f& depthToRGB, const Vector4f& projParamsRGB,
-                                      const Vector4u *colourMap, int colourMapWidth, int colourMapHeight)
-{
+inline Vector3u compute_surfel_colour(const Vector3f &depthPos3D,
+                                      const Matrix4f &depthToRGB,
+                                      const Vector4f &projParamsRGB,
+                                      const Vector4u *colourMap,
+                                      int colourMapWidth,
+                                      int colourMapHeight) {
   // Transform the surfel's position into live 3D colour coordinates and project it onto the colour map.
   Vector3f rgbPos3D = transform_point(depthToRGB, depthPos3D);
   int x = static_cast<int>(projParamsRGB.x * rgbPos3D.x / rgbPos3D.z + projParamsRGB.z + 0.5f);
   int y = static_cast<int>(projParamsRGB.y * rgbPos3D.y / rgbPos3D.z + projParamsRGB.w + 0.5f);
 
   // If the projected position is within the bounds of the colour map, read the colour value for the surfel; if not, default to black.
-  Vector3u colour((uchar)0);
-  if(x >= 0 && x < colourMapWidth && y >= 0 && y < colourMapHeight)
-  {
+  Vector3u colour((uchar) 0);
+  if (x >= 0 && x < colourMapWidth && y >= 0 && y < colourMapHeight) {
     colour = colourMap[y * colourMapWidth + x].toVector3();
   }
 
@@ -102,21 +101,42 @@ inline Vector3u compute_surfel_colour(const Vector3f& depthPos3D, const Matrix4f
  * \param timestamp                   The current timestamp (i.e. frame number).
  * \return                            The constructed surfel.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline TSurfel make_surfel(int locId, const Matrix4f& T, const Vector4f *vertexMap, const Vector3f *normalMap, const float *radiusMap, const Vector4u *colourMap,
-                           int depthMapWidth, int depthMapHeight, int colourMapWidth, int colourMapHeight, const Matrix4f& depthToRGB,
-                           const Vector4f& projParamsRGB, bool useGaussianSampleConfidence, float gaussianConfidenceSigma, float maxSurfelRadius,
-                           int timestamp)
-{
+inline TSurfel make_surfel(int locId,
+                           const Matrix4f &T,
+                           const Vector4f *vertexMap,
+                           const Vector3f *normalMap,
+                           const float *radiusMap,
+                           const Vector4u *colourMap,
+                           int depthMapWidth,
+                           int depthMapHeight,
+                           int colourMapWidth,
+                           int colourMapHeight,
+                           const Matrix4f &depthToRGB,
+                           const Vector4f &projParamsRGB,
+                           bool useGaussianSampleConfidence,
+                           float gaussianConfidenceSigma,
+                           float maxSurfelRadius,
+                           int timestamp) {
   TSurfel surfel;
   const Vector3f v = vertexMap[locId].toVector3();
   surfel.position = transform_point(T, v);
   surfel.normal = transform_normal(T, normalMap[locId]);
   surfel.radius = radiusMap[locId];
-  if(surfel.radius > maxSurfelRadius) surfel.radius = maxSurfelRadius;
-  SurfelColourManipulator<TSurfel::hasColourInformation>::write(surfel, compute_surfel_colour(v, depthToRGB, projParamsRGB, colourMap, colourMapWidth, colourMapHeight));
-  surfel.confidence = useGaussianSampleConfidence ? calculate_gaussian_sample_confidence(locId, depthMapWidth, depthMapHeight, gaussianConfidenceSigma) : 1.0f;
+  if (surfel.radius > maxSurfelRadius) surfel.radius = maxSurfelRadius;
+  SurfelColourManipulator<TSurfel::hasColourInformation>::write(surfel,
+                                                                compute_surfel_colour(v,
+                                                                                      depthToRGB,
+                                                                                      projParamsRGB,
+                                                                                      colourMap,
+                                                                                      colourMapWidth,
+                                                                                      colourMapHeight));
+  surfel.confidence = useGaussianSampleConfidence ? calculate_gaussian_sample_confidence(locId,
+                                                                                         depthMapWidth,
+                                                                                         depthMapHeight,
+                                                                                         gaussianConfidenceSigma)
+                                                  : 1.0f;
   surfel.timestamp = timestamp;
   return surfel;
 }
@@ -131,15 +151,17 @@ inline TSurfel make_surfel(int locId, const Matrix4f& T, const Vector4f *vertexM
  * \param radiusCombinationMode The way in which to compute the radius of the combined surfel.
  * \return                      The surfel resulting from the merge.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline TSurfel merge_surfels(const TSurfel& target, const TSurfel& source, float maxSurfelRadius, bool shouldMergeProperties, RadiusCombinationMode radiusCombinationMode)
-{
+inline TSurfel merge_surfels(const TSurfel &target,
+                             const TSurfel &source,
+                             float maxSurfelRadius,
+                             bool shouldMergeProperties,
+                             RadiusCombinationMode radiusCombinationMode) {
   TSurfel result = target;
   const float confidence = result.confidence + source.confidence;
 
-  if(shouldMergeProperties)
-  {
+  if (shouldMergeProperties) {
 #if DEBUG_CORRESPONDENCES
     result.newPosition = source.position;
     result.oldPosition = result.position;
@@ -152,29 +174,27 @@ inline TSurfel merge_surfels(const TSurfel& target, const TSurfel& source, float
     result.normal /= length(result.normal);
 
     // Compute the radius of the combined surfel.
-    switch(radiusCombinationMode)
-    {
-      case RCM_DISTANCE:
-        result.radius = length(target.position - source.position);
+    switch (radiusCombinationMode) {
+      case RCM_DISTANCE:result.radius = length(target.position - source.position);
         break;
       case RCM_CONFIDENCEWEIGHTEDAVERAGE:
-      default:
-        result.radius = (result.confidence * result.radius + source.confidence * source.radius) / confidence;
+      default:result.radius = (result.confidence * result.radius + source.confidence * source.radius) / confidence;
         break;
     }
 
     // Ensure that the radius of the combined surfel does not exceed the maximum permitted radius.
-    if(result.radius > maxSurfelRadius) result.radius = maxSurfelRadius;
+    if (result.radius > maxSurfelRadius) result.radius = maxSurfelRadius;
 
     // Compute a confidence-weighted average of the colours of the input surfels.
     Vector3u resultColour = SurfelColourManipulator<TSurfel::hasColourInformation>::read(result);
     Vector3u sourceColour = SurfelColourManipulator<TSurfel::hasColourInformation>::read(source);
-    Vector3u colour = ((result.confidence * resultColour.toFloat() + source.confidence * sourceColour.toFloat()) / confidence).toUChar();
+    Vector3u colour = ((result.confidence * resultColour.toFloat() + source.confidence * sourceColour.toFloat())
+        / confidence).toUChar();
     SurfelColourManipulator<TSurfel::hasColourInformation>::write(result, colour);
   }
 
   result.confidence = confidence;
-  if(source.timestamp > result.timestamp) result.timestamp = source.timestamp;
+  if (source.timestamp > result.timestamp) result.timestamp = source.timestamp;
 
   return result;
 }
@@ -187,8 +207,7 @@ inline TSurfel merge_surfels(const TSurfel& target, const TSurfel& source, float
  * \return  The result of applying the transformation to the normal vector.
  */
 _CPU_AND_GPU_CODE_
-inline Vector3f transform_normal(const Matrix4f& T, const Vector3f& n)
-{
+inline Vector3f transform_normal(const Matrix4f &T, const Vector3f &n) {
   Vector4f v(n.x, n.y, n.z, 0.0f);
   return (T * v).toVector3();
 }
@@ -201,8 +220,7 @@ inline Vector3f transform_normal(const Matrix4f& T, const Vector3f& n)
  * \return  The result of applying the transformation to the point vector.
  */
 _CPU_AND_GPU_CODE_
-inline Vector3f transform_point(const Matrix4f& T, const Vector3f& p)
-{
+inline Vector3f transform_point(const Matrix4f &T, const Vector3f &p) {
   Vector4f v(p.x, p.y, p.z, 1.0f);
   return (T * v).toVector3();
 }
@@ -220,17 +238,14 @@ inline Vector3f transform_point(const Matrix4f& T, const Vector3f& p)
  *                  valid depth value at that point, or false otherwise.
  */
 _CPU_AND_GPU_CODE_
-inline bool try_read_vertex(int x, int y, const Vector4f *vertexMap, int width, int height, Vector3f& result)
-{
+inline bool try_read_vertex(int x, int y, const Vector4f *vertexMap, int width, int height, Vector3f &result) {
   // If the (x,y) coordinates are within the bounds of the depth image:
-  if(x >= 0 && x < width && y >= 0 && y < height)
-  {
+  if (x >= 0 && x < width && y >= 0 && y < height) {
     // Look up the back-projected point in the point cloud.
     Vector4f v = vertexMap[y * width + x];
 
     // If it's valid (if its w component is > 0), return it.
-    if(v.w > 0.0f)
-    {
+    if (v.w > 0.0f) {
       result = v.toVector3();
       return true;
     }
@@ -264,21 +279,47 @@ inline bool try_read_vertex(int x, int y, const Vector4f *vertexMap, int width, 
  * \param maxSurfelRadius             The maximum radius a surfel is allowed to have.
  * \param newSurfels                  The start of the chunk of memory allocated for the new surfels in the surfel scene.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void add_new_surfel(int locId, const Matrix4f& T, int timestamp, const unsigned short *newPointsMask, const unsigned int *newPointsPrefixSum,
-                           const Vector4f *vertexMap, const Vector3f *normalMap, const float *radiusMap, const Vector4u *colourMap,
-                           int depthMapWidth, int depthMapHeight, int colourMapWidth, int colourMapHeight, const Matrix4f& depthToRGB,
-                           const Vector4f& projParamsRGB, bool useGaussianSampleConfidence, float gaussianConfidenceSigma, float maxSurfelRadius,
-                           TSurfel *newSurfels)
-{
+inline void add_new_surfel(int locId,
+                           const Matrix4f &T,
+                           int timestamp,
+                           const unsigned short *newPointsMask,
+                           const unsigned int *newPointsPrefixSum,
+                           const Vector4f *vertexMap,
+                           const Vector3f *normalMap,
+                           const float *radiusMap,
+                           const Vector4u *colourMap,
+                           int depthMapWidth,
+                           int depthMapHeight,
+                           int colourMapWidth,
+                           int colourMapHeight,
+                           const Matrix4f &depthToRGB,
+                           const Vector4f &projParamsRGB,
+                           bool useGaussianSampleConfidence,
+                           float gaussianConfidenceSigma,
+                           float maxSurfelRadius,
+                           TSurfel *newSurfels) {
   // If a new surfel is to be added for this pixel in the live 2D depth image:
-  if(newPointsMask[locId])
-  {
+  if (newPointsMask[locId]) {
     // Make the surfel.
     TSurfel surfel = make_surfel<TSurfel>(
-      locId, T, vertexMap, normalMap, radiusMap, colourMap, depthMapWidth, depthMapHeight, colourMapWidth, colourMapHeight,
-      depthToRGB, projParamsRGB, useGaussianSampleConfidence, gaussianConfidenceSigma, maxSurfelRadius, timestamp
+        locId,
+        T,
+        vertexMap,
+        normalMap,
+        radiusMap,
+        colourMap,
+        depthMapWidth,
+        depthMapHeight,
+        colourMapWidth,
+        colourMapHeight,
+        depthToRGB,
+        projParamsRGB,
+        useGaussianSampleConfidence,
+        gaussianConfidenceSigma,
+        maxSurfelRadius,
+        timestamp
     );
 
     // Write it into the correct position in the chunk of memory allocated for new surfels.
@@ -296,8 +337,7 @@ inline void add_new_surfel(int locId, const Matrix4f& T, int timestamp, const un
  * \param normalMap   A map in which to store the estimated surface normals.
  */
 _CPU_AND_GPU_CODE_
-inline void calculate_normal(int locId, const Vector4f *vertexMap, int width, int height, Vector3f *normalMap)
-{
+inline void calculate_normal(int locId, const Vector4f *vertexMap, int width, int height, Vector3f *normalMap) {
   // Note: This approach works for the moment, but there may be ways of improving it.
   int x = locId % width, y = locId / width;
 
@@ -310,13 +350,12 @@ inline void calculate_normal(int locId, const Vector4f *vertexMap, int width, in
   ok = ok && try_read_vertex(x, y - 2, vertexMap, width, height, ym);
   ok = ok && try_read_vertex(x, y + 2, vertexMap, width, height, yp);
 
-  if(ok)
-  {
+  if (ok) {
     Vector3f xdiff = xp - xm, ydiff = yp - ym;
     n = ORUtils::cross(ydiff, xdiff);
 
     float len = length(n);
-    if(len > 0.0f) n /= len;
+    if (len > 0.0f) n /= len;
   }
 
   normalMap[locId] = n;
@@ -332,13 +371,15 @@ inline void calculate_normal(int locId, const Vector4f *vertexMap, int width, in
  * \param radiusMap   A map into which to write the radii computed for the points in the live point cloud.
  */
 _CPU_AND_GPU_CODE_
-inline void calculate_radius(int locId, const float *depthMap, const Vector3f *normalMap, const ITMIntrinsics& intrinsics, float *radiusMap)
-{
+inline void calculate_radius(int locId,
+                             const float *depthMap,
+                             const Vector3f *normalMap,
+                             const ITMIntrinsics &intrinsics,
+                             float *radiusMap) {
   float r = 0.0f;
   Vector3f n = normalMap[locId];
 
-  if(length(n) > 0.0f)
-  {
+  if (length(n) > 0.0f) {
     // The intuition behind the radius calculation is that you want the surfel to fully cover a single pixel on the image plane (at distance f).
     // To do this, it needs to have a projected radius of sqrt(2). Projecting it down onto the image plane from distance d means multiplying its
     // radius by f / d, hence its unprojected radius should be sqrt(2) / (f / d) = sqrt(2) * d / f. Note that this is the radius calculation used
@@ -361,8 +402,11 @@ inline void calculate_radius(int locId, const float *depthMap, const Vector3f *n
  * \param vertexMap   A map in which to store the back-projections of the pixels in the live 2D depth image.
  */
 _CPU_AND_GPU_CODE_
-inline void calculate_vertex_position(int locId, int width, const ITMIntrinsics& intrinsics, const float *depthMap, Vector4f *vertexMap)
-{
+inline void calculate_vertex_position(int locId,
+                                      int width,
+                                      const ITMIntrinsics &intrinsics,
+                                      const float *depthMap,
+                                      Vector4f *vertexMap) {
   /*
   v(~u~) = D(~u~) K^{-1} (~u~^T,1)^T
          = D(~u~) (fx 0 px)^{-1} (ux) = D(~u~) ((ux - px) / fx)
@@ -374,13 +418,13 @@ inline void calculate_vertex_position(int locId, int width, const ITMIntrinsics&
 
   const float depth = depthMap[locId];
   const float EPSILON = 1e-3f;
-  if(fabs(depth + 1) > EPSILON) // i.e. if(depth != -1)
+  if (fabs(depth + 1) > EPSILON) // i.e. if(depth != -1)
   {
     value = Vector4f(
-      depth * (ux - intrinsics.projectionParamsSimple.px) / intrinsics.projectionParamsSimple.fx,
-      depth * (uy - intrinsics.projectionParamsSimple.py) / intrinsics.projectionParamsSimple.fy,
-      depth,
-      1.0f
+        depth * (ux - intrinsics.projectionParamsSimple.px) / intrinsics.projectionParamsSimple.fx,
+        depth * (uy - intrinsics.projectionParamsSimple.py) / intrinsics.projectionParamsSimple.fy,
+        depth,
+        1.0f
     );
   }
 
@@ -394,8 +438,7 @@ inline void calculate_vertex_position(int locId, int width, const ITMIntrinsics&
  * \param mergeTargetMap  The merge target map.
  */
 _CPU_AND_GPU_CODE_
-inline void clear_merge_target(int locId, unsigned int *mergeTargetMap)
-{
+inline void clear_merge_target(int locId, unsigned int *mergeTargetMap) {
   mergeTargetMap[locId] = 0;
 }
 
@@ -406,8 +449,7 @@ inline void clear_merge_target(int locId, unsigned int *mergeTargetMap)
  * \param surfelRemovalMask   A mask used to indicate which surfels should be removed in the next removal pass.
  */
 _CPU_AND_GPU_CODE_
-inline void clear_removal_mask_entry(int surfelId, unsigned int *surfelRemovalMask)
-{
+inline void clear_removal_mask_entry(int surfelId, unsigned int *surfelRemovalMask) {
   surfelRemovalMask[surfelId] = 0;
 }
 
@@ -427,16 +469,22 @@ inline void clear_removal_mask_entry(int surfelId, unsigned int *surfelRemovalMa
  * \param correspondenceMap     The correspondence map, each pixel of which indicates the surfel (if any) with which the relevant point in the live point cloud has been matched.
  * \param newPointsMask         A mask indicating the pixels in the live 2D depth image for which new surfels are to be added.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void find_corresponding_surfel(int locId, const Matrix4f& invT, const float *depthMap, int depthMapWidth, const Vector3f *normalMap, const unsigned int *indexImage,
-                                      int supersamplingFactor, const TSurfel *surfels, unsigned int *correspondenceMap, unsigned short *newPointsMask)
-{
+inline void find_corresponding_surfel(int locId,
+                                      const Matrix4f &invT,
+                                      const float *depthMap,
+                                      int depthMapWidth,
+                                      const Vector3f *normalMap,
+                                      const unsigned int *indexImage,
+                                      int supersamplingFactor,
+                                      const TSurfel *surfels,
+                                      unsigned int *correspondenceMap,
+                                      unsigned short *newPointsMask) {
   // If the depth pixel or normal is invalid, early out.
   const float EPSILON = 1e-3f;
   float depth = depthMap[locId];
-  if(fabs(depth + 1) <= EPSILON || length(normalMap[locId]) <= EPSILON)
-  {
+  if (fabs(depth + 1) <= EPSILON || length(normalMap[locId]) <= EPSILON) {
     correspondenceMap[locId] = 0;
     newPointsMask[locId] = 0;
     return;
@@ -446,23 +494,19 @@ inline void find_corresponding_surfel(int locId, const Matrix4f& invT, const flo
   int bestSurfelIndex = -1;
   float bestSurfelConfidence = 0.0f;
   int ux = locId % depthMapWidth, uy = locId / depthMapWidth;
-  for(int dy = 0; dy < supersamplingFactor; ++dy)
-  {
-    for(int dx = 0; dx < supersamplingFactor; ++dx)
-    {
+  for (int dy = 0; dy < supersamplingFactor; ++dy) {
+    for (int dx = 0; dx < supersamplingFactor; ++dx) {
       int x = ux * supersamplingFactor + dx;
       int y = uy * supersamplingFactor + dy;
       int surfelIndex = indexImage[y * depthMapWidth * supersamplingFactor + x] - 1;
-      if(surfelIndex >= 0)
-      {
+      if (surfelIndex >= 0) {
         // TODO: Make this slightly more sophisticated, as per the paper.
         TSurfel surfel = surfels[surfelIndex];
         Vector3f liveSurfelPos = transform_point(invT, surfel.position);
         float surfelDepth = liveSurfelPos.z;
 
         const float deltaDepth = 0.01f;
-        if(surfel.confidence > bestSurfelConfidence && fabs(surfelDepth - depth) <= deltaDepth)
-        {
+        if (surfel.confidence > bestSurfelConfidence && fabs(surfelDepth - depth) <= deltaDepth) {
           bestSurfelIndex = surfelIndex;
           bestSurfelConfidence = surfel.confidence;
         }
@@ -490,14 +534,22 @@ inline void find_corresponding_surfel(int locId, const Matrix4f& invT, const flo
  * \param minRadiusOverlapFactor  The minimum factor by which the radii of a pair of surfels must overlap if they are to be merged.
  * \param mergeTargetMap          The merge target map.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void find_mergeable_surfel(int locId, const unsigned int *indexImage, int indexImageWidth, int indexImageHeight, const unsigned int *correspondenceMap, const TSurfel *surfels,
-                                  float stableSurfelConfidence, float maxMergeDist, float maxMergeAngle, float minRadiusOverlapFactor, unsigned int *mergeTargetMap)
-{
+inline void find_mergeable_surfel(int locId,
+                                  const unsigned int *indexImage,
+                                  int indexImageWidth,
+                                  int indexImageHeight,
+                                  const unsigned int *correspondenceMap,
+                                  const TSurfel *surfels,
+                                  float stableSurfelConfidence,
+                                  float maxMergeDist,
+                                  float maxMergeAngle,
+                                  float minRadiusOverlapFactor,
+                                  unsigned int *mergeTargetMap) {
   // Look up the surfel at the current location. If there isn't one, early out.
   int surfelIndex = indexImage[locId] - 1;
-  if(surfelIndex == -1) return;
+  if (surfelIndex == -1) return;
   const TSurfel surfel = surfels[surfelIndex];
 
   // Determine whether the surfel itself can justify the merge (it needs to be stable and to have been updated this frame).
@@ -505,35 +557,36 @@ inline void find_mergeable_surfel(int locId, const unsigned int *indexImage, int
 
   // For each neighbour of the current location that has a higher raster index:
   int x = locId % indexImageWidth, y = locId / indexImageWidth;
-  int neighbourX[] = { x + 1, x - 1, x, x + 1 };
-  int neighbourY[] = { y, y + 1, y + 1, y + 1 };
+  int neighbourX[] = {x + 1, x - 1, x, x + 1};
+  int neighbourY[] = {y, y + 1, y + 1, y + 1};
   int bestMergeSource = -1;
 
-  for(int i = 0; i < 4; ++i)
-  {
+  for (int i = 0; i < 4; ++i) {
     // If the neighbour is out of range, continue.
-    if(neighbourX[i] >= indexImageWidth || neighbourY[i] >= indexImageHeight) continue;
+    if (neighbourX[i] >= indexImageWidth || neighbourY[i] >= indexImageHeight) continue;
 
     // Look up the surfel (if any) at the neighbour. If there isn't one, or it's the same as this surfel, continue.
     int neighbourLocId = neighbourY[i] * indexImageWidth + neighbourX[i];
     int neighbourSurfelIndex = indexImage[neighbourLocId] - 1;
-    if(neighbourSurfelIndex == -1 || neighbourSurfelIndex == surfelIndex) continue;
+    if (neighbourSurfelIndex == -1 || neighbourSurfelIndex == surfelIndex) continue;
     const TSurfel neighbourSurfel = surfels[neighbourSurfelIndex];
 
     // If the merge cannot be justified, continue.
-    if(!surfelCanJustify && !(neighbourSurfel.confidence >= stableSurfelConfidence && correspondenceMap[neighbourLocId] > 0)) continue;
+    if (!surfelCanJustify
+        && !(neighbourSurfel.confidence >= stableSurfelConfidence && correspondenceMap[neighbourLocId] > 0))
+      continue;
 
     // If the difference in positions and the angle between the normals are sufficiently small, and the radii significantly overlap, update the best merge source.
     float dist = length(surfel.position - neighbourSurfel.position);
     float angle = acosf(dot(surfel.normal, neighbourSurfel.normal));
-    if(dist <= maxMergeDist && angle <= maxMergeAngle && dist * minRadiusOverlapFactor <= surfel.radius + neighbourSurfel.radius)
-    {
+    if (dist <= maxMergeDist && angle <= maxMergeAngle
+        && dist * minRadiusOverlapFactor <= surfel.radius + neighbourSurfel.radius) {
       bestMergeSource = neighbourLocId;
     }
   }
 
   // If there was a best merge source, record the current location as its merge target.
-  if(bestMergeSource != -1) mergeTargetMap[bestMergeSource] = locId + 1;
+  if (bestMergeSource != -1) mergeTargetMap[bestMergeSource] = locId + 1;
 }
 
 /**
@@ -559,22 +612,47 @@ inline void find_mergeable_surfel(int locId, const unsigned int *indexImage, int
  * \param maxSurfelRadius             The maximum radius a surfel is allowed to have.
  * \param surfels                     The surfels in the scene.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void fuse_matched_point(int locId, const unsigned int *correspondenceMap, const Matrix4f& T, int timestamp,
-                               const Vector4f *vertexMap, const Vector3f *normalMap, const float *radiusMap, const Vector4u *colourMap,
-                               int depthMapWidth, int depthMapHeight, int colourMapWidth, int colourMapHeight,
-                               const Matrix4f& depthToRGB, const Vector4f& projParamsRGB, float deltaRadius,
-                               bool useGaussianSampleConfidence, float gaussianConfidenceSigma, float maxSurfelRadius,
-                               TSurfel *surfels)
-{
+inline void fuse_matched_point(int locId,
+                               const unsigned int *correspondenceMap,
+                               const Matrix4f &T,
+                               int timestamp,
+                               const Vector4f *vertexMap,
+                               const Vector3f *normalMap,
+                               const float *radiusMap,
+                               const Vector4u *colourMap,
+                               int depthMapWidth,
+                               int depthMapHeight,
+                               int colourMapWidth,
+                               int colourMapHeight,
+                               const Matrix4f &depthToRGB,
+                               const Vector4f &projParamsRGB,
+                               float deltaRadius,
+                               bool useGaussianSampleConfidence,
+                               float gaussianConfidenceSigma,
+                               float maxSurfelRadius,
+                               TSurfel *surfels) {
   int surfelIndex = correspondenceMap[locId] - 1;
-  if(surfelIndex >= 0)
-  {
+  if (surfelIndex >= 0) {
     TSurfel surfel = surfels[surfelIndex];
     TSurfel newSurfel = make_surfel<TSurfel>(
-      locId, T, vertexMap, normalMap, radiusMap, colourMap, depthMapWidth, depthMapHeight, colourMapWidth, colourMapHeight,
-      depthToRGB, projParamsRGB, useGaussianSampleConfidence, gaussianConfidenceSigma, maxSurfelRadius, timestamp
+        locId,
+        T,
+        vertexMap,
+        normalMap,
+        radiusMap,
+        colourMap,
+        depthMapWidth,
+        depthMapHeight,
+        colourMapWidth,
+        colourMapHeight,
+        depthToRGB,
+        projParamsRGB,
+        useGaussianSampleConfidence,
+        gaussianConfidenceSigma,
+        maxSurfelRadius,
+        timestamp
     );
 
     bool shouldMergeProperties = newSurfel.radius <= (1.0f + deltaRadius) * surfel.radius;
@@ -594,14 +672,16 @@ inline void fuse_matched_point(int locId, const unsigned int *correspondenceMap,
  * \param unstableSurfelPeriod    The number of time steps a surfel is allowed to be unstable without being updated before being removed.
  * \param surfelRemovalMask       A mask used to indicate which surfels should be removed in the next removal pass.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void mark_for_removal_if_unstable(int surfelId, const TSurfel *surfels, int timestamp, float stableSurfelConfidence,
-                                         int unstableSurfelPeriod, unsigned int *surfelRemovalMask)
-{
+inline void mark_for_removal_if_unstable(int surfelId,
+                                         const TSurfel *surfels,
+                                         int timestamp,
+                                         float stableSurfelConfidence,
+                                         int unstableSurfelPeriod,
+                                         unsigned int *surfelRemovalMask) {
   TSurfel surfel = surfels[surfelId];
-  if(surfel.confidence < stableSurfelConfidence && timestamp - surfel.timestamp > unstableSurfelPeriod)
-  {
+  if (surfel.confidence < stableSurfelConfidence && timestamp - surfel.timestamp > unstableSurfelPeriod) {
     surfelRemovalMask[surfelId] = 1;
   }
 }
@@ -616,17 +696,21 @@ inline void mark_for_removal_if_unstable(int surfelId, const TSurfel *surfels, i
  * \param indexImage        The surfel index image.
  * \param maxSurfelRadius   The maximum radius a surfel is allowed to have.
  */
-template <typename TSurfel>
+template<typename TSurfel>
 _CPU_AND_GPU_CODE_
-inline void perform_surfel_merge(int locId, unsigned int *mergeTargetMap, TSurfel *surfels, unsigned int *surfelRemovalMask, const unsigned int *indexImage, float maxSurfelRadius)
-{
+inline void perform_surfel_merge(int locId,
+                                 unsigned int *mergeTargetMap,
+                                 TSurfel *surfels,
+                                 unsigned int *surfelRemovalMask,
+                                 const unsigned int *indexImage,
+                                 float maxSurfelRadius) {
   // If there's no target for the merge, early out.
   int mergeTarget = mergeTargetMap[locId] - 1;
-  if(mergeTarget == -1) return;
+  if (mergeTarget == -1) return;
 
   // Look up the source and target surfels. They should always exist, but if they don't then ignore it and early out.
   int sourceSurfelIndex = indexImage[locId] - 1, targetSurfelIndex = indexImage[mergeTarget] - 1;
-  if(sourceSurfelIndex == -1 || targetSurfelIndex == -1) return;
+  if (sourceSurfelIndex == -1 || targetSurfelIndex == -1) return;
 
   // Merge the source surfel into the target surfel.
   bool shouldMergeProperties = true;
@@ -647,11 +731,9 @@ inline void perform_surfel_merge(int locId, unsigned int *mergeTargetMap, TSurfe
  * \param mergeTargetMap  The merge target map.
  */
 _CPU_AND_GPU_CODE_
-inline void prevent_merge_chain(int locId, unsigned int *mergeTargetMap)
-{
+inline void prevent_merge_chain(int locId, unsigned int *mergeTargetMap) {
   int mergeTarget = mergeTargetMap[locId] - 1;
-  if(mergeTarget >= 0)
-  {
+  if (mergeTarget >= 0) {
     mergeTargetMap[mergeTarget] = 0;
   }
 }
