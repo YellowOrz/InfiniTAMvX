@@ -6,53 +6,45 @@
 #include "../../Utils/ITMMath.h"
 #include "../../../ORUtils/Image.h"
 
-namespace ITMLib
-{
-	class ITMDepthHierarchyLevel
-	{
-	public:
-		int levelId;
+namespace ITMLib {
+class ITMDepthHierarchyLevel {
+ public:
+  int levelId;
 
-		TrackerIterationType iterationType;
+  TrackerIterationType iterationType;
 
-		ORUtils::Image<float> *depth;
+  ORUtils::Image<float> *depth;
 
-		Vector4f intrinsics;
-		bool manageData;
+  Vector4f intrinsics;
+  bool manageData;
 
-		ITMDepthHierarchyLevel(Vector2i imgSize, int levelId, TrackerIterationType iterationType,
-			MemoryDeviceType memoryType, bool skipAllocation = false)
-		{
-			this->manageData = !skipAllocation;
-			this->levelId = levelId;
-			this->iterationType = iterationType;
+  ITMDepthHierarchyLevel(Vector2i imgSize, int levelId, TrackerIterationType iterationType,
+                         MemoryDeviceType memoryType, bool skipAllocation = false) {
+    this->manageData = !skipAllocation;
+    this->levelId = levelId;
+    this->iterationType = iterationType;
 
-			if (!skipAllocation)
-			{
-				this->depth = new ORUtils::Image<float>(imgSize, memoryType);
-			}
-		}
+    if (!skipAllocation) {
+      this->depth = new ORUtils::Image<float>(imgSize, memoryType);
+    }
+  }
 
-		void UpdateHostFromDevice()
-		{ 
-			this->depth->UpdateHostFromDevice();
-		}
+  void UpdateHostFromDevice() {
+    this->depth->UpdateHostFromDevice();
+  }
 
-		void UpdateDeviceFromHost()
-		{ 
-			this->depth->UpdateDeviceFromHost();
-		}
+  void UpdateDeviceFromHost() {
+    this->depth->UpdateDeviceFromHost();
+  }
 
-		~ITMDepthHierarchyLevel(void)
-		{
-			if (manageData)
-			{
-				delete depth;
-			}
-		}
+  ~ITMDepthHierarchyLevel(void) {
+    if (manageData) {
+      delete depth;
+    }
+  }
 
-		// Suppress the default copy constructor and assignment operator
-		ITMDepthHierarchyLevel(const ITMDepthHierarchyLevel&);
-		ITMDepthHierarchyLevel& operator=(const ITMDepthHierarchyLevel&);
-	};
+  // Suppress the default copy constructor and assignment operator
+  ITMDepthHierarchyLevel(const ITMDepthHierarchyLevel &);
+  ITMDepthHierarchyLevel &operator=(const ITMDepthHierarchyLevel &);
+};
 }

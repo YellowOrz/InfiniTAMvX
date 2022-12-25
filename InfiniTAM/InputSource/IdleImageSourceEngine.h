@@ -11,10 +11,9 @@ namespace InputSource {
  *
  * This is useful when loading a model - the pipeline still needs to know the image sizes, but will never receive any images.
  */
-class IdleImageSourceEngine : public BaseImageSourceEngine
-{
+class IdleImageSourceEngine : public BaseImageSourceEngine {
   //#################### CONSTRUCTORS ####################
-public:
+ public:
   /**
    * \brief Constructs an idle image source engine.
    *
@@ -23,7 +22,7 @@ public:
   explicit IdleImageSourceEngine(const char *calibFilename);
 
   //#################### PUBLIC MEMBER FUNCTIONS ####################
-public:
+ public:
   /** Override */
   virtual Vector2i getDepthImageSize() const;
 

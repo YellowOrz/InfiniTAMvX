@@ -2,29 +2,24 @@
 
 #include "ITMForceFailTracker.h"
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 //#################### PUBLIC MEMBER FUNCTIONS ####################
 
-void ITMForceFailTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view)
-{
-	trackingState->trackerResult = ITMTrackingState::TRACKING_FAILED;
+void ITMForceFailTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view) {
+  trackingState->trackerResult = ITMTrackingState::TRACKING_FAILED;
 }
 
-bool ITMForceFailTracker::requiresColourRendering() const
-{
-	return false;
+bool ITMForceFailTracker::requiresColourRendering() const {
+  return false;
 }
 
-bool ITMForceFailTracker::requiresDepthReliability() const
-{
-	return false;
+bool ITMForceFailTracker::requiresDepthReliability() const {
+  return false;
 }
 
-bool ITMForceFailTracker::requiresPointCloudRendering() const
-{
-	return false;
+bool ITMForceFailTracker::requiresPointCloudRendering() const {
+  return false;
 }
 
 }

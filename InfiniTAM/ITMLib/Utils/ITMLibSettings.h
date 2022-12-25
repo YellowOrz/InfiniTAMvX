@@ -6,68 +6,63 @@
 #include "ITMSurfelSceneParams.h"
 #include "../../ORUtils/MemoryDeviceType.h"
 
-namespace ITMLib
-{
-	class ITMLibSettings
-	{
-	public:
-		/// The device used to run the DeviceAgnostic code
-		typedef enum {
-			DEVICE_CPU,
-			DEVICE_CUDA,
-			DEVICE_METAL
-		} DeviceType;
+namespace ITMLib {
+class ITMLibSettings {
+ public:
+  /// The device used to run the DeviceAgnostic code
+  typedef enum {
+    DEVICE_CPU,
+    DEVICE_CUDA,
+    DEVICE_METAL
+  } DeviceType;
 
-		typedef enum
-		{
-			FAILUREMODE_RELOCALISE,
-			FAILUREMODE_IGNORE,
-			FAILUREMODE_STOP_INTEGRATION
-		} FailureMode;
-        
-		typedef enum
-		{
-			SWAPPINGMODE_DISABLED,
-			SWAPPINGMODE_ENABLED,
-			SWAPPINGMODE_DELETE
-		} SwappingMode;
+  typedef enum {
+    FAILUREMODE_RELOCALISE,
+    FAILUREMODE_IGNORE,
+    FAILUREMODE_STOP_INTEGRATION
+  } FailureMode;
 
-		typedef enum
-		{
-			LIBMODE_BASIC,
-			LIBMODE_BASIC_SURFELS,
-			LIBMODE_LOOPCLOSURE
-		}LibMode;
+  typedef enum {
+    SWAPPINGMODE_DISABLED,
+    SWAPPINGMODE_ENABLED,
+    SWAPPINGMODE_DELETE
+  } SwappingMode;
 
-		/// Select the type of device to use
-		DeviceType deviceType;
+  typedef enum {
+    LIBMODE_BASIC,
+    LIBMODE_BASIC_SURFELS,
+    LIBMODE_LOOPCLOSURE
+  } LibMode;
 
-		bool useApproximateRaycast;
+  /// Select the type of device to use
+  DeviceType deviceType;
 
-		bool useBilateralFilter;
+  bool useApproximateRaycast;
 
-		/// For ITMColorTracker: skip every other point in energy function evaluation.
-		bool skipPoints;
+  bool useBilateralFilter;
 
-		bool createMeshingEngine;
-        
-		FailureMode behaviourOnFailure;
-		SwappingMode swappingMode;
-		LibMode libMode;
+  /// For ITMColorTracker: skip every other point in energy function evaluation.
+  bool skipPoints;
 
-		const char *trackerConfig;
+  bool createMeshingEngine;
 
-		/// Further, scene specific parameters such as voxel size
-		ITMSceneParams sceneParams;
-		ITMSurfelSceneParams surfelSceneParams;
+  FailureMode behaviourOnFailure;
+  SwappingMode swappingMode;
+  LibMode libMode;
 
-		ITMLibSettings(void);
-		virtual ~ITMLibSettings(void) {}
+  const char *trackerConfig;
 
-		// Suppress the default copy constructor and assignment operator
-		ITMLibSettings(const ITMLibSettings&);
-		ITMLibSettings& operator=(const ITMLibSettings&);
+  /// Further, scene specific parameters such as voxel size
+  ITMSceneParams sceneParams;
+  ITMSurfelSceneParams surfelSceneParams;
 
-		MemoryDeviceType GetMemoryType() const;
-	};
+  ITMLibSettings(void);
+  virtual ~ITMLibSettings(void) {}
+
+  // Suppress the default copy constructor and assignment operator
+  ITMLibSettings(const ITMLibSettings &);
+  ITMLibSettings &operator=(const ITMLibSettings &);
+
+  MemoryDeviceType GetMemoryType() const;
+};
 }

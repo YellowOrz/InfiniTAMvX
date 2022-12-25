@@ -6,32 +6,29 @@
 
 #include "../ORUtils/SE3Pose.h"
 
-namespace FernRelocLib
-{
-	class PoseDatabase
-	{
-	public:
-		struct PoseInScene
-		{
-			PoseInScene(void) {}
-			PoseInScene(const ORUtils::SE3Pose & _pose, int _sceneIdx) : pose(_pose), sceneIdx(_sceneIdx) {}
-			ORUtils::SE3Pose pose;
-			int sceneIdx;
-		};
+namespace FernRelocLib {
+class PoseDatabase {
+ public:
+  struct PoseInScene {
+    PoseInScene(void) {}
+    PoseInScene(const ORUtils::SE3Pose &_pose, int _sceneIdx) : pose(_pose), sceneIdx(_sceneIdx) {}
+    ORUtils::SE3Pose pose;
+    int sceneIdx;
+  };
 
-		PoseDatabase(void);
-		~PoseDatabase(void);
+  PoseDatabase(void);
+  ~PoseDatabase(void);
 
-		void storePose(int id, const ORUtils::SE3Pose & pose, int sceneId);
-		int numPoses(void) const { return (int)mPoses.size(); }
+  void storePose(int id, const ORUtils::SE3Pose &pose, int sceneId);
+  int numPoses(void) const { return (int) mPoses.size(); }
 
-		const PoseInScene & retrievePose(int id) const { return mPoses[id]; }
-		PoseInScene retrieveWAPose(int k, int ids[], float weights[]) const;
+  const PoseInScene &retrievePose(int id) const { return mPoses[id]; }
+  PoseInScene retrieveWAPose(int k, int ids[], float weights[]) const;
 
-		void SaveToFile(const std::string &fileName);
-		void LoadFromFile(const std::string &fileName);
+  void SaveToFile(const std::string &fileName);
+  void LoadFromFile(const std::string &fileName);
 
-	private:
-		std::vector<PoseInScene> mPoses;
-	};
+ private:
+  std::vector<PoseInScene> mPoses;
+};
 }

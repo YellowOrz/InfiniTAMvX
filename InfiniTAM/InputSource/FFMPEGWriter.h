@@ -6,24 +6,23 @@
 
 namespace InputSource {
 
-class FFMPEGWriter
-{
-	public:
-	class PrivateData;
+class FFMPEGWriter {
+ public:
+  class PrivateData;
 
-	FFMPEGWriter(void);
-	~FFMPEGWriter(void);
+  FFMPEGWriter(void);
+  ~FFMPEGWriter(void);
 
-	bool open(const char *filename, int size_x, int size_y, bool isDepth, int fps);
-	bool writeFrame(ITMUChar4Image *rgbImage);
-	bool writeFrame(ITMShortImage *depthImage);
-	bool close(void);
+  bool open(const char *filename, int size_x, int size_y, bool isDepth, int fps);
+  bool writeFrame(ITMUChar4Image *rgbImage);
+  bool writeFrame(ITMShortImage *depthImage);
+  bool close(void);
 
-	bool isOpen(void) const;
+  bool isOpen(void) const;
 
-	private:
-	PrivateData *mData;
-	int counter;
+ private:
+  PrivateData *mData;
+  int counter;
 };
 
 }

@@ -2,16 +2,14 @@
 
 #pragma once
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 /**
  * \brief The different types of lighting that can be used for surfel visualisation.
  *
  * FIXME: This is very similar to the LightingType enum in spaint - they should be combined one day.
  */
-enum SurfelLightingType
-{
+enum SurfelLightingType {
   SLT_FLAT,
   SLT_LAMBERTIAN,
   SLT_PHONG
@@ -20,8 +18,7 @@ enum SurfelLightingType
 /**
  * \brief Whether or not to render unstable surfels.
  */
-enum UnstableSurfelRenderingMode
-{
+enum UnstableSurfelRenderingMode {
   /** Do not render unstable surfels. */
   USR_DONOTRENDER,
 

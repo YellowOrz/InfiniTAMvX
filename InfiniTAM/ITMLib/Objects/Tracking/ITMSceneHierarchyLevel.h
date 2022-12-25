@@ -6,55 +6,53 @@
 #include "../../Utils/ITMMath.h"
 #include "../../../ORUtils/Image.h"
 
-namespace ITMLib
-{
-	class ITMSceneHierarchyLevel
-	{
-	public:
-		int levelId;
+namespace ITMLib {
+class ITMSceneHierarchyLevel {
+ public:
+  int levelId;
 
-		TrackerIterationType iterationType;
+  TrackerIterationType iterationType;
 
-		ORUtils::Image<Vector4f> *pointsMap;
-		ORUtils::Image<Vector4f> *normalsMap;
-		Vector4f intrinsics;
+  ORUtils::Image<Vector4f> *pointsMap;
+  ORUtils::Image<Vector4f> *normalsMap;
+  Vector4f intrinsics;
 
-		bool manageData;
+  bool manageData;
 
-		ITMSceneHierarchyLevel(Vector2i imgSize, int levelId, TrackerIterationType iterationType, MemoryDeviceType memoryType, bool skipAllocation = false)
-		{
-			this->manageData = !skipAllocation;
-			this->levelId = levelId;
-			this->iterationType = iterationType;
+  ITMSceneHierarchyLevel(Vector2i imgSize,
+                         int levelId,
+                         TrackerIterationType iterationType,
+                         MemoryDeviceType memoryType,
+                         bool skipAllocation = false) {
+    this->manageData = !skipAllocation;
+    this->levelId = levelId;
+    this->iterationType = iterationType;
 
-			if (!skipAllocation) {
-				this->pointsMap = new ORUtils::Image<Vector4f>(imgSize, memoryType);
-				this->normalsMap = new ORUtils::Image<Vector4f>(imgSize, memoryType);
-			}
-		}
+    if (!skipAllocation) {
+      this->pointsMap = new ORUtils::Image<Vector4f>(imgSize, memoryType);
+      this->normalsMap = new ORUtils::Image<Vector4f>(imgSize, memoryType);
+    }
+  }
 
-		void UpdateHostFromDevice()
-		{ 
-			this->pointsMap->UpdateHostFromDevice();
-			this->normalsMap->UpdateHostFromDevice();
-		}
+  void UpdateHostFromDevice() {
+    this->pointsMap->UpdateHostFromDevice();
+    this->normalsMap->UpdateHostFromDevice();
+  }
 
-		void UpdateDeviceFromHost()
-		{ 
-			this->pointsMap->UpdateDeviceFromHost();
-			this->normalsMap->UpdateDeviceFromHost();
-		}
+  void UpdateDeviceFromHost() {
+    this->pointsMap->UpdateDeviceFromHost();
+    this->normalsMap->UpdateDeviceFromHost();
+  }
 
-		~ITMSceneHierarchyLevel(void)
-		{
-			if (manageData) {
-				delete pointsMap;
-				delete normalsMap;
-			}
-		}
+  ~ITMSceneHierarchyLevel(void) {
+    if (manageData) {
+      delete pointsMap;
+      delete normalsMap;
+    }
+  }
 
-		// Suppress the default copy constructor and assignment operator
-		ITMSceneHierarchyLevel(const ITMSceneHierarchyLevel&);
-		ITMSceneHierarchyLevel& operator=(const ITMSceneHierarchyLevel&);
-	};
+  // Suppress the default copy constructor and assignment operator
+  ITMSceneHierarchyLevel(const ITMSceneHierarchyLevel &);
+  ITMSceneHierarchyLevel &operator=(const ITMSceneHierarchyLevel &);
+};
 }

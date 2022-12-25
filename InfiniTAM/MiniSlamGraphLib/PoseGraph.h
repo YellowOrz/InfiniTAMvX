@@ -4,12 +4,10 @@
 
 #include "SlamGraph.h"
 
-namespace MiniSlamGraph
-{
-	class PoseGraph : public SlamGraph
-	{
-	protected:
-		void allocateGradientAndHessian(VariableLengthVector* & g, SparseBlockMatrix* & H) const;
-	};
+namespace MiniSlamGraph {
+class PoseGraph : public SlamGraph {
+ protected:
+  void allocateGradientAndHessian(VariableLengthVector *&g, SparseBlockMatrix *&H) const;
+};
 }
 

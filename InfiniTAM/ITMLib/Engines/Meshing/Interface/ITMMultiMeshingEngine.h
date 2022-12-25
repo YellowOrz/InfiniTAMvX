@@ -6,14 +6,12 @@
 #include "../../../Objects/Meshing/ITMMesh.h"
 #include "../../MultiScene/ITMMapGraphManager.h"
 
-namespace ITMLib
-{
-	template<class TVoxel, class TIndex>
-	class ITMMultiMeshingEngine
-	{
-	public:
-		virtual ~ITMMultiMeshingEngine(void) {}
+namespace ITMLib {
+template<class TVoxel, class TIndex>
+class ITMMultiMeshingEngine {
+ public:
+  virtual ~ITMMultiMeshingEngine(void) {}
 
-		virtual void MeshScene(ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, TIndex> & sceneManager) = 0;
-	};
+  virtual void MeshScene(ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager) = 0;
+};
 }

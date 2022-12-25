@@ -3,11 +3,11 @@
 #pragma once
 
 #ifndef MIN
-#define MIN(a,b) ((a < b) ? a : b)
+#define MIN(a, b) ((a < b) ? a : b)
 #endif
 
 #ifndef MAX
-#define MAX(a,b) ((a < b) ? b : a)
+#define MAX(a, b) ((a < b) ? b : a)
 #endif
 
 #ifndef ABS
@@ -15,7 +15,7 @@
 #endif
 
 #ifndef CLAMP
-#define CLAMP(x,a,b) MAX((a), MIN((b), (x)))
+#define CLAMP(x, a, b) MAX((a), MIN((b), (x)))
 #endif
 
 #ifndef ROUND
@@ -32,22 +32,19 @@
 
 #ifndef __METALC__
 
-inline bool portable_finite(float a)
-{
-	volatile float temp = a;
-	if (temp != a) return false;
-	if ((temp - a) != 0.0) return false;
-	return true;
+inline bool portable_finite(float a) {
+  volatile float temp = a;
+  if (temp != a) return false;
+  if ((temp - a) != 0.0) return false;
+  return true;
 }
 
-inline void matmul(const float *A, const float *b, float *x, int numRows, int numCols)
-{
-	for (int r = 0; r < numRows; ++r)
-	{
-		float res = 0.0f;
-		for (int c = 0; c < numCols; ++c) res += A[r*numCols + c] * b[c];
-		x[r] = res;
-	}
+inline void matmul(const float *A, const float *b, float *x, int numRows, int numCols) {
+  for (int r = 0; r < numRows; ++r) {
+    float res = 0.0f;
+    for (int c = 0; c < numCols; ++c) res += A[r * numCols + c] * b[c];
+    x[r] = res;
+  }
 }
 
 #endif

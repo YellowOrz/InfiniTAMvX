@@ -4,23 +4,25 @@
 
 #include "../Interface/ITMDepthTracker.h"
 
-namespace ITMLib
-{
-	class ITMDepthTracker_CUDA : public ITMDepthTracker
-	{
-	public:
-		struct AccuCell;
+namespace ITMLib {
+class ITMDepthTracker_CUDA : public ITMDepthTracker {
+ public:
+  struct AccuCell;
 
-	private:
-		AccuCell *accu_host;
-		AccuCell *accu_device;
+ private:
+  AccuCell *accu_host;
+  AccuCell *accu_device;
 
-	protected:
-		int ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose);
+ protected:
+  int ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose);
 
-	public:
-		ITMDepthTracker_CUDA(Vector2i imgSize, TrackerIterationType *trackingRegime, int noHierarchyLevels,
-			float terminationThreshold, float failureDetectorThreshold, const ITMLowLevelEngine *lowLevelEngine);
-		~ITMDepthTracker_CUDA(void);
-	};
+ public:
+  ITMDepthTracker_CUDA(Vector2i imgSize,
+                       TrackerIterationType *trackingRegime,
+                       int noHierarchyLevels,
+                       float terminationThreshold,
+                       float failureDetectorThreshold,
+                       const ITMLowLevelEngine *lowLevelEngine);
+  ~ITMDepthTracker_CUDA(void);
+};
 }

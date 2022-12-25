@@ -10,14 +10,12 @@
 #include "Metal/ITMVisualisationEngine_Metal.h"
 #endif
 
-namespace ITMLib
-{
+namespace ITMLib {
 
 /**
  * \brief This struct provides functions that can be used to construct visualisation engines.
  */
-struct ITMVisualisationEngineFactory
-{
+struct ITMVisualisationEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
@@ -25,19 +23,16 @@ struct ITMVisualisationEngineFactory
    *
    * \param deviceType  The device on which the visualisation engine should operate.
    */
-  template <typename TVoxel, typename TIndex>
-  static ITMVisualisationEngine<TVoxel,TIndex> *MakeVisualisationEngine(ITMLibSettings::DeviceType deviceType)
-  {
-    ITMVisualisationEngine<TVoxel,TIndex> *visualisationEngine = NULL;
+  template<typename TVoxel, typename TIndex>
+  static ITMVisualisationEngine<TVoxel, TIndex> *MakeVisualisationEngine(ITMLibSettings::DeviceType deviceType) {
+    ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine = NULL;
 
-    switch(deviceType)
-    {
-      case ITMLibSettings::DEVICE_CPU:
-        visualisationEngine = new ITMVisualisationEngine_CPU<TVoxel,TIndex>;
+    switch (deviceType) {
+      case ITMLibSettings::DEVICE_CPU:visualisationEngine = new ITMVisualisationEngine_CPU<TVoxel, TIndex>;
         break;
       case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        visualisationEngine = new ITMVisualisationEngine_CUDA<TVoxel,TIndex>;
+        visualisationEngine = new ITMVisualisationEngine_CUDA<TVoxel, TIndex>;
 #endif
         break;
       case ITMLibSettings::DEVICE_METAL:

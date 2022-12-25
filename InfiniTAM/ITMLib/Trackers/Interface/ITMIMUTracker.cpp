@@ -5,18 +5,15 @@
 #include "../../Objects/Views/ITMViewIMU.h"
 using namespace ITMLib;
 
-ITMIMUTracker::ITMIMUTracker(ITMIMUCalibrator *calibrator)
-{
-	this->calibrator = calibrator;
+ITMIMUTracker::ITMIMUTracker(ITMIMUCalibrator *calibrator) {
+  this->calibrator = calibrator;
 }
 
-ITMIMUTracker::~ITMIMUTracker(void)
-{
+ITMIMUTracker::~ITMIMUTracker(void) {
 }
 
-void ITMIMUTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view)
-{
-	calibrator->RegisterMeasurement(((ITMViewIMU*)view)->imu->R);
+void ITMIMUTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view) {
+  calibrator->RegisterMeasurement(((ITMViewIMU *) view)->imu->R);
 
-	trackingState->pose_d->SetR(calibrator->GetDifferentialRotationChange() * trackingState->pose_d->GetR());
+  trackingState->pose_d->SetR(calibrator->GetDifferentialRotationChange() * trackingState->pose_d->GetR());
 }
