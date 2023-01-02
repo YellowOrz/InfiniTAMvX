@@ -28,24 +28,31 @@ ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
                                                const ITMRGBDCalib &calib,
                                                Vector2i imgSize_rgb,
                                                Vector2i imgSize_d) {
+  // 深度图和彩色图的尺寸
   if ((imgSize_d.x == -1) || (imgSize_d.y == -1)) imgSize_d = imgSize_rgb;
-
+  // 系统设置
   this->settings = settings;
-
+  // 设备类型
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
+  // 最底层的预处理模块
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
+  // 可视化窗口   TODO(xzf)
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
+  // 可视化（渲染）
   visualisationEngine = ITMVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
-
+  multiVisualisationEngine = ITMMultiVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
+  renderState_multiscene = NULL;
+  // mesh
   meshingEngine = NULL;
   if (settings->createMeshingEngine)
     meshingEngine = ITMMultiMeshingEngineFactory::MakeMeshingEngine<TVoxel, TIndex>(deviceType);
 
   renderState_freeview = NULL; //will be created by the visualisation engine
-
+  // TODO(xzf)
   denseMapper = new ITMDenseMapper<TVoxel, TIndex>(settings);
-
+  // IMU预积分器
   imuCalibrator = new ITMIMUCalibrator_iPad();
+  // 跟踪
   tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb,
                                                imgSize_d,
                                                settings,
@@ -54,7 +61,7 @@ ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
                                                &settings->sceneParams);
   trackingController = new ITMTrackingController(tracker, settings);
   trackedImageSize = trackingController->GetTrackedImageSize(imgSize_rgb, imgSize_d);
-
+  // TODO(xzf)
   freeviewLocalMapIdx = 0;
   mapManager =
       new ITMVoxelMapGraphManager<TVoxel, TIndex>(settings, visualisationEngine, denseMapper, trackedImageSize);
@@ -64,20 +71,17 @@ ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
   //TODO	tracker->UpdateInitialPose(allData[0]->trackingState);
 
   view = NULL; // will be allocated by the view builder
-
+  // 重定位： 随机蕨
   relocaliser = new FernRelocLib::Relocaliser<float>(imgSize_d,
                                                      Vector2f(settings->sceneParams.viewFrustum_min,
                                                               settings->sceneParams.viewFrustum_max),
                                                      0.1f,
                                                      1000,
                                                      4);
-
+  // 全局优化
   mGlobalAdjustmentEngine = new ITMGlobalAdjustmentEngine();
   mScheduleGlobalAdjustment = false;
   if (separateThreadGlobalAdjustment) mGlobalAdjustmentEngine->startSeparateThread();
-
-  multiVisualisationEngine = ITMMultiVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
-  renderState_multiscene = NULL;
 }
 
 template<typename TVoxel, typename TIndex>

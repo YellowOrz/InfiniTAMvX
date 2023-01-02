@@ -9,7 +9,7 @@ namespace ITMLib {
 class ITMSceneParams {
  public:
   /// Size of a voxel, usually given in meters.
-  float voxelSize;
+  float voxelSize;  // voxel size，单位米
 
   /** @{ */
   /** \brief
@@ -19,7 +19,7 @@ class ITMSceneParams {
       actual depth range should be determined
       automatically by a ITMLib::Engine::ITMVisualisationEngine.
   */
-  float viewFrustum_min, viewFrustum_max;
+  float viewFrustum_min, viewFrustum_max;   // 平截头体中，深度最近和最远距离，单位米
 
   /** @} */
   /** \brief
@@ -29,16 +29,16 @@ class ITMSceneParams {
       meters. The resulting width in voxels is @ref mu
       divided by @ref voxelSize.
   */
-  float mu;
+  float mu;   // TODO(xzf):？
 
   /** \brief
       Up to @ref maxW observations per voxel are averaged.
       Beyond that a sliding average is computed.
   */
-  int maxW;
+  int maxW;   // voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
 
   /** Stop integration once maxW has been reached. */
-  bool stopIntegratingAtMaxW;
+  bool stopIntegratingAtMaxW;   // 到达最大观测次数后是否继续融合
 
   ITMSceneParams(void) {}
 

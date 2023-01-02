@@ -15,35 +15,47 @@
 //#define OUTPUT_TRAJECTORY_QUATERNIONS
 
 using namespace ITMLib;
-
+/**
+ * 构建基础SLAM系统
+ * @tparam TVoxel
+ * @tparam TIndex
+ * @param[in] settings
+ * @param[in] calib
+ * @param[in] imgSize_rgb
+ * @param[in] imgSize_d
+ */
 template<typename TVoxel, typename TIndex>
 ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
                                                const ITMRGBDCalib &calib,
                                                Vector2i imgSize_rgb,
                                                Vector2i imgSize_d) {
+  // 系统设置
   this->settings = settings;
-
+  // 深度图和彩色图的尺寸
   if ((imgSize_d.x == -1) || (imgSize_d.y == -1)) imgSize_d = imgSize_rgb;
-
+  // 内存类型 && 场景构建
   MemoryDeviceType memoryType = settings->GetMemoryType();
   this->scene = new ITMScene<TVoxel, TIndex>(&settings->sceneParams,
                                              settings->swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED,
                                              memoryType);
-
+  // 设备类型
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
-
+  // 最底层的预处理模块
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
+  // 可视化窗口   TODO(xzf)
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
+  // 可视化（渲染）
   visualisationEngine = ITMVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
-
+  // mesh
   meshingEngine = NULL;
   if (settings->createMeshingEngine)
     meshingEngine = ITMMeshingEngineFactory::MakeMeshingEngine<TVoxel, TIndex>(deviceType);
-
+  // TODO(xzf)
   denseMapper = new ITMDenseMapper<TVoxel, TIndex>(settings);
   denseMapper->ResetScene(scene);
-
+  // IMU预积分器
   imuCalibrator = new ITMIMUCalibrator_iPad();
+  // 跟踪
   tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb,
                                                imgSize_d,
                                                settings,
@@ -54,14 +66,16 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
 
   Vector2i trackedImageSize = trackingController->GetTrackedImageSize(imgSize_rgb, imgSize_d);
 
+  trackingState = new ITMTrackingState(trackedImageSize, memoryType);
+  tracker->UpdateInitialPose(trackingState);
+  // 渲染
   renderState_live = ITMRenderStateFactory<TIndex>::CreateRenderState(trackedImageSize, scene->sceneParams, memoryType);
   renderState_freeview = NULL; //will be created if needed
 
-  trackingState = new ITMTrackingState(trackedImageSize, memoryType);
-  tracker->UpdateInitialPose(trackingState);
-
   view = NULL; // will be allocated by the view builder
+  kfRaycast = new ITMUChar4Image(imgSize_d, memoryType);
 
+  // 重定位
   if (settings->behaviourOnFailure == settings->FAILUREMODE_RELOCALISE)
     relocaliser = new FernRelocLib::Relocaliser<float>(imgSize_d,
                                                        Vector2f(settings->sceneParams.viewFrustum_min,
@@ -71,8 +85,7 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
                                                        4);
   else relocaliser = NULL;
 
-  kfRaycast = new ITMUChar4Image(imgSize_d, memoryType);
-
+  // 各模块状态
   trackingActive = true;
   fusionActive = true;
   mainProcessingActive = true;
@@ -260,16 +273,19 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
                                                                               ITMShortImage *rawDepthImage,
                                                                               ITMIMUMeasurement *imuMeasurement) {
   // prepare image and turn it into a depth image
+  //! 准备数据
   if (imuMeasurement == NULL) viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter);
   else viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter, imuMeasurement);
 
   if (!mainProcessingActive) return ITMTrackingState::TRACKING_FAILED;
 
   // tracking
+  //! 跟踪
   ORUtils::SE3Pose oldPose(*(trackingState->pose_d));
   if (trackingActive) trackingController->Track(trackingState, view);
 
   ITMTrackingState::TrackingResult trackerResult = ITMTrackingState::TRACKING_GOOD;
+  //! 跟踪失败后的操作：重定位 or 停止融合
   switch (settings->behaviourOnFailure) {
     case ITMLibSettings::FAILUREMODE_RELOCALISE: trackerResult = trackingState->trackerResult;
       break;
@@ -282,6 +298,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
   }
 
   //relocalisation
+  //! 如果需要重定位
   int addKeyframeIdx = -1;
   if (settings->behaviourOnFailure == ITMLibSettings::FAILUREMODE_RELOCALISE) {
     if (trackerResult == ITMTrackingState::TRACKING_GOOD && relocalisationCount > 0) relocalisationCount--;
@@ -317,7 +334,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
       trackerResult = trackingState->trackerResult;
     }
   }
-
+  //! 将当前帧融合进三维模型
   bool didFusion = false;
   if ((trackerResult == ITMTrackingState::TRACKING_GOOD || !trackingInitialised) && (fusionActive)
       && (relocalisationCount == 0)) {
@@ -328,7 +345,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
 
     framesProcessed++;
   }
-
+  //! 更新三维模型在当前帧的投影：使用raycast
   if (trackerResult == ITMTrackingState::TRACKING_GOOD || trackerResult == ITMTrackingState::TRACKING_POOR) {
     if (!didFusion) denseMapper->UpdateVisibleList(view, trackingState, scene, renderState_live);
 

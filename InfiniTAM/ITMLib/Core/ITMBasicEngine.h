@@ -28,7 +28,7 @@ class ITMBasicEngine : public ITMMainEngine {
   ITMMeshingEngine<TVoxel, TIndex> *meshingEngine;
 
   ITMViewBuilder *viewBuilder;
-  ITMDenseMapper<TVoxel, TIndex> *denseMapper;
+  ITMDenseMapper<TVoxel, TIndex> *denseMapper;  // 用来更新三维模型：包含融合、raycast TODO(xzf):?
   ITMTrackingController *trackingController;
 
   ITMScene<TVoxel, TIndex> *scene;
@@ -45,7 +45,7 @@ class ITMBasicEngine : public ITMMainEngine {
   ITMView *view;
 
   /// Pointer to the current camera pose and additional tracking information
-  ITMTrackingState *trackingState;
+  ITMTrackingState *trackingState;    // 包含跟踪得到的相机位姿、跟踪的分数等
 
  public:
   ITMView *GetView(void) { return view; }
