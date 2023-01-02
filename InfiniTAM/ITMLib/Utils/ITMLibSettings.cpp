@@ -7,21 +7,26 @@ using namespace ITMLib;
 #include <cmath>
 
 ITMLibSettings::ITMLibSettings(void)
-    : sceneParams(0.02f, 100, 0.005f, 0.2f, 3.0f, false),
-      surfelSceneParams(0.5f,
-                        0.6f,
-                        static_cast<float>(20 * M_PI / 180),
-                        0.01f,
-                        0.004f,
-                        3.5f,
-                        25.0f,
-                        4,
-                        1.0f,
-                        5.0f,
-                        20,
-                        10000000,
-                        true,
-                        true) {
+    : sceneParams(0.02f,    //
+                  100,      // 最大观测次数
+                  0.005f,   // voxel size
+                  0.2f,     // 深度最近距离
+                  3.0f,     // 深度最远距离
+                  false),   // 到达最大观测次数后是否继续融合
+      surfelSceneParams(0.5f,     // 完全融合时新半径大于旧的最大值
+                        0.6f,     // 置信度高斯分布的σ
+                        static_cast<float>(20 * M_PI / 180),  // 融合时法向量夹角的最大差
+                        0.01f,    // 融合时距离的最大差
+                        0.004f,   // 最大半径
+                        3.5f,     // 融合时重叠的最小半径
+                        25.0f,    // 稳定置信度
+                        4,        // 查找对应的上采样系数
+                        1.0f,     // 跟踪的最大深度
+                        5.0f,     // 跟踪的最小置信度
+                        20,       // 删除前不稳定的最小时间（帧数）
+                        10000000,   // 渲染时没有稳定，对不稳定的z轴偏移
+                        true,     // 是否使用高斯加权置信度
+                        true) {   // 是否融合
   // skips every other point when using the colour renderer for creating a point cloud
   skipPoints = true;
 
@@ -57,35 +62,85 @@ ITMLibSettings::ITMLibSettings(void)
   libMode = LIBMODE_BASIC;
   //libMode = LIBMODE_BASIC_SURFELS;
 
-  //// Default ICP tracking
-  //trackerConfig = "type=icp,levels=rrrbb,minstep=1e-3,"
-  //				"outlierC=0.01,outlierF=0.002,"
-  //				"numiterC=10,numiterF=2,failureDec=5.0"; // 5 for normal, 20 for loop closure
+  //! 跟踪配置
+  // Default ICP tracking
+//  trackerConfig = "type=icp,"         // 跟踪只用ICP
+//                  "levels=rrrbb,"     // 图像金字塔，字母数量表示层数，从小到大（TODO?），r表示只旋转，b为旋转+平移
+//                  "minstep=1e-3,"     // 最小步长 TODO(xzf): ?
+//                  "outlierC=0.01,"    // 彩色的outlier的占比 TODO(xzf): ?
+//                  "outlierF=0.002,"   // TODO(xzf): ?
+//                  "numiterC=10,"      // 彩色的迭代次数 TODO(xzf): ?
+//                  "numiterF=2,"       // TODO(xzf): ?
+//                  "failureDec=5.0";   // 5 for normal, 20 for loop closure TODO(xzf): ?
 
   // Depth-only extended tracker:
-  trackerConfig = "type=extended,levels=rrbb,useDepth=1,minstep=1e-4,"
-                  "outlierSpaceC=0.1,outlierSpaceF=0.004,"
-                  "numiterC=20,numiterF=50,tukeyCutOff=8,"
-                  "framesToSkip=20,framesToWeight=50,failureDec=20.0";
+  trackerConfig = "type=extended,"          // 跟踪用ICP+ TODO(xzf): ?
+                  "levels=rrbb,"
+                  "useDepth=1,"
+                  "minstep=1e-4,"
+                  "outlierSpaceC=0.1,"
+                  "outlierSpaceF=0.004,"
+                  "numiterC=20,"
+                  "numiterF=50,"
+                  "tukeyCutOff=8,"
+                  "framesToSkip=20,"
+                  "framesToWeight=50,"
+                  "failureDec=20.0";
 
-  //// For hybrid intensity+depth tracking:
-  //trackerConfig = "type=extended,levels=bbb,useDepth=1,useColour=1,"
-  //				  "colourWeight=0.3,minstep=1e-4,"
-  //				  "outlierColourC=0.175,outlierColourF=0.005,"
-  //				  "outlierSpaceC=0.1,outlierSpaceF=0.004,"
-  //				  "numiterC=20,numiterF=50,tukeyCutOff=8,"
-  //				  "framesToSkip=20,framesToWeight=50,failureDec=20.0";
+//  // For hybrid intensity+depth tracking:
+//  trackerConfig = "type=extended,"
+//                  "levels=bbb,"
+//                  "useDepth=1,"
+//                  "useColour=1,"
+//                  "colourWeight=0.3,"
+//                  "minstep=1e-4,"
+//                  "outlierColourC=0.175,"
+//                  "outlierColourF=0.005,"
+//                  "outlierSpaceC=0.1,"
+//                  "outlierSpaceF=0.004,"
+//                  "numiterC=20,"
+//                  "numiterF=50,"
+//                  "tukeyCutOff=8,"
+//                  "framesToSkip=20,"
+//                  "framesToWeight=50,"
+//                  "failureDec=20.0";
 
-  // Colour only tracking, using rendered colours
-  //trackerConfig = "type=rgb,levels=rrbb";
+//  // Colour only tracking, using rendered colours
+//  trackerConfig = "type=rgb,"
+//                  "levels=rrbb";
 
-  //trackerConfig = "type=imuicp,levels=tb,minstep=1e-3,outlierC=0.01,outlierF=0.005,numiterC=4,numiterF=2";
-  //trackerConfig = "type=extendedimu,levels=ttb,minstep=5e-4,outlierSpaceC=0.1,outlierSpaceF=0.004,numiterC=20,numiterF=5,tukeyCutOff=8,framesToSkip=20,framesToWeight=50,failureDec=20.0";
+//  trackerConfig = "type=imuicp,"
+//                  "levels=tb,"
+//                  "minstep=1e-3,"
+//                  "outlierC=0.01,"
+//                  "outlierF=0.005,"
+//                  "numiterC=4,"
+//                  "numiterF=2";
+//  trackerConfig = "type=extendedimu,"
+//                  "levels=ttb,"
+//                  "minstep=5e-4,"
+//                  "outlierSpaceC=0.1,"
+//                  "outlierSpaceF=0.004,"
+//                  "numiterC=20,"
+//                  "numiterF=5,"
+//                  "tukeyCutOff=8,"
+//                  "framesToSkip=20,"
+//                  "framesToWeight=50,"
+//                  "failureDec=20.0";
 
   // Surfel tracking
   if (libMode == LIBMODE_BASIC_SURFELS) {
-    trackerConfig =
-        "extended,levels=rrbb,minstep=1e-4,outlierSpaceC=0.1,outlierSpaceF=0.004,numiterC=20,numiterF=20,tukeyCutOff=8,framesToSkip=0,framesToWeight=1,failureDec=20.0";
+    trackerConfig = "extended,"   // TODO(xzf)：是不是少了type=?
+                    "levels=rrbb,"
+                    "minstep=1e-4,"
+                    "outlierSpaceC=0.1,"
+                    "outlierSpaceF=0.004,"
+                    "numiterC=20,"
+                    "numiterF=20,"
+                    "tukeyCutOff=8,"
+                    "framesToSkip=0,"
+                    "framesToWeight=1,"
+                    "failureDec=20.0";
   }
 }
 

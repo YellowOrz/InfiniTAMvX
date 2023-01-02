@@ -45,18 +45,19 @@ namespace ITMLib {
 */
 class ITMMainEngine {
  public:
+  /** 图片类型 */
   enum GetImageType {
-    InfiniTAM_IMAGE_ORIGINAL_RGB,
-    InfiniTAM_IMAGE_ORIGINAL_DEPTH,
-    InfiniTAM_IMAGE_SCENERAYCAST,
-    InfiniTAM_IMAGE_COLOUR_FROM_VOLUME,
-    InfiniTAM_IMAGE_COLOUR_FROM_NORMAL,
-    InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE,
-    InfiniTAM_IMAGE_FREECAMERA_SHADED,
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME,
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL,
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE,
-    InfiniTAM_IMAGE_UNKNOWN
+    InfiniTAM_IMAGE_ORIGINAL_RGB,             /**< 原始彩色图 */
+    InfiniTAM_IMAGE_ORIGINAL_DEPTH,           /**< 原始深度图 */
+    InfiniTAM_IMAGE_SCENERAYCAST,             /**< 场景raycast */
+    InfiniTAM_IMAGE_COLOUR_FROM_VOLUME,       /**< 固定视角下， */    // TODO(xzf):?
+    InfiniTAM_IMAGE_COLOUR_FROM_NORMAL,       /**< 固定视角下，法向量的伪彩色渲染图 */
+    InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE,   /**< 固定视角下，置信度的伪彩色渲染图 */
+    InfiniTAM_IMAGE_FREECAMERA_SHADED,                  /**< 自由视角下， */    // TODO(xzf):?
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME,      /**< 自由视角下， */     // TODO(xzf):?
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL,      /**< 自由视角下，法向量的伪彩色渲染图 */
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE,  /**< 自由视角下，置信度的伪彩色渲染图 */
+    InfiniTAM_IMAGE_UNKNOWN                   /**< 未知 */
   };
 
   /// Gives access to the current input frame

@@ -42,14 +42,18 @@ void UIEngine::glutDisplayFunction() {
   UIEngine *uiEngine = UIEngine::Instance();
 
   // get updated images from processing thread
+  //! 获取待会儿要显示的图像
+  // 大窗口的图像：从重建好的三维模型上来
   uiEngine->mainEngine->GetImage(uiEngine->outImage[0],
                                  uiEngine->outImageType[0],
                                  &uiEngine->freeviewPose,
                                  &uiEngine->freeviewIntrinsics);
-
-  for (int w = 1; w < NUM_WIN; w++) uiEngine->mainEngine->GetImage(uiEngine->outImage[w], uiEngine->outImageType[w]);
+  // 子窗口的图像：来自预处理
+  for (int w = 1; w < NUM_WIN; w++)
+    uiEngine->mainEngine->GetImage(uiEngine->outImage[w], uiEngine->outImageType[w]);
 
   // do the actual drawing
+  //! 子窗口显示画面
   glClear(GL_COLOR_BUFFER_BIT);
   glColor3f(1.0f, 1.0f, 1.0f);
   glEnable(GL_TEXTURE_2D);
@@ -64,10 +68,10 @@ void UIEngine::glutDisplayFunction() {
 
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
-    {
+    { // 在每个子窗口上显示图片
       glEnable(GL_TEXTURE_2D);
-      for (int w = 0; w < NUM_WIN; w++) {// Draw each sub window
-        if (uiEngine->outImageType[w] == ITMMainEngine::InfiniTAM_IMAGE_UNKNOWN) continue;
+      for (int w = 0; w < NUM_WIN; w++) {   // Draw each sub window
+        if (uiEngine->outImageType[w] == ITMMainEngine::InfiniTAM_IMAGE_UNKNOWN) continue;   // 跳过未知类型的图片
         glBindTexture(GL_TEXTURE_2D, uiEngine->textureId[w]);
         glTexImage2D(GL_TEXTURE_2D,
                      0,
@@ -99,8 +103,8 @@ void UIEngine::glutDisplayFunction() {
   }
   glMatrixMode(GL_PROJECTION);
   glPopMatrix();
-
-  switch (uiEngine->trackingResult) {
+  //! 右下角显示单帧处理时间
+  switch (uiEngine->trackingResult) {   // 用不同颜色表示跟踪结果
     case 0: glColor3f(1.0f, 0.0f, 0.0f);
       break; // failure
     case 1: glColor3f(1.0f, 1.0f, 0.0f);
@@ -110,23 +114,23 @@ void UIEngine::glutDisplayFunction() {
     default: glColor3f(1.0f, 1.0f, 1.0f);
       break; // relocalising
   }
-
   glRasterPos2f(0.85f, -0.962f);
-
   char str[200];
   sprintf(str, "%04.2lf", uiEngine->processedTime);
   safe_glutBitmapString(GLUT_BITMAP_HELVETICA_18, (const char *) str);
-
+  //! 左下角显示按键提示信息
   glColor3f(1.0f, 0.0f, 0.0f);
   glRasterPos2f(-0.98f, -0.95f);
   if (uiEngine->freeviewActive) {
     sprintf(str,
-            "n: one frame \t b: continous \t e/esc: exit \t r: reset \t k: save \t l: load \t f: follow camera \t c: colours (currently %s) \t t: turn fusion %s",
+            "n: one frame \t b: continous \t e/esc: exit \t r: reset \t k: save \t l: load \t f: follow camera \t "
+            "c: colours (currently %s) \t t: turn fusion %s",
             uiEngine->colourModes_freeview[uiEngine->currentColourMode].name,
             uiEngine->integrationActive ? "off" : "on");
   } else {
     sprintf(str,
-            "n: one frame \t b: continous \t e/esc: exit \t r: reset \t k: save \t l: load \t f: free viewpoint \t c: colours (currently %s) \t t: turn fusion %s",
+            "n: one frame \t b: continous \t e/esc: exit \t r: reset \t k: save \t l: load \t f: free viewpoint \t "
+            "c: colours (currently %s) \t t: turn fusion %s",
             uiEngine->colourModes_main[uiEngine->currentColourMode].name,
             uiEngine->integrationActive ? "off" : "on");
   }
@@ -150,14 +154,14 @@ void UIEngine::glutIdleFunction() {
       uiEngine->needsRefresh = true;
       break;
       //case SAVE_TO_DISK:
-      //	if (!uiEngine->actionDone)
-      //	{
+      //	if (!uiEngine->actionDone) {
       //		char outFile[255];
 
       //		ITMUChar4Image *saveImage = uiEngine->saveImage;
 
       //		glReadBuffer(GL_BACK);
-      //		glReadPixels(0, 0, saveImage->noDims.x, saveImage->noDims.x, GL_RGBA, GL_UNSIGNED_BYTE, (unsigned char*)saveImage->GetData(false));
+      //		glReadPixels(0, 0, saveImage->noDims.x, saveImage->noDims.x, GL_RGBA, GL_UNSIGNED_BYTE,
+      //                     (unsigned char*)saveImage->GetData(false));
       //		sprintf(outFile, "%s/out_%05d.ppm", uiEngine->outFolder, uiEngine->processedFrameNo);
 
       //		SaveImageToFile(saveImage, outFile, true);
@@ -176,9 +180,8 @@ void UIEngine::glutIdleFunction() {
     default: break;
   }
 
-  if (uiEngine->needsRefresh) {
+  if (uiEngine->needsRefresh)
     glutPostRedisplay();
-  }
 }
 
 void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
@@ -251,7 +254,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
       if (((uiEngine->freeviewActive)
           && ((unsigned) uiEngine->currentColourMode >= uiEngine->colourModes_freeview.size())) ||
           ((!uiEngine->freeviewActive)
-              && ((unsigned) uiEngine->currentColourMode >= uiEngine->colourModes_main.size())))
+          && ((unsigned) uiEngine->currentColourMode >= uiEngine->colourModes_main.size())))
         uiEngine->currentColourMode = 0;
       uiEngine->needsRefresh = true;
       break;
@@ -482,11 +485,13 @@ void UIEngine::Initialise(int &argc,
   this->freeviewActive = false;
   this->integrationActive = true;
   this->currentColourMode = 0;
+  // 设定固定视角下，可视化界面可以使用的色彩模式
   this->colourModes_main.push_back(UIColourMode("shaded greyscale", ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST));
   this->colourModes_main.push_back(UIColourMode("integrated colours",
                                                 ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME));
   this->colourModes_main.push_back(UIColourMode("surface normals", ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL));
   this->colourModes_main.push_back(UIColourMode("confidence", ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE));
+  // 设定自由视角下，可视化界面可以使用的色彩模式
   this->colourModes_freeview.push_back(UIColourMode("shaded greyscale",
                                                     ITMMainEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED));
   this->colourModes_freeview.push_back(UIColourMode("integrated colours",
@@ -516,35 +521,35 @@ void UIEngine::Initialise(int &argc,
   //winReg[3] = Vector4f(0.5, h1, 0.75, h2); // Side sub window 2
   //winReg[4] = Vector4f(0.75, h1, 1, h2); // Side sub window 3
 
+  // 设定可视化窗口尺寸
   int textHeight = 30; // Height of text area
   //winSize.x = (int)(1.5f * (float)MAX(imageSource->getImageSize().x, imageSource->getDepthImageSize().x));
   //winSize.y = MAX(imageSource->getRGBImageSize().y, imageSource->getDepthImageSize().y) + textHeight;
   winSize.x = (int) (1.5f * (float) (imageSource->getDepthImageSize().x));
   winSize.y = imageSource->getDepthImageSize().y + textHeight;
   float h1 = textHeight / (float) winSize.y, h2 = (1.f + h1) / 2;
-  winReg[0] = Vector4f(0.0f, h1, 0.665f, 1.0f);   // Main render
-  winReg[1] = Vector4f(0.665f, h2, 1.0f, 1.0f);   // Side sub window 0
-  winReg[2] = Vector4f(0.665f, h1, 1.0f, h2);     // Side sub window 2
+  winReg[0] = Vector4f(0.0f, h1, 0.665f, 1.0f);   // 大窗口
+  winReg[1] = Vector4f(0.665f, h2, 1.0f, 1.0f);   // 侧边窗口1
+  winReg[2] = Vector4f(0.665f, h1, 1.0f, h2);     // 侧边窗口2
 
   this->isRecording = false;
   this->currentFrameNo = 0;
   this->rgbVideoWriter = NULL;
   this->depthVideoWriter = NULL;
-
-  glutInit(&argc, argv);
-  glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+  // 创建可视化窗口
+  glutInit(&argc, argv);                          // 初始化glut
+  glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);   // 指定glut显示模式的类型 https://blog.csdn.net/yangyong0717/article/details/78003913
   glutInitWindowSize(winSize.x, winSize.y);
   glutCreateWindow("InfiniTAM");
-  glGenTextures(NUM_WIN, textureId);
-
+  glGenTextures(NUM_WIN, textureId);              // 生成纹理 并 返回纹理索引 https://blog.csdn.net/haiping1224746757/article/details/107251237
+  // 绑定可视化窗口的操作
   glutDisplayFunc(UIEngine::glutDisplayFunction);
-  glutKeyboardUpFunc(UIEngine::glutKeyUpFunction);
-  glutMouseFunc(UIEngine::glutMouseButtonFunction);
-  glutMotionFunc(UIEngine::glutMouseMoveFunction);
-  glutIdleFunc(UIEngine::glutIdleFunction);
-
+  glutKeyboardUpFunc(UIEngine::glutKeyUpFunction);    // 键盘按键操作
+  glutMouseFunc(UIEngine::glutMouseButtonFunction);   // 鼠标按键操作
+  glutMotionFunc(UIEngine::glutMouseMoveFunction);    // 鼠标移动操作
+  glutIdleFunc(UIEngine::glutIdleFunction);           // 空闲时间进行的操作
 #ifdef FREEGLUT
-  glutMouseWheelFunc(UIEngine::glutMouseWheelFunction);
+  glutMouseWheelFunc(UIEngine::glutMouseWheelFunction);  // 鼠标滚轮操作
   glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, 1);
 #endif
 
@@ -597,6 +602,7 @@ void UIEngine::GetScreenshot(ITMUChar4Image *dest) const {
 }
 
 void UIEngine::ProcessFrame() {
+  //! 读取图片对和IMU
   if (!imageSource->hasMoreImages()) return;
   imageSource->getImages(inputRGBImage, inputRawDepthImage);
 
@@ -604,10 +610,10 @@ void UIEngine::ProcessFrame() {
     if (!imuSource->hasMoreMeasurements()) return;
     else imuSource->getMeasurement(inputIMUMeasurement);
   }
-
+  //! 保存彩色图和深度图
+  // 以图片形式保存
   if (isRecording) {
     char str[250];
-
     sprintf(str, "%s/%04d.pgm", outFolder, currentFrameNo);
     SaveImageToFile(inputRawDepthImage, str);
 
@@ -616,40 +622,34 @@ void UIEngine::ProcessFrame() {
       SaveImageToFile(inputRGBImage, str);
     }
   }
+  // 以视频形式保存
   if ((rgbVideoWriter != NULL) && (inputRGBImage->noDims.x != 0)) {
     if (!rgbVideoWriter->isOpen())
-      rgbVideoWriter->open("out_rgb.avi",
-                           inputRGBImage->noDims.x,
-                           inputRGBImage->noDims.y,
-                           false,
-                           30);
+      rgbVideoWriter->open("out_rgb.avi", inputRGBImage->noDims.x, inputRGBImage->noDims.y,
+                           /*是否为深度图*/false,  /*帧率*/30);
     rgbVideoWriter->writeFrame(inputRGBImage);
   }
   if ((depthVideoWriter != NULL) && (inputRawDepthImage->noDims.x != 0)) {
     if (!depthVideoWriter->isOpen())
-      depthVideoWriter->open("out_d.avi",
-                             inputRawDepthImage->noDims.x,
-                             inputRawDepthImage->noDims.y,
-                             true,
-                             30);
+      depthVideoWriter->open("out_d.avi", inputRawDepthImage->noDims.x, inputRawDepthImage->noDims.y, true, 30);
     depthVideoWriter->writeFrame(inputRawDepthImage);
   }
-
+  //! 记录时间 TODO(xzf): ?
   sdkResetTimer(&timer_instant);
   sdkStartTimer(&timer_instant);
   sdkStartTimer(&timer_average);
-
+  //! 跟踪单帧
   ITMTrackingState::TrackingResult trackerResult;
   //actual processing on the mailEngine
   if (imuSource != NULL)
     trackerResult = mainEngine->ProcessFrame(inputRGBImage, inputRawDepthImage, inputIMUMeasurement);
   else trackerResult = mainEngine->ProcessFrame(inputRGBImage, inputRawDepthImage);
-
   trackingResult = (int) trackerResult;
 
 #ifndef COMPILE_WITHOUT_CUDA
   ORcudaSafeCall(cudaThreadSynchronize());
 #endif
+  //! 停止记录时间 && 计算单帧处理时间
   sdkStopTimer(&timer_instant);
   sdkStopTimer(&timer_average);
 
