@@ -48,6 +48,8 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
                                                                                      const ITMView *view,
                                                                                      const ITMTrackingState *trackingState,
                                                                                      const ITMRenderState *renderState) {
+  //TODO（h）掌握TSDF voxel hasing
+  //！ 变量初始化
   Vector2i rgbImgSize = view->rgb->noDims;
   Vector2i depthImgSize = view->depth->noDims;
   float voxelSize = scene->sceneParams->voxelSize;
@@ -81,18 +83,18 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {
+  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {    // noVisibleEntries   实时列表中的条目数。
     Vector3i globalPos;
     const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];
 
-    if (currentHashEntry.ptr < 0) continue;
+    if (currentHashEntry.ptr < 0) continue;  //ptr 为指向体素数组 小于0为未标识的体素块
 
-    globalPos.x = currentHashEntry.pos.x;
+    globalPos.x = currentHashEntry.pos.x;   //.pos   8x8x8 卷角的位置，用于标识条目。
     globalPos.y = currentHashEntry.pos.y;
     globalPos.z = currentHashEntry.pos.z;
-    globalPos *= SDF_BLOCK_SIZE;
+    globalPos *= SDF_BLOCK_SIZE;    //SDF_BLOCK_SIZE 8
 
-    TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);
+    TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);   //SDF_BLOCK_SIZE3 512
 
     for (int z = 0; z < SDF_BLOCK_SIZE; z++)
       for (int y = 0; y < SDF_BLOCK_SIZE; y++)
@@ -103,14 +105,16 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
 
           if (stopIntegratingAtMaxW) if (localVoxelBlock[locId].w_depth == maxW) continue;
+          // stopIntegratingAtMaxW  到达最大观测次数后是否继续融合  maxW  voxel的最大观测次数，用来融合
+
           //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) continue;
 
           pt_model.x = (float) (globalPos.x + x) * voxelSize;
           pt_model.y = (float) (globalPos.y + y) * voxelSize;
-          pt_model.z = (float) (globalPos.z + z) * voxelSize;
-          pt_model.w = 1.0f;
+          pt_model.z = (float) (globalPos.z + z) * voxelSize;   //globalPos 为卷角坐标*8  voxelSize 单位米
+          pt_model.w = 1.0f;  // 为了后续使用齐次坐标？
 
-          ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
+          ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute( //TODO(h):函数的作用？
               localVoxelBlock[locId],
               pt_model,
               M_d,
