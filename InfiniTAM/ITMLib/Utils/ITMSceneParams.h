@@ -29,7 +29,7 @@ class ITMSceneParams {
       meters. The resulting width in voxels is @ref mu
       divided by @ref voxelSize.
   */
-  float mu;   // TODO(xzf):？
+  float mu;   // 视场
 
   /** \brief
       Up to @ref maxW observations per voxel are averaged.
