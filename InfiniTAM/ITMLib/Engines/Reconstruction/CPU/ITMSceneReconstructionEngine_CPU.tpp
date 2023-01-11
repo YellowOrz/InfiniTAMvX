@@ -55,7 +55,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   Matrix4f M_d, M_rgb;
   Vector4f projParams_d, projParams_rgb;
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;    // TODO(wangyuren)？
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;    // 场景构造和可视化引擎所使用的状态
 
   M_d = trackingState->pose_d->GetM();                                                      // 深度相机当前位姿矩阵
   if (TVoxel::hasColorInformation) M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d;  // 配准
@@ -72,10 +72,10 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                  // 获取体素块
   ITMHashEntry *hashTable = scene->index.GetEntries();                  // 获取hash列表
 
-  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();  //
-  int noVisibleEntries = renderState_vh->noVisibleEntries;      //
+  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();  // 获取可见条目的ID
+  int noVisibleEntries = renderState_vh->noVisibleEntries;      // 条目数
 
-  bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;   //最大观测次数是否继续融合
+  bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;   //超最大观测次数是否继续融合
   //bool approximateIntegration = !trackingState->requiresFullRendering;
 
 #ifdef WITH_OPENMP
@@ -83,9 +83,9 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
 #endif
   for (int entryId = 0; entryId < noVisibleEntries; entryId++) {
     Vector3i globalPos;
-    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];
+    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]]; //hash列表的单个条目
 
-    if (currentHashEntry.ptr < 0) continue;
+    if (currentHashEntry.ptr < 0) continue; // 判断体素块是否为空
 
     globalPos.x = currentHashEntry.pos.x;   // 在8x8x8网格内的x坐标
     globalPos.y = currentHashEntry.pos.y;   // 在8x8x8网格内的y坐标
