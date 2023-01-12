@@ -247,21 +247,25 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 
           if (vbaIdx >= 0 && exlIdx >= 0) //there is room in the voxel block array and excess list
           {
-            Vector4s pt_block_all = blockCoords[targetIdx];
+            Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标位置
 
             ITMHashEntry hashEntry;
             hashEntry.pos.x = pt_block_all.x;
             hashEntry.pos.y = pt_block_all.y;
             hashEntry.pos.z = pt_block_all.z;
-            hashEntry.ptr = voxelAllocationList[vbaIdx];
+            hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
             hashEntry.offset = 0;
 
+            //将链接列表的枚举将移动到超额分配列表
             int exlOffset = excessAllocationList[exlIdx];
 
+            //更改链接列表中最后找到的条目指向新填充的条目
             hashTable[targetIdx].offset = exlOffset + 1; //connect to child
 
+            //目标块三维世界坐标和体素块数组地址填充哈希表
             hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; //add child to the excess list
 
+            //条目标记类型为可见
             entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; //make child visible and in memory
           } else {
             // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
