@@ -347,16 +347,17 @@ _CPU_AND_GPU_CODE_ inline void checkPointVisibility(THREADPTR(bool) &isVisible,
   pt_buff.x = projParams_d.x * pt_buff.x / pt_buff.z + projParams_d.z;
   pt_buff.y = projParams_d.y * pt_buff.y / pt_buff.z + projParams_d.w;
 
-  if (pt_buff.x >= 0 && pt_buff.x < imgSize.x && pt_buff.y >= 0 && pt_buff.y < imgSize.y) {
+  if (pt_buff.x >= 0 && pt_buff.x < imgSize.x && pt_buff.y >= 0 && pt_buff.y < imgSize.y) {//若点在图像范围之内，可见也放大可见
     isVisible = true;
     isVisibleEnlarged = true;
   } else if (useSwapping) {
-    Vector4i lims;
+    Vector4i lims;//否则对图像范围进行一定转换
     lims.x = -imgSize.x / 8;
     lims.y = imgSize.x + imgSize.x / 8;
     lims.z = -imgSize.y / 8;
     lims.w = imgSize.y + imgSize.y / 8;
 
+    //若点在转换后的图像范围内，点放大可见
     if (pt_buff.x >= lims.x && pt_buff.x < lims.y && pt_buff.y >= lims.z && pt_buff.y < lims.w)
       isVisibleEnlarged = true;
   }
@@ -376,7 +377,7 @@ _CPU_AND_GPU_CODE_ inline void checkBlockVisibility(THREADPTR(bool) &isVisible,
   isVisible = false;
   isVisibleEnlarged = false;
 
-  // 0 0 0
+  // 0 0 0 初始图像范围内块是否可见
   pt_image.x = (float) hashPos.x * factor;
   pt_image.y = (float) hashPos.y * factor;
   pt_image.z = (float) hashPos.z * factor;
@@ -384,38 +385,38 @@ _CPU_AND_GPU_CODE_ inline void checkBlockVisibility(THREADPTR(bool) &isVisible,
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 0 1
+  // 0 0 1 z方向扩大后块是否可见
   pt_image.z += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 1 1
+  // 0 1 1 y,z方向扩大后块是否可见
   pt_image.y += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 1 1
+  // 1 1 1 x,y,z方向扩大后块是否可见
   pt_image.x += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 1 0
+  // 1 1 0 x,y方向扩大后块是否可见
   pt_image.z -= factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 0 0
+  // 1 0 0 x方向扩大后块是否可见
   pt_image.y -= factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 1 0
+  // 0 1 0 y方向扩大后块是否可见
   pt_image.x -= factor;
   pt_image.y += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 0 1
+  // 1 0 1 x,z方向扩大后块是否可见
   pt_image.x += factor;
   pt_image.y -= factor;
   pt_image.z += factor;
