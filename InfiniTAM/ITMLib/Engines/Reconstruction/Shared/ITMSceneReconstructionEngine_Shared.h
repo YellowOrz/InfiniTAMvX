@@ -69,8 +69,8 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   float depth_measure, eta, oldF, newF;
   int oldW, newW, locId;
 
-  // project point into image
-  pt_camera = M_d * pt_model;
+  // project point into image 投影点成图像
+  pt_camera = M_d * pt_model; //pt_model为体素块？
   if (pt_camera.z <= 0) return -1;
 
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
