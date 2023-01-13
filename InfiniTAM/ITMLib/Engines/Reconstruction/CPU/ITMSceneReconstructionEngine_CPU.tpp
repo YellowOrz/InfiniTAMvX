@@ -99,27 +99,28 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
     const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];  //哈希表结构
 
     if (currentHashEntry.ptr < 0) continue;  //ptr 为指向体素数组 小于0为未标识的体素块
-   //遍历被标识的体素块
-    globalPos.x = currentHashEntry.pos.x;   //.pos   8x8x8 卷角的位置，用于标识条目。
+
+    globalPos.x = currentHashEntry.pos.x;   //.pos   8x8x8 卷角的位置，用于标识entry。
     globalPos.y = currentHashEntry.pos.y;
     globalPos.z = currentHashEntry.pos.z;
     globalPos *= SDF_BLOCK_SIZE;    //SDF_BLOCK_SIZE 8
+    //放入8*8*8的体素块中
 
     TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);   //SDF_BLOCK_SIZE3 512
-
+    //构建8*8*8模型
     for (int z = 0; z < SDF_BLOCK_SIZE; z++)
       for (int y = 0; y < SDF_BLOCK_SIZE; y++)
-        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {
+        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {//循环整个block 的每一个小块
           Vector4f pt_model;
           int locId;
 
-          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
+          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;  //给每一个小块一个ID
 
           if (stopIntegratingAtMaxW) if (localVoxelBlock[locId].w_depth == maxW) continue;
           // stopIntegratingAtMaxW  到达最大观测次数后是否继续融合  maxW  voxel的最大观测次数，用来融合
 
           //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) continue;
-
+          //TODO（h）：与投影成图像 TSDF 有关 复习kinectfusion
           pt_model.x = (float) (globalPos.x + x) * voxelSize;
           pt_model.y = (float) (globalPos.y + y) * voxelSize;
           pt_model.z = (float) (globalPos.z + z) * voxelSize;   //globalPos 为卷角坐标*8  voxelSize 单位米
