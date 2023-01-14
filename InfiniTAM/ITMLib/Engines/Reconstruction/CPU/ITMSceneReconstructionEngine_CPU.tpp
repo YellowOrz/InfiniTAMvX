@@ -112,6 +112,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           pt_model.z = (float) (globalPos.z + z) * voxelSize;
           pt_model.w = 1.0f;
 
+          //对体素块进行更新
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId],
               pt_model,
@@ -254,7 +255,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
             hashEntry.pos.y = pt_block_all.y;
             hashEntry.pos.z = pt_block_all.z;
             hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
-            hashEntry.offset = 0;
+            hashEntry.offset = 0;//偏移量，用于定位每个特定体素块的体素数据
 
             //将链接列表的枚举将移动到超额分配列表
             int exlOffset = excessAllocationList[exlIdx];
