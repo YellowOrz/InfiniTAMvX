@@ -55,6 +55,20 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
 }
 
 template<class TVoxel>
+/**
+ *
+ * @tparam TVoxel
+ * @param voxel 体素块？
+ * @param pt_model
+ * @param M_d 当前深度图像位姿
+ * @param projParams_d 深度相机的内在参数中的  校准矩阵 4*1
+ * @param mu
+ * @param maxW  voxel的最大观测次数，用来融合
+ * @param depth  深度图像
+ * @param confidence 当前图像置信度
+ * @param imgSize  当前图像的大小 像素
+ * @return
+ */
 _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &voxel,
                                                              const THREADPTR(Vector4f) &pt_model,
                                                              const CONSTPTR(Matrix4f) &M_d,
