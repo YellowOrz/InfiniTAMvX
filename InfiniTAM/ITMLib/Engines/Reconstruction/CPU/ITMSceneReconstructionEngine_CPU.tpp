@@ -126,7 +126,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           pt_model.z = (float) (globalPos.z + z) * voxelSize;   //globalPos 为卷角坐标*8  voxelSize 单位米
           pt_model.w = 1.0f;  // 为了后续使用齐次坐标？
 
-          ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute( //TODO(h):函数的作用？
+          ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId],
               pt_model,
               M_d,
@@ -139,7 +139,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
               confidence,
               depthImgSize,
               rgb,
-              rgbImgSize);
+              rgbImgSize);  //更新体素保存的一些信息    根据hasColorInformation  hasConfidenceInformation 的bool值来选择函数
         }
   }
 }
