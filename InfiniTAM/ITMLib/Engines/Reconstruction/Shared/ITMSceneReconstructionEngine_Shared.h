@@ -23,6 +23,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
+  //若体素块不可见则退出
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
@@ -32,6 +33,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   if (depth_measure <= 0.0f) return -1;
 
   // check whether voxel needs updating
+  //如果体素靠近或在观测表面的前面，则将相应的观测值加到累积和中
   eta = depth_measure - pt_camera.z;
   if (eta < -mu) return eta;
 
@@ -147,6 +149,7 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
   voxel.w_color = (uchar) newW;
 }
 
+//根据体素是否存储颜色信息或置信信息，分四种情况对体素进行更新
 template<bool hasColor, bool hasConfidence, class TVoxel>
 struct ComputeUpdatedVoxelInfo;
 
@@ -257,6 +260,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
       || (depth_measure + mu) > viewFrustum_max)
     return;
 
+  //图像坐标中的深度
   pt_camera_f.z = depth_measure;
   pt_camera_f.x = pt_camera_f.z * ((float(x) - projParams_d.z) * projParams_d.x);
   pt_camera_f.y = pt_camera_f.z * ((float(y) - projParams_d.w) * projParams_d.y);
@@ -331,7 +335,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
   }
 }
 
-template<bool useSwapping>
+template<bool useSwapping>//TODO:这里不太明白useSwapping的true或false对下面的函数起什么作用
 _CPU_AND_GPU_CODE_ inline void checkPointVisibility(THREADPTR(bool) &isVisible,
                                                     THREADPTR(bool) &isVisibleEnlarged,
                                                     const THREADPTR(Vector4f) &pt_image,
