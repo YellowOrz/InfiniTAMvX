@@ -74,7 +74,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;  //深度相机的内在参数中的  校准矩阵 4*1
   projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;  //彩色相机的内在参数中的 校准矩阵 4*1
 
-  float mu = scene->sceneParams->mu;
+  float mu = scene->sceneParams->mu;  //场景参数中的一个数值
   int maxW = scene->sceneParams->maxW; //voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
 
   float *depth = view->depth->GetData(MEMORYDEVICE_CPU);  //获取深度图像的指针
