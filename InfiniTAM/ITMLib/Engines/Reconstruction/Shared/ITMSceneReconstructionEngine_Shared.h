@@ -23,7 +23,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
-  //若体素块不可见则退出
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
@@ -50,7 +50,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   newW = MIN(newW, maxW);
 
   // write back
-  voxel.sdf = TVoxel::floatToValue(newF);
+  voxel.sdf = TVoxel::floatToValue(newF);//计算坐标理论值和实际测量值的差值，若大于mu，则更新
   voxel.w_depth = newW;
 
   return eta;
@@ -75,6 +75,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
@@ -129,11 +130,14 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
   oldC = TO_FLOAT3(buffV3u) / 255.0f;
   newC = oldC;
 
+  //将点投影到图像中
   pt_camera = M_rgb * pt_model;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams_rgb.x * pt_camera.x / pt_camera.z + projParams_rgb.z;
   pt_image.y = projParams_rgb.y * pt_camera.y / pt_camera.z + projParams_rgb.w;
 
+  //剔除不在图像范围内的点
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return;
 
   rgb_measure = TO_VECTOR3(interpolateBilinear(rgb, pt_image, imgSize)) / 255.0f;
@@ -285,7 +289,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
 
   //add neighbouring blocks
   for (int i = 0; i < noSteps; i++) {
-    blockPos = TO_SHORT_FLOOR3(point);
+    blockPos = TO_SHORT_FLOOR3(point);//在此线段上获取voxel对应的voxel block坐标
 
     //compute index in hash table
     hashIdx = hashIndex(blockPos);
@@ -295,6 +299,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
 
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
+    //检查该voxel block是否已经allocation
     if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
       //entry has been streamed out but is visible or in memory and visible
       entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;
@@ -327,6 +332,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
         entriesAllocType[hashIdx] = isExcess ? 2 : 1; //needs allocation
         if (!isExcess) entriesVisibleType[hashIdx] = 1; //new entry is visible
 
+        //没有allocation，在哈希表上进行标记，之后遍历哈希表进行更新
         blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1);
       }
     }
