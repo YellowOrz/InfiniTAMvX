@@ -20,16 +20,17 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   int oldW, newW;
 
   // project point into image
-  pt_camera = M_d * pt_model;
-  if (pt_camera.z <= 0) return -1;
+  pt_camera = M_d * pt_model; //（4*4）*（4*1）=4*1
+  if (pt_camera.z <= 0) return -1; //pt_camera 相机的位姿
 
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
+  //TODO（h）：判定啥呀？ 这是
 
   // get measured depth from image
   depth_measure = depth[(int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x];
-  if (depth_measure <= 0.0f) return -1;
+  if (depth_measure <= 0.0f) return -1;  //判断深度信息是否正确 否则退出函数
 
   // check whether voxel needs updating
   eta = depth_measure - pt_camera.z;
@@ -86,7 +87,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   // project point into image 投影点成图像
   pt_camera = M_d * pt_model; //pt_model为体素块？
   if (pt_camera.z <= 0) return -1;
-
+  //
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
