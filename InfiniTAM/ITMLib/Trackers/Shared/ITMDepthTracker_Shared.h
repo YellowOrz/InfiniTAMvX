@@ -26,6 +26,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
 
+  //当前depth图坐标
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
@@ -48,6 +49,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);
   if (curr3Dpoint.w < 0.0f) return false;
 
+  //计算投影图与深度图误差函数
   ptDiff.x = curr3Dpoint.x - tmp3Dpoint.x;
   ptDiff.y = curr3Dpoint.y - tmp3Dpoint.y;
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
