@@ -78,6 +78,7 @@ _CPU_AND_GPU_CODE_ inline Vector2f interpolateBilinear_Vector2(const CONSTPTR(OR
   return result;
 }
 
+//计算目标像素在源图像中的位置
 template<typename T>
 _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear_withHoles(const CONSTPTR(ORUtils::Vector4<T>) *source,
                                                                  const THREADPTR(Vector2f) &position,

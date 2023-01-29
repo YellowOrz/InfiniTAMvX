@@ -26,7 +26,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
 
-  //当前depth图坐标
+  //相机坐标系下三维坐标
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
@@ -39,6 +39,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   // project into previous rendered image
   tmp3Dpoint_reproj = scenePose * tmp3Dpoint;
   if (tmp3Dpoint_reproj.z <= 0.0f) return false;
+  //投影到相机坐标
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
 
@@ -46,10 +47,11 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
       && (tmp2Dpoint.y <= sceneImageSize.y - 2)))
     return false;
 
+  //用双线性插值法得到图像上的整数坐标点
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);
   if (curr3Dpoint.w < 0.0f) return false;
 
-  //计算投影图与深度图误差函数
+  //当前坐标点法向量
   ptDiff.x = curr3Dpoint.x - tmp3Dpoint.x;
   ptDiff.y = curr3Dpoint.y - tmp3Dpoint.y;
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
@@ -60,6 +62,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   corr3Dnormal = interpolateBilinear_withHoles(normalsMap, tmp2Dpoint, sceneImageSize);
 //	if (corr3Dnormal.w < 0.0f) return false;
 
+  //点到面的ICP方法，计算当前位姿的误差函数
   b = corr3Dnormal.x * ptDiff.x + corr3Dnormal.y * ptDiff.y + corr3Dnormal.z * ptDiff.z;
 
   // TODO check whether normal matches normal from image, done in the original paper, but does not seem to be required

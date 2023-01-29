@@ -45,7 +45,6 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   memset(sumHessian, 0, sizeof(float) * noParaSQ);
   memset(sumNabla, 0, sizeof(float) * noPara);
 
-  //计算最小化的投影图与当前depth图的point-to-plane误差
   for (int y = 0; y < viewImageSize.y; y++)
     for (int x = 0; x < viewImageSize.x; x++) {
       float localHessian[6 + 5 + 4 + 3 + 2 + 1], localNabla[6], localF = 0;
