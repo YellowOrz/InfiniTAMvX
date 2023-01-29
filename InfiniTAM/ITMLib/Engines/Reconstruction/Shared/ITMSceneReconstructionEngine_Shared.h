@@ -18,15 +18,15 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   Vector2f pt_image;
   float depth_measure, eta, oldF, newF;
   int oldW, newW;
-
+  // 类似于kinectfusion
   // project point into image
   pt_camera = M_d * pt_model; //（4*4）*（4*1）=4*1
   if (pt_camera.z <= 0) return -1; //pt_camera 相机的位姿
-
-  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
+  // 投影
+  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z; //TODO（h）：数学公式的意义
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
-  //TODO（h）：判定啥呀？ 这是
+
 
   // get measured depth from image
   depth_measure = depth[(int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x];
@@ -70,6 +70,7 @@ template<class TVoxel>
  * @param imgSize  当前图像的大小 像素
  * @return
  */
+ // Integration 融合 将新的深度图融合到三维模型里面
 _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &voxel,
                                                              const THREADPTR(Vector4f) &pt_model,
                                                              const CONSTPTR(Matrix4f) &M_d,
@@ -85,7 +86,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   int oldW, newW, locId;
 
   // project point into image 投影点成图像
-  pt_camera = M_d * pt_model; //pt_model为体素块？
+  pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
   //
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
@@ -93,15 +94,15 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
 
   locId = (int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x;
-  // get measured depth from image
+  // get measured depth from image  获得深度信息
   depth_measure = depth[locId];
   if (depth_measure <= 0.0) return -1;
 
-  // check whether voxel needs updating
+  // check whether voxel needs updating   在表面背后的voxel不需要更新 或者不在视野里的
   eta = depth_measure - pt_camera.z;
   if (eta < -mu) return eta;
 
-  // compute updated SDF value and reliability
+  // compute updated SDF value and reliability   进行数据更新
   oldF = TVoxel::valueToFloat(voxel.sdf);
   oldW = voxel.w_depth;
   newF = MIN(1.0f, eta / mu);

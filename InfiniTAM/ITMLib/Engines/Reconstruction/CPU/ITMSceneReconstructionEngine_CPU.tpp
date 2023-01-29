@@ -78,7 +78,8 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   int maxW = scene->sceneParams->maxW; //voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
 
   float *depth = view->depth->GetData(MEMORYDEVICE_CPU);  //获取深度图像的指针
-  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);  //获取深度图像置信度的指针
+  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);
+    //获取深度图像置信度的指针   置信度为 被摄像头观测的次数，出现在其视野里的次数
   Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);  //获取彩色图的指针
   TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();  //获得体素块
   ITMHashEntry *hashTable = scene->index.GetEntries();  //获得哈希表指针
