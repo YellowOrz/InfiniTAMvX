@@ -36,25 +36,25 @@ void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view,
                                                   ITMScene<TVoxel, TIndex> *scene,
                                                   ITMRenderState *renderState,
                                                   bool resetVisibleList) {
-  // allocation
+  // 配置（给定一个具有新深度图像的视图，计算可见块，分配它们并更新哈希表，以便可以集成新的图像数据。）
   sceneRecoEngine->AllocateSceneFromDepth(scene, view, trackingState, renderState, false, resetVisibleList);
 
-  // integration
+  // 集成（通过整合来自给定视图的深度和可能的颜色信息来更新体素块。）
   sceneRecoEngine->IntegrateIntoScene(scene, view, trackingState, renderState);
-
-  if (swappingEngine != NULL) {
+  // CPU与GPU之间的内存交换
+  if (swappingEngine != NULL) { // 判断交换引擎接口地址是否为空
     // swapping: CPU -> GPU
-    if (swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED)
+    if (swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED)   // 判断交换模式
       swappingEngine->IntegrateGlobalIntoLocal(scene,
-                                               renderState);
+                                               renderState);    // 进行交换
 
     // swapping: GPU -> CPU
-    switch (swappingMode) {
-      case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);
+    switch (swappingMode) { //判断交换模式
+      case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);    // 进行交换
         break;
-      case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);
+      case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);       // 删除不可见的
         break;
-      case ITMLibSettings::SWAPPINGMODE_DISABLED: break;
+      case ITMLibSettings::SWAPPINGMODE_DISABLED: break;                                                    // 不进行交换
     }
   }
 }

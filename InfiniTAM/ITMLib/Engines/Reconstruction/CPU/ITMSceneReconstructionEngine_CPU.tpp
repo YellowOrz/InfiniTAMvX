@@ -118,7 +118,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           pt_model.y = (float) (globalPos.y + y) * voxelSize;
           pt_model.z = (float) (globalPos.z + z) * voxelSize;
           pt_model.w = 1.0f;
-
+          //各项体素数据更新
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId],
               pt_model,
