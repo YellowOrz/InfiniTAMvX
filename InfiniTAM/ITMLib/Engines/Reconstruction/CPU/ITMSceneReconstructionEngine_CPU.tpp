@@ -56,7 +56,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
                                                                                      const ITMView *view,
                                                                                      const ITMTrackingState *trackingState,
                                                                                      const ITMRenderState *renderState) {
-  //TODO（h）掌握TSDF voxel hasing
+  //TODO（h）掌握TSDF
   //！ 变量初始化
   Vector2i rgbImgSize = view->rgb->noDims;  //获得当前帧的彩色图像 大小 以像素为单位
   Vector2i depthImgSize = view->depth->noDims;  //获得当前帧的深度图像 大小 以像素为单位
@@ -95,27 +95,37 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
 //pragma omp parallel for是OpenMP中的一个指令，表示接下来的for循环将被多线程执行，另外每次循环之间不能有关系
 #endif
    //！开始处理
-  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {    // noVisibleEntries   实时列表中的条目数。
+
+/*
+   1 所有的block存储在连续的内存之中 即称VBA
+   2 voxel block 由8*8*8个voxel组成。voxel 存储 sdf，color 和 weight 信息
+   3 hash table 连续的数组  其记录的映射关系（对应）关系   其中ptr储存该block在array 中的位置
+   4 哈希函数 输入一个block的ID坐标（pos） 返回一个独一无二的 index（即ptr GTR(）
+
+    哈希冲突即为 不同的pos计算出相同的ptr
+    解决方法为将映射相同ptr的block的全部存储下来，offset初始化为-1 如有冲突offset为两个相同ptr的entry的距离 查找时，遍历直至offset<=-1
+*/
+  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {    //遍历hash table
     Vector3i globalPos;
-    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];  //哈希表结构
+    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];
 
-    if (currentHashEntry.ptr < 0) continue;  //ptr 为指向体素数组 小于0为未标识的体素块
+    if (currentHashEntry.ptr < 0) continue;  //如果ptr为- 则该block没有储存数据
 
-    globalPos.x = currentHashEntry.pos.x;   //.pos   8x8x8 卷角的位置，用于标识entry。
+    globalPos.x = currentHashEntry.pos.x;   //该block的ID坐标（应该是世界坐标系下的坐标）
     globalPos.y = currentHashEntry.pos.y;
     globalPos.z = currentHashEntry.pos.z;
-    globalPos *= SDF_BLOCK_SIZE;    //SDF_BLOCK_SIZE 8
-    //放入8*8*8的体素块中
+    globalPos *= SDF_BLOCK_SIZE;    //
+
 
     TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);   //SDF_BLOCK_SIZE3 512
     //构建8*8*8模型
     for (int z = 0; z < SDF_BLOCK_SIZE; z++)
       for (int y = 0; y < SDF_BLOCK_SIZE; y++)
-        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {//循环整个block 的每一个小块
+        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {//循环整个block 的每一个voxel
           Vector4f pt_model;
           int locId;
 
-          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;  //给每一个小块一个ID
+          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;  //给每个voxel一个ID
 
           if (stopIntegratingAtMaxW) if (localVoxelBlock[locId].w_depth == maxW) continue;
           // stopIntegratingAtMaxW  到达最大观测次数后是否继续融合  maxW  voxel的最大观测次数，用来融合
