@@ -22,14 +22,14 @@ ITMDepthTracker_CPU::ITMDepthTracker_CPU(Vector2i imgSize,
 ITMDepthTracker_CPU::~ITMDepthTracker_CPU(void) {}
 
 int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
-  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;
-  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;
+  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU);//三维坐标点
+  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU);//法向量
+  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;//相机场景内参
+  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;//场景图像大小
 
-  float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU);
-  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;
-  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;
+  float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU);//当前帧深度值
+  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;//当前三维点坐标
+  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;//当前点法向量
 
   if (iterationType == TRACKER_ITERATION_NONE) return 0;
 
@@ -118,15 +118,18 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
       }
     }
 
+  //填充海塞矩阵的下三角
   for (int r = 0, counter = 0; r < noPara; r++)
     for (int c = 0; c <= r; c++, counter++)
       hessian[r + c * 6] = sumHessian[counter];
+  //填充海塞矩阵的上三角
   for (int r = 0; r < noPara; ++r)
     for (int c = r + 1; c < noPara; c++)
       hessian[r + c * 6] = hessian[c + r * 6];
 
+  //填入雅可比矩阵
   memcpy(nabla, sumNabla, noPara * sizeof(float));
-  f = (noValidPoints > 100) ? sumF / noValidPoints : 1e5f;
+  f = (noValidPoints > 100) ? sumF / noValidPoints : 1e5f;//最终的误差函数
 
   return noValidPoints;
 }
