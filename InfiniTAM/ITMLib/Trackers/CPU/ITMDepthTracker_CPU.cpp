@@ -22,39 +22,46 @@ ITMDepthTracker_CPU::ITMDepthTracker_CPU(Vector2i imgSize,
 ITMDepthTracker_CPU::~ITMDepthTracker_CPU(void) {}
 
 int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
-  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;
-  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;
+  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU); // 齐次 三维点坐标
+  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU); // 齐次 法向量
+  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics; // 相机内参 场景
+  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims; // 图像的大小 用像素来表示
 
-  float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU);
-  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;
-  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;
+  float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU); // 获取该视角的深度信息
+  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;  // 相机内参 视角
+  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;  // 图像的大小 用像素来表示
 
-  if (iterationType == TRACKER_ITERATION_NONE) return 0;
+  if (iterationType == TRACKER_ITERATION_NONE) return 0; //用于定义跟踪迭代机制的跟踪器迭代类型
 
   bool shortIteration =
       (iterationType == TRACKER_ITERATION_ROTATION) || (iterationType == TRACKER_ITERATION_TRANSLATION);
+    //  ||或 有一个为true 则为true
 
   float sumHessian[6 * 6], sumNabla[6], sumF;
   int noValidPoints;
   int noPara = shortIteration ? 3 : 6, noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
+   // int 类型=bool
 
   noValidPoints = 0;
   sumF = 0.0f;
-  memset(sumHessian, 0, sizeof(float) * noParaSQ);
-  memset(sumNabla, 0, sizeof(float) * noPara);
+  memset(sumHessian, 0, sizeof(float) * noParaSQ);  //对sumHessian 清零
+  memset(sumNabla, 0, sizeof(float) * noPara);  //对sumNabla 清零
+  /*
+   * memset 用于对结构体或者数组清零  memset(void *s, int c, size_t n);
+   * memset() 函数用常量字节 c 填充 s 指向的内存区域的前 n 个字节。
+   */
+
 
   for (int y = 0; y < viewImageSize.y; y++)
     for (int x = 0; x < viewImageSize.x; x++) {
       float localHessian[6 + 5 + 4 + 3 + 2 + 1], localNabla[6], localF = 0;
-
+      // 遍历每一个像素
       for (int i = 0; i < noPara; i++) localNabla[i] = 0.0f;
       for (int i = 0; i < noParaSQ; i++) localHessian[i] = 0.0f;
 
       bool isValidPoint;
 
-      switch (iterationType) {
+      switch (iterationType) {  //根据跟踪器迭代类型 选择函数类型
         case TRACKER_ITERATION_ROTATION:
           isValidPoint = computePerPointGH_Depth<true, true>(localNabla,
                                                              localHessian,
@@ -106,7 +113,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
                                                                normalsMap,
                                                                distThresh[levelId]);
           break;
-        default: isValidPoint = false;
+        default: isValidPoint = false;  //defualt 在上面都不执行时 执行一个任务
           break;
       }
 
