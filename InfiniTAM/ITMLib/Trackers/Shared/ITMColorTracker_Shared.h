@@ -57,13 +57,16 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *loca
   pt_model = locations[locId_global];
   colour_known = colours[locId_global];
 
+  //将点投影到图像中
   pt_camera = M * pt_model;
 
   if (pt_camera.z <= 0) return false;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams.x * pt_camera.x / pt_camera.z + projParams.z;
   pt_image.y = projParams.y * pt_camera.y / pt_camera.z + projParams.w;
 
+  //剔除不在图像范围内的点
   if (pt_image.x < 0 || pt_image.x > imgSize.x - 1 || pt_image.y < 0 || pt_image.y > imgSize.y - 1) return false;
 
   colour_obs = interpolateBilinear(rgb, pt_image, imgSize);
