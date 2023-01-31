@@ -99,12 +99,15 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
   scaleForOcclusions = (float) noTotalPoints / countedPoints_valid;
   if (countedPoints_valid == 0) { scaleForOcclusions = 1.0f; }
 
+  //填充海塞矩阵的下三角
   for (int para = 0, counter = 0; para < numPara; para++) {
     gradient[para] = globalGradient[para] * scaleForOcclusions;
     for (int col = 0; col <= para; col++, counter++)
       hessian[para + col * numPara] = globalHessian[counter] * scaleForOcclusions;
   }
+  //填充海塞矩阵的上三角
   for (int row = 0; row < numPara; row++) {
-    for (int col = row + 1; col < numPara; col++) hessian[row + col * numPara] = hessian[col + row * numPara];
+    for (int col = row + 1; col < numPara; col++)
+      hessian[row + col * numPara] = hessian[col + row * numPara];
   }
 }
