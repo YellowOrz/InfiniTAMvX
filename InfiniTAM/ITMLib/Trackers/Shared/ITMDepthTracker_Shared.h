@@ -51,6 +51,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);
   if (curr3Dpoint.w < 0.0f) return false;
 
+  //当前点的法向量
   ptDiff.x = curr3Dpoint.x - tmp3Dpoint.x;
   ptDiff.y = curr3Dpoint.y - tmp3Dpoint.y;
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
@@ -58,7 +59,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
 
   if (dist > distThresh) return false;
 
-  //相机坐标系下坐标点的法向量
+  //原模型中得到的坐标点
   corr3Dnormal = interpolateBilinear_withHoles(normalsMap, tmp2Dpoint, sceneImageSize);
 //	if (corr3Dnormal.w < 0.0f) return false;
 
@@ -80,6 +81,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
     A[0] = +tmp3Dpoint.z * corr3Dnormal.y - tmp3Dpoint.y * corr3Dnormal.z;
     A[1] = -tmp3Dpoint.z * corr3Dnormal.x + tmp3Dpoint.x * corr3Dnormal.z;
     A[2] = +tmp3Dpoint.y * corr3Dnormal.x - tmp3Dpoint.x * corr3Dnormal.y;
+    //误差函数对当前求得的法向量的偏导数就是模型点的法向量的本身
     A[!shortIteration ? 3 : 0] = corr3Dnormal.x;
     A[!shortIteration ? 4 : 1] = corr3Dnormal.y;
     A[!shortIteration ? 5 : 2] = corr3Dnormal.z;
