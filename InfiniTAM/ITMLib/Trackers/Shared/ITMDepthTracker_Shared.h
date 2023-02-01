@@ -19,39 +19,40 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
                                                           const CONSTPTR(Vector4f) *pointsMap,
                                                           const CONSTPTR(Vector4f) *normalsMap,
                                                           float distThresh) {
-  if (depth <= 1e-8f) return false; //check if valid -- != 0.0f
+  if (depth <= 1e-8f) return false; //check if valid -- != 0.0f  实际的深度图会有飞点等干扰因素
 
   Vector4f tmp3Dpoint, tmp3Dpoint_reproj;
   Vector3f ptDiff;
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
-
+  //当前帧的坐标
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
   tmp3Dpoint.w = 1.0f;
 
-  // transform to previous frame coordinates
+  // transform to previous frame coordinates  变换到上一帧坐标
   tmp3Dpoint = approxInvPose * tmp3Dpoint;
   tmp3Dpoint.w = 1.0f;
 
-  // project into previous rendered image
+  // project into previous rendered image  上一帧的坐标投射到之前的渲染图像总区
   tmp3Dpoint_reproj = scenePose * tmp3Dpoint;
-  if (tmp3Dpoint_reproj.z <= 0.0f) return false;
+  if (tmp3Dpoint_reproj.z <= 0.0f) return false;  // 用z坐标来判断？
+  // TODO（h）：下面的操作的具体含义？
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
 
   if (!((tmp2Dpoint.x >= 0.0f) && (tmp2Dpoint.x <= sceneImageSize.x - 2) && (tmp2Dpoint.y >= 0.0f)
-      && (tmp2Dpoint.y <= sceneImageSize.y - 2)))
+      && (tmp2Dpoint.y <= sceneImageSize.y - 2)))  // 判断是否在这个点是否在一个范围内 （0,0）到sceneImageSize-2之间
     return false;
-
+  //双线性插值
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);
   if (curr3Dpoint.w < 0.0f) return false;
 
   ptDiff.x = curr3Dpoint.x - tmp3Dpoint.x;
   ptDiff.y = curr3Dpoint.y - tmp3Dpoint.y;
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
-  float dist = ptDiff.x * ptDiff.x + ptDiff.y * ptDiff.y + ptDiff.z * ptDiff.z;
+  float dist = ptDiff.x * ptDiff.x + ptDiff.y * ptDiff.y + ptDiff.z * ptDiff.z; //误差值
 
   if (dist > distThresh) return false;
 
