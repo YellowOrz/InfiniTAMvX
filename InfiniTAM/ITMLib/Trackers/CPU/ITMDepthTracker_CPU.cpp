@@ -120,8 +120,8 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
       if (isValidPoint) {
         noValidPoints++;
         sumF += localF;
-        for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i];
-        for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i];
+        for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i]; // 累加
+        for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i]; // 累加
       }
     }
 
@@ -131,7 +131,12 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   for (int r = 0; r < noPara; ++r) for (int c = r + 1; c < noPara; c++) hessian[r + c * 6] = hessian[c + r * 6];
 
   memcpy(nabla, sumNabla, noPara * sizeof(float));
-  f = (noValidPoints > 100) ? sumF / noValidPoints : 1e5f;
+  /*
+   * void *memcpy(void *dest, const void *src, size_t n);
+   * 由src指向地址为起始地址的连续n个字节的数据复制到以destin指向地址为起始地址的空间内
+   * dest 与 src 不一定需要是数组 是一定的连续内存空间即可 同时 size（src）<size(dest)否则内存溢出
+   */
+  f = (noValidPoints > 100) ? sumF / noValidPoints : 1e5f;  // 1e5f为在所给的精度上为1 ；int 1 在int精度上为1，其他精度不一定
 
   return noValidPoints;
 }
