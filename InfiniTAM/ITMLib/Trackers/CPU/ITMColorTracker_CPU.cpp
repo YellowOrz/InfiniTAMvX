@@ -42,7 +42,7 @@ int ITMColorTracker_CPU::F_oneLevel(float *f, ORUtils::SE3Pose *pose) {
     }
   }
 
-  if (countedPoints_valid == 0) {
+  if (countedPoints_valid == 0) { //无颜色差异
     final_f = 1e10;
     scaleForOcclusions = 1.0;
   } else { scaleForOcclusions = (float) noTotalPoints / countedPoints_valid; }
@@ -68,6 +68,7 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
   float scaleForOcclusions;
 
   bool rotationOnly = iterationType == TRACKER_ITERATION_ROTATION;
+  //构建一个上三角矩阵来依次填入海塞矩阵
   int numPara = rotationOnly ? 3 : 6, startPara = rotationOnly ? 3 : 0,
       numParaSQ = rotationOnly ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
 
@@ -96,6 +97,7 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
     }
   }
 
+  //最终的误差函数
   scaleForOcclusions = (float) noTotalPoints / countedPoints_valid;
   if (countedPoints_valid == 0) { scaleForOcclusions = 1.0f; }
 

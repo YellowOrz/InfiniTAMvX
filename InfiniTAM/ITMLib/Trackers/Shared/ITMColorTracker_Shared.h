@@ -16,17 +16,21 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   Vector2f pt_image;
 
   pt_model = locations[locId_global];
-  colour_known = colours[locId_global];
+  colour_known = colours[locId_global];//表面点的列表
 
+  //将点投影到图像中
   pt_camera = M * pt_model;
 
   if (pt_camera.z <= 0) return -1.0f;
 
+  //将三维坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams.x * pt_camera.x / pt_camera.z + projParams.z;
   pt_image.y = projParams.y * pt_camera.y / pt_camera.z + projParams.w;
 
+  //剔除不在范围内的点
   if (pt_image.x < 0 || pt_image.x > imgSize.x - 1 || pt_image.y < 0 || pt_image.y > imgSize.y - 1) return -1.0f;
 
+  //和表面点的列表相对应的颜色列表
   colour_obs = interpolateBilinear(rgb, pt_image, imgSize);
   if (colour_obs.w < 254.0f) return -1.0f;
 
@@ -34,9 +38,11 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   colour_diff.y = colour_obs.y - 255.0f * colour_known.y;
   colour_diff.z = colour_obs.z - 255.0f * colour_known.z;
 
+  //返回颜色差
   return colour_diff.x * colour_diff.x + colour_diff.y * colour_diff.y + colour_diff.z * colour_diff.z;
 }
 
+//找到差值平方和的R和t最小化
 _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *localGradient,
                                                           THREADPTR(float) *localHessian,
                                                           DEVICEPTR(Vector4f) *locations,
@@ -55,25 +61,26 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *loca
   Vector2f pt_image, d_proj_dpi;
 
   pt_model = locations[locId_global];
-  colour_known = colours[locId_global];
+  colour_known = colours[locId_global];//表面点的列表
 
   //将点投影到图像中
   pt_camera = M * pt_model;
 
   if (pt_camera.z <= 0) return false;
 
-  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标
+  //使用已知的旋转矩阵和平移向量将三维坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams.x * pt_camera.x / pt_camera.z + projParams.z;
   pt_image.y = projParams.y * pt_camera.y / pt_camera.z + projParams.w;
 
   //剔除不在图像范围内的点
   if (pt_image.x < 0 || pt_image.x > imgSize.x - 1 || pt_image.y < 0 || pt_image.y > imgSize.y - 1) return false;
 
-  colour_obs = interpolateBilinear(rgb, pt_image, imgSize);
+  colour_obs = interpolateBilinear(rgb, pt_image, imgSize);//和表面点的列表相对应的颜色列表
   gx_obs = interpolateBilinear(gx, pt_image, imgSize);
   gy_obs = interpolateBilinear(gy, pt_image, imgSize);
 
   if (colour_obs.w < 254.0f) return false;
+
 
   colour_diff_d.x = 2.0f * (colour_obs.x - 255.0f * colour_known.x);
   colour_diff_d.y = 2.0f * (colour_obs.y - 255.0f * colour_known.y);
