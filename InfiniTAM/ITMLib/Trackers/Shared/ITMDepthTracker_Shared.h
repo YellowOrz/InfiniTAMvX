@@ -64,7 +64,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
 //	if (corr3Dnormal.w < 0.0f) return false;
 
   b = corr3Dnormal.x * ptDiff.x + corr3Dnormal.y * ptDiff.y + corr3Dnormal.z * ptDiff.z;
-  // b 应该等于0
+  // b为 point-to-plane的误差函数
   // TODO check whether normal matches normal from image, done in the original paper, but does not seem to be required
   // 检查 normal 是否与图像中的 normal 匹配，在原始论文中完成，但似乎不需要
   if (shortIteration) {
@@ -127,7 +127,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth(THREADPTR(float) *localNa
 
   if (!ret) return false;
 
-  localF = b * b;
+  localF = b * b;  // 误差值
 
 #if (defined(__CUDACC__) && defined(__CUDA_ARCH__)) || (defined(__METALC__))
 #pragma unroll
