@@ -351,7 +351,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_exDepth(THREADPTR(float) *local
 
   if (!ret) return false;
 
-  localF = rho(b, spaceThresh) * depthWeight;
+  localF = rho(b, spaceThresh) * depthWeight;//当前帧误差函数
 
 #if (defined(__CUDACC__) && defined(__CUDA_ARCH__)) || (defined(__METALC__))
 #pragma unroll
@@ -418,7 +418,7 @@ _CPU_AND_GPU_CODE_ inline void projectPoint_exRGB(
     const CONSTPTR(Vector4f) &intrinsics_rgb,
     const CONSTPTR(Vector4f) &intrinsics_depth,
     const CONSTPTR(Matrix4f) &scenePose) {
-  if (x >= imageSize_depth.x || y >= imageSize_depth.y) return;
+  if (x >= imageSize_depth.x || y >= imageSize_depth.y) return;//剔除图像范围内的点
 
   int sceneIdx = y * imageSize_depth.x + x;
 

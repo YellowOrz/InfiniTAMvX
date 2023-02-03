@@ -381,9 +381,10 @@ int ITMExtendedTracker_CPU::ComputeGandH_RGB(float &f, float *nabla, float *hess
     for (int c = r + 1; c < noPara; c++)
       hessian[r + c * 6] = hessian[c + r * 6];
 
+  //填入雅可比矩阵
   memcpy(nabla, sumNabla, noPara * sizeof(float));
 
-  f = sumF;
+  f = sumF;//最终的误差函数
 
   return noValidPoints;
 }
@@ -395,17 +396,18 @@ void ITMExtendedTracker_CPU::ProjectCurrentIntensityFrame(ITMFloat4Image *points
                                                           const Vector4f &intrinsics_depth,
                                                           const Vector4f &intrinsics_rgb,
                                                           const Matrix4f &scenePose) {
-  const Vector2i imageSize_rgb = intensity_in->noDims;
-  const Vector2i imageSize_depth = depth_in->noDims; // Also the size of the projected image
+  const Vector2i imageSize_rgb = intensity_in->noDims;//rgb图像大小
+  const Vector2i imageSize_depth = depth_in->noDims; // 深度图大小，Also the size of the projected image
 
   points_out->ChangeDims(imageSize_depth); // Actual reallocation should happen only once per run.
   intensity_out->ChangeDims(imageSize_depth); // Actual reallocation should happen only once per run.
 
   const float *depths = depth_in->GetData(MEMORYDEVICE_CPU);
   const float *intensityIn = intensity_in->GetData(MEMORYDEVICE_CPU);
-  Vector4f *pointsOut = points_out->GetData(MEMORYDEVICE_CPU);
-  float *intensityOut = intensity_out->GetData(MEMORYDEVICE_CPU);
+  Vector4f *pointsOut = points_out->GetData(MEMORYDEVICE_CPU);//输出的点
+  float *intensityOut = intensity_out->GetData(MEMORYDEVICE_CPU);//输出强度
 
+  //计算当前帧输出的点和输出强度
   for (int y = 0; y < imageSize_depth.y; y++)
     for (int x = 0; x < imageSize_depth.x; x++)
       projectPoint_exRGB(x,
