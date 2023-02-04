@@ -37,8 +37,8 @@ int ITMColorTracker_CPU::F_oneLevel(float *f, ORUtils::SE3Pose *pose) {
   for (int locId = 0; locId < noTotalPoints; locId++) {
     float colorDiffSq = getColorDifferenceSq(locations, colours, rgb, imgSize, locId, projParams, M);
     if (colorDiffSq >= 0) {
-      final_f += colorDiffSq;
-      countedPoints_valid++;
+      final_f += colorDiffSq;//对颜色误差进行累加
+      countedPoints_valid++;//记录有效点数目
     }
   }
 
@@ -63,6 +63,7 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
 
   Matrix4f M = pose->GetM();
 
+  //目标图像尺寸大小
   Vector2i imgSize = viewHierarchy->GetLevel(levelId)->rgb->noDims;
 
   float scaleForOcclusions;
@@ -91,6 +92,7 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
     bool isValidPoint = computePerPointGH_rt_Color(localGradient, localHessian, locations, colours, rgb, imgSize, locId,
                                                    projParams, M, gx, gy, numPara, startPara);
 
+    //将有效点的误差数据进行累加
     if (isValidPoint) {
       for (int i = 0; i < numPara; i++) globalGradient[i] += localGradient[i];
       for (int i = 0; i < numParaSQ; i++) globalHessian[i] += localHessian[i];
