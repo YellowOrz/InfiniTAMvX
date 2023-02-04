@@ -43,6 +43,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
 
+  //剔除超过边界的点
   if (!((tmp2Dpoint.x >= 0.0f) && (tmp2Dpoint.x <= sceneImageSize.x - 2) && (tmp2Dpoint.y >= 0.0f)
       && (tmp2Dpoint.y <= sceneImageSize.y - 2)))
     return false;
@@ -57,7 +58,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
   float dist = ptDiff.x * ptDiff.x + ptDiff.y * ptDiff.y + ptDiff.z * ptDiff.z;
 
-  if (dist > distThresh) return false;
+  if (dist > distThresh) return false;//剔除误差较大的点
 
   //原模型中得到的坐标点
   corr3Dnormal = interpolateBilinear_withHoles(normalsMap, tmp2Dpoint, sceneImageSize);
@@ -133,10 +134,12 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth(THREADPTR(float) *localNa
 #pragma unroll
 #endif
   for (int r = 0, counter = 0; r < noPara; r++) {
+    //当前帧雅可比矩阵
     localNabla[r] = b * A[r];
 #if (defined(__CUDACC__) && defined(__CUDA_ARCH__)) || (defined(__METALC__))
 #pragma unroll
 #endif
+    //当前帧海塞矩阵
     for (int c = 0; c <= r; c++, counter++) localHessian[counter] = A[r] * A[c];
   }
 
