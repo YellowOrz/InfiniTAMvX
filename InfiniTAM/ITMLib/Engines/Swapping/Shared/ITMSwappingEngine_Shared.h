@@ -3,25 +3,30 @@
 #pragma once
 
 #include "../../../Utils/ITMMath.h"
-
+/**
+ * @tparam TVoxel 体素信息
+ * @param src 上一帧的体素信息
+ * @param dst 设备上新一帧的体素信息
+ * @param maxW 整体空间的最大尺度
+ */
 template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxel) &src,
                                                             DEVICEPTR(TVoxel) &dst,
                                                             int maxW) {
-  int newW = dst.w_depth;
-  int oldW = src.w_depth;
-  float newF = TVoxel::valueToFloat(dst.sdf);
-  float oldF = TVoxel::valueToFloat(src.sdf);
+  int newW = dst.w_depth;   // 新一帧的相机平面深度
+  int oldW = src.w_depth;   // 上一帧的相机平面深度
+  float newF = TVoxel::valueToFloat(dst.sdf);   // 新一帧体素与物体的最近距离
+  float oldF = TVoxel::valueToFloat(src.sdf);   // 上一帧体素与物体的最近距离
 
-  if (oldW == 0) return;
-
+  if (oldW == 0) return; //若新增深度为0直接返回
+  //新增深度不为0，则进行优化
   newF = oldW * oldF + newW * newF;
-  newW = oldW + newW;
-  newF /= newW;
-  newW = MIN(newW, maxW);
+  newW = oldW + newW;   // 计算新一帧相机的平面距离
+  newF /= newW; // 优化后新一帧的体素与物体的最近距离
+  newW = MIN(newW, maxW);   // 取最小值作为新一帧相机平面深度
 
-  dst.w_depth = newW;
-  dst.sdf = TVoxel::floatToValue(newF);
+  dst.w_depth = newW;   // 新一帧相机的平面距离
+  dst.sdf = TVoxel::floatToValue(newF); // 优化后新一帧的体素与物体的最近距离
 }
 
 template<class TVoxel>
