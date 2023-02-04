@@ -22,8 +22,8 @@ int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMSc
 
   int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);    // 初始化需要存入的本地ID的状态指针为否
 
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  //
-  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 初始化已经同步的
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  //初始化已同步体素的状态指针
+  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 初始化已经同步合并的数据状态指针为否
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);   // 初始化需要存入的全局ID的状态指针为否
 
   int noTotalEntries = globalCache->noTotalEntries;                     // 总条目

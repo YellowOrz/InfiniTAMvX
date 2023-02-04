@@ -32,6 +32,7 @@
 
 #ifndef __METALC__
 
+// 确保数据在不同终端中不会产生差异
 inline bool portable_finite(float a) {
   volatile float temp = a;
   if (temp != a) return false;
@@ -39,6 +40,7 @@ inline bool portable_finite(float a) {
   return true;
 }
 
+// TODO(wangyuren)这好像在算关于图像大小的什么数据
 inline void matmul(const float *A, const float *b, float *x, int numRows, int numCols) {
   for (int r = 0; r < numRows; ++r) {
     float res = 0.0f;
