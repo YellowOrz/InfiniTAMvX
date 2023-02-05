@@ -38,12 +38,16 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
     //  ||或 有一个为true 则为true
 
   float sumHessian[6 * 6], sumNabla[6], sumF;
-  int noValidPoints;
+  /*
+   * Hessian ：黑塞矩阵（Hessian Matrix），是一个多元函数的二阶偏导数构成的方阵，描述了函数的局部曲率。
+   * Nabla ： Nabla算子
+   */
+  int noValidPoints;  //用于记录无意义的点
   int noPara = shortIteration ? 3 : 6, noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
    // int 类型=bool
 
   noValidPoints = 0;
-  sumF = 0.0f;
+  sumF = 0.0f;  //总的误差初始化为0
   memset(sumHessian, 0, sizeof(float) * noParaSQ);  //对sumHessian 清零
   memset(sumNabla, 0, sizeof(float) * noPara);  //对sumNabla 清零
   /*
@@ -119,7 +123,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
 
       if (isValidPoint) {
         noValidPoints++;
-        sumF += localF;
+        sumF += localF;  // 误差叠加
         for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i]; // 累加
         for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i]; // 累加
       }
@@ -128,7 +132,8 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   for (int r = 0, counter = 0; r < noPara; r++)
     for (int c = 0; c <= r; c++, counter++)
       hessian[r + c * 6] = sumHessian[counter];
-  for (int r = 0; r < noPara; ++r) for (int c = r + 1; c < noPara; c++) hessian[r + c * 6] = hessian[c + r * 6];
+  for (int r = 0; r < noPara; ++r)
+    for (int c = r + 1; c < noPara; c++) hessian[r + c * 6] = hessian[c + r * 6];
 
   memcpy(nabla, sumNabla, noPara * sizeof(float));
   /*
