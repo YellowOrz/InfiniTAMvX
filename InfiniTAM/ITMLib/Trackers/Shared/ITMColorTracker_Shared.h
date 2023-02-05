@@ -15,7 +15,7 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   Vector3f colour_diff;
   Vector2f pt_image;
 
-  pt_model = locations[locId_global];
+  pt_model = locations[locId_global];//模型点坐标
   colour_known = colours[locId_global];//表面点的列表
 
   //将点投影到图像中
@@ -42,7 +42,7 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   return colour_diff.x * colour_diff.x + colour_diff.y * colour_diff.y + colour_diff.z * colour_diff.z;
 }
 
-//找到差值平方和的R和t最小化
+//LM算法找到差值平方和的R和t最小化
 _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *localGradient,
                                                           THREADPTR(float) *localHessian,
                                                           DEVICEPTR(Vector4f) *locations,
@@ -60,7 +60,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *loca
   Vector3f colour_diff_d, d_pt_cam_dpi, d[6];
   Vector2f pt_image, d_proj_dpi;
 
-  pt_model = locations[locId_global];
+  pt_model = locations[locId_global];//模型点坐标
   colour_known = colours[locId_global];//表面点的列表
 
   //将点投影到图像中
@@ -90,6 +90,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_rt_Color(THREADPTR(float) *loca
   const float z_sq = pt_camera.z * pt_camera.z;
   const float inv_z_sq = 1.f / z_sq;
 
+  //t表示平移，r表示旋转
   for (int para = 0, counter = 0; para < numPara; para++) {
     switch (para + startPara) {
       case 0: // tx

@@ -38,6 +38,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
 
   float sumHessian[6 * 6], sumNabla[6], sumF;
   int noValidPoints;
+  //构建一个上三角矩阵来依次填入海塞矩阵
   int noPara = shortIteration ? 3 : 6, noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
 
   noValidPoints = 0;
@@ -54,7 +55,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
 
       bool isValidPoint;
 
-      //判断点是否有效
+      //判断该帧是否为有效点
       switch (iterationType) {
         case TRACKER_ITERATION_ROTATION:
           isValidPoint = computePerPointGH_Depth<true, true>(localNabla,
@@ -112,7 +113,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
       }
 
       if (isValidPoint) {
-        noValidPoints++;
+        noValidPoints++;//TODO:该点有效，为什么无效点数目加一
         sumF += localF;//对每个点误差进行累加
         for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i];
         for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i];
