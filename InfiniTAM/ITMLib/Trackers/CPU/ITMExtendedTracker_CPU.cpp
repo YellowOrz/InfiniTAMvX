@@ -42,14 +42,14 @@ ITMExtendedTracker_CPU::ITMExtendedTracker_CPU(Vector2i imgSize_d,
 ITMExtendedTracker_CPU::~ITMExtendedTracker_CPU(void) {}
 
 int ITMExtendedTracker_CPU::ComputeGandH_Depth(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
-  Vector4f *pointsMap = sceneHierarchyLevel_Depth->pointsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f *normalsMap = sceneHierarchyLevel_Depth->normalsMap->GetData(MEMORYDEVICE_CPU);
-  Vector4f sceneIntrinsics = sceneHierarchyLevel_Depth->intrinsics;
-  Vector2i sceneImageSize = sceneHierarchyLevel_Depth->pointsMap->noDims;
+  Vector4f *pointsMap = sceneHierarchyLevel_Depth->pointsMap->GetData(MEMORYDEVICE_CPU);//三维坐标点
+  Vector4f *normalsMap = sceneHierarchyLevel_Depth->normalsMap->GetData(MEMORYDEVICE_CPU);//法向量
+  Vector4f sceneIntrinsics = sceneHierarchyLevel_Depth->intrinsics;//相机场景内参
+  Vector2i sceneImageSize = sceneHierarchyLevel_Depth->pointsMap->noDims;//场景图像大小
 
-  float *depth = viewHierarchyLevel_Depth->depth->GetData(MEMORYDEVICE_CPU);
-  Vector4f viewIntrinsics = viewHierarchyLevel_Depth->intrinsics;
-  Vector2i viewImageSize = viewHierarchyLevel_Depth->depth->noDims;
+  float *depth = viewHierarchyLevel_Depth->depth->GetData(MEMORYDEVICE_CPU);//当前帧深度值
+  Vector4f viewIntrinsics = viewHierarchyLevel_Depth->intrinsics;//当前三维点坐标
+  Vector2i viewImageSize = viewHierarchyLevel_Depth->depth->noDims//当前点法向量
 
   if (currentIterationType == TRACKER_ITERATION_NONE) return 0;
 
@@ -76,6 +76,7 @@ int ITMExtendedTracker_CPU::ComputeGandH_Depth(float &f, float *nabla, float *he
 
       float depthWeight;
 
+      //判断该帧是否为有效点
       if (framesProcessed < 100) {
         switch (currentIterationType) {
           case TRACKER_ITERATION_ROTATION:
@@ -227,8 +228,8 @@ int ITMExtendedTracker_CPU::ComputeGandH_Depth(float &f, float *nabla, float *he
       }
 
       if (isValidPoint) {
-        noValidPoints++;
-        sumF += localF;
+        noValidPoints++;//TODO:该点有效，为什么无效点数目加一
+        sumF += localF;//对每个点误差进行累加
         for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i];
         for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i];
       }
@@ -246,7 +247,7 @@ int ITMExtendedTracker_CPU::ComputeGandH_Depth(float &f, float *nabla, float *he
 
   memcpy(nabla, sumNabla, noPara * sizeof(float));
 
-  f = sumF;
+  f = sumF;//最终的误差函数
 
   return noValidPoints;
 }
@@ -270,6 +271,7 @@ int ITMExtendedTracker_CPU::ComputeGandH_RGB(float &f, float *nabla, float *hess
 
   float sumHessian[6 * 6], sumNabla[6], sumF;
   int noValidPoints;
+  //构建一个上三角矩阵来依次填入海塞矩阵
   int noPara = shortIteration ? 3 : 6, noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
 
   noValidPoints = 0;
@@ -286,6 +288,7 @@ int ITMExtendedTracker_CPU::ComputeGandH_RGB(float &f, float *nabla, float *hess
 
       bool isValidPoint = false;
 
+      //判断该帧是否为有效点
       switch (currentIterationType) {
         case TRACKER_ITERATION_ROTATION:
           isValidPoint = computePerPointGH_exRGB_inv_Ab<true, true>(
@@ -365,7 +368,7 @@ int ITMExtendedTracker_CPU::ComputeGandH_RGB(float &f, float *nabla, float *hess
 
       if (isValidPoint) {
         noValidPoints++;
-        sumF += localF;
+        sumF += localF;//对每个点误差进行累加
         for (int i = 0; i < noPara; i++) sumNabla[i] += localNabla[i];
         for (int i = 0; i < noParaSQ; i++) sumHessian[i] += localHessian[i];
       }
