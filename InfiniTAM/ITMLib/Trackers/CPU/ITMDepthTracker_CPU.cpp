@@ -28,8 +28,8 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;//场景图像大小
 
   float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU);//当前帧深度值
-  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;//当前三维点坐标
-  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;//当前点法向量
+  Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;
+  Vector2i viewImageSize = viewHierarchyLevel->data->noDims;//当前帧图像大小
 
   if (iterationType == TRACKER_ITERATION_NONE) return 0;
 
