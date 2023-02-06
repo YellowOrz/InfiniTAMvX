@@ -17,18 +17,18 @@ int ITMColorTracker_CPU::F_oneLevel(float *f, ORUtils::SE3Pose *pose) {
   int noTotalPoints = trackingState->pointCloud->noTotalPoints;
 
   Vector4f projParams = view->calib.intrinsics_rgb.projectionParamsSimple.all;
-  projParams.x /= 1 << levelId;
+  projParams.x /= 1 << levelId;  //赋值
   projParams.y /= 1 << levelId;
   projParams.z /= 1 << levelId;
   projParams.w /= 1 << levelId;
 
   Matrix4f M = pose->GetM();
 
-  Vector2i imgSize = viewHierarchy->GetLevel(levelId)->rgb->noDims;
+  Vector2i imgSize = viewHierarchy->GetLevel(levelId)->rgb->noDims;  //获得图像大小
 
   float scaleForOcclusions, final_f;
 
-  Vector4f *locations = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU);
+  Vector4f *locations = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU);  // 获取 位姿
   Vector4f *colours = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CPU);
   Vector4u *rgb = viewHierarchy->GetLevel(levelId)->rgb->GetData(MEMORYDEVICE_CPU);
 

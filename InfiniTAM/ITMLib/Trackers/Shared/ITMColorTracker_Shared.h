@@ -18,9 +18,9 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   pt_model = locations[locId_global];
   colour_known = colours[locId_global];
 
-  pt_camera = M * pt_model;
+  pt_camera = M * pt_model; // 获取上一帧的摄像头的位子
 
-  if (pt_camera.z <= 0) return -1.0f;
+  if (pt_camera.z <= 0) return -1.0f;  // 排除坐标不正确的点
 
   pt_image.x = projParams.x * pt_camera.x / pt_camera.z + projParams.z;
   pt_image.y = projParams.y * pt_camera.y / pt_camera.z + projParams.w;
