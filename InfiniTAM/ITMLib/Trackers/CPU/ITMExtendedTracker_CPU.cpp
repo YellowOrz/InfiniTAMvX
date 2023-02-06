@@ -253,16 +253,16 @@ int ITMExtendedTracker_CPU::ComputeGandH_Depth(float &f, float *nabla, float *he
 }
 
 int ITMExtendedTracker_CPU::ComputeGandH_RGB(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
-  const Vector2i viewImageSize_depth = viewHierarchyLevel_Depth->depth->noDims;
-  const Vector2i viewImageSize_rgb = viewHierarchyLevel_Intensity->intensity_prev->noDims;
+  const Vector2i viewImageSize_depth = viewHierarchyLevel_Depth->depth->noDims;//当前帧深度图大小
+  const Vector2i viewImageSize_rgb = viewHierarchyLevel_Intensity->intensity_prev->noDims;//当前帧彩色图大小
 
   const Vector4f *points_curr = reprojectedPointsLevel->data->GetData(MEMORYDEVICE_CPU);
-  const float *intensities_prev = viewHierarchyLevel_Intensity->intensity_prev->GetData(MEMORYDEVICE_CPU);
-  const float *intensities_current = projectedIntensityLevel->data->GetData(MEMORYDEVICE_CPU);
-  const Vector2f *gradients = viewHierarchyLevel_Intensity->gradients->GetData(MEMORYDEVICE_CPU);
+  const float *intensities_prev = viewHierarchyLevel_Intensity->intensity_prev->GetData(MEMORYDEVICE_CPU);//上一帧点的强度
+  const float *intensities_current = projectedIntensityLevel->data->GetData(MEMORYDEVICE_CPU);//当前帧点的强度
+  const Vector2f *gradients = viewHierarchyLevel_Intensity->gradients->GetData(MEMORYDEVICE_CPU);//梯度
 
-  Vector4f projParams_rgb = viewHierarchyLevel_Intensity->intrinsics;
-  Vector4f projParams_depth = viewHierarchyLevel_Depth->intrinsics;
+  Vector4f projParams_rgb = viewHierarchyLevel_Intensity->intrinsics;//彩色图项目参数
+  Vector4f projParams_depth = viewHierarchyLevel_Depth->intrinsics;//深度图项目参数
 
   if (currentIterationType == TRACKER_ITERATION_NONE) return 0;
 
