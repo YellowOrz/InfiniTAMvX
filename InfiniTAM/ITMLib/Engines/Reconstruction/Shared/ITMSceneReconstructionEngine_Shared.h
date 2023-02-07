@@ -38,11 +38,11 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   if (eta < -mu) return eta;
 
   // compute updated SDF value and reliability
-  oldF = TVoxel::valueToFloat(voxel.sdf);
-  oldW = voxel.w_depth;
+  oldF = TVoxel::valueToFloat(voxel.sdf);//上一帧体素块的sdf值
+  oldW = voxel.w_depth;//上一帧体素块的权重
 
-  newF = MIN(1.0f, eta / mu);
-  newW = 1;
+  newF = MIN(1.0f, eta / mu);//当前帧体素块的sdf值
+  newW = 1;//当前帧体素块的权重
 
   newF = oldW * oldF + newW * newF;
   newW = oldW + newW;
@@ -51,7 +51,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
 
   // write back
   voxel.sdf = TVoxel::floatToValue(newF);//计算坐标理论值和实际测量值的差值，若大于mu，则更新
-  voxel.w_depth = newW;
+  voxel.w_depth = newW;//更新体素块的权重
 
   return eta;
 }
@@ -103,7 +103,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   // write back^
   voxel.sdf = TVoxel::floatToValue(newF);
   voxel.w_depth = newW;
-  voxel.confidence += TVoxel::floatToValue(confidence[locId]);
+  voxel.confidence += TVoxel::floatToValue(confidence[locId]);//更新体素块的置信度
 
   return eta;
 }
@@ -125,9 +125,9 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
   float newW, oldW;
 
   buffV3u = voxel.clr;
-  oldW = (float) voxel.w_color;
+  oldW = (float) voxel.w_color;//上一帧体素块的权重
 
-  oldC = TO_FLOAT3(buffV3u) / 255.0f;
+  oldC = TO_FLOAT3(buffV3u) / 255.0f;//上一帧体素块的权重
   newC = oldC;
 
   //将点投影到图像中
@@ -144,11 +144,12 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
   //rgb_measure = rgb[(int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x].toVector3().toFloat() / 255.0f;
   newW = 1;
 
-  newC = oldC * oldW + rgb_measure * newW;
-  newW = oldW + newW;
+  newC = oldC * oldW + rgb_measure * newW;//当前帧体素块的rgb信息
+  newW = oldW + newW;//当前帧体素块的权重
   newC /= newW;
   newW = MIN(newW, maxW);
 
+  //更新体素块的rgb信息和权重
   voxel.clr = TO_UCHAR3(newC * 255.0f);
   voxel.w_color = (uchar) newW;
 }
