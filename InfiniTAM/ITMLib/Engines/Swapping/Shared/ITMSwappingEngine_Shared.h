@@ -8,10 +8,10 @@ template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxel) &src,
                                                             DEVICEPTR(TVoxel) &dst,
                                                             int maxW) {
-  int newW = dst.w_depth;
-  int oldW = src.w_depth;
-  float newF = TVoxel::valueToFloat(dst.sdf);
-  float oldF = TVoxel::valueToFloat(src.sdf);
+  int newW = dst.w_depth;//当前帧体素块的权重
+  int oldW = src.w_depth;//上一帧体素块的权重
+  float newF = TVoxel::valueToFloat(dst.sdf);//当前帧体素块的sdf值
+  float oldF = TVoxel::valueToFloat(src.sdf);//上一帧体素块的sdf值
 
   if (oldW == 0) return;
 
@@ -20,6 +20,7 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxe
   newF /= newW;
   newW = MIN(newW, maxW);
 
+  //更新体素块的sdf值与置信度
   dst.w_depth = newW;
   dst.sdf = TVoxel::floatToValue(newF);
 }
@@ -28,10 +29,10 @@ template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxel) &src,
                                                             DEVICEPTR(TVoxel) &dst,
                                                             int maxW) {
-  int newW = dst.w_color;
-  int oldW = src.w_color;
-  Vector3f newC = dst.clr.toFloat() / 255.0f;
-  Vector3f oldC = src.clr.toFloat() / 255.0f;
+  int newW = dst.w_color;//当前帧体素块的权重
+  int oldW = src.w_color;//上一帧体素块的权重
+  Vector3f newC = dst.clr.toFloat() / 255.0f;//当前帧体素块的rgb信息
+  Vector3f oldC = src.clr.toFloat() / 255.0f;//上一帧体素块的rgb信息
 
   if (oldW == 0) return;
 
@@ -40,6 +41,7 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxe
   newC /= (float) newW;
   newW = MIN(newW, maxW);
 
+  //更新体素块的rgb信息和权重
   dst.clr = TO_UCHAR3(newC * 255.0f);
   dst.w_color = (uchar) newW;
 }
