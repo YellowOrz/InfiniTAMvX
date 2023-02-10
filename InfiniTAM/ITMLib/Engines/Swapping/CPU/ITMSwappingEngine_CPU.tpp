@@ -14,6 +14,10 @@ template<class TVoxel>
 ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CPU(void) {
 }
 
+/**
+ * @tparam TVoxel 体素信息
+ * @param scene
+ */
 template<class TVoxel>
 int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;//全局缓存指针
