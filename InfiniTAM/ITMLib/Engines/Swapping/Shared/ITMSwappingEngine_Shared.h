@@ -3,7 +3,12 @@
 #pragma once
 
 #include "../../../Utils/ITMMath.h"
-
+/**
+ * @tparam Tvoxel 体素信息
+ * @param [in]src 上一帧体素信息
+ * @param [in]dst 当前帧体素信息
+ * @param [in]maxW
+ */
 template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxel) &src,
                                                             DEVICEPTR(TVoxel) &dst,
@@ -25,6 +30,12 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxe
   dst.sdf = TVoxel::floatToValue(newF);
 }
 
+/**
+ * @tparam Tvoxel 体素信息
+ * @param [in]src 上一帧体素信息
+ * @param [in]dst 当前帧体素信息
+ * @param [in]maxW
+ */
 template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxel) &src,
                                                             DEVICEPTR(TVoxel) &dst,
@@ -49,6 +60,7 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxe
 template<bool hasColor, class TVoxel>
 struct CombineVoxelInformation;
 
+//体素无颜色信息
 template<class TVoxel>
 struct CombineVoxelInformation<false, TVoxel> {
   _CPU_AND_GPU_CODE_ static void compute(const CONSTPTR(TVoxel) &src, DEVICEPTR(TVoxel) &dst, int maxW) {
@@ -56,6 +68,7 @@ struct CombineVoxelInformation<false, TVoxel> {
   }
 };
 
+//体素有颜色信息
 template<class TVoxel>
 struct CombineVoxelInformation<true, TVoxel> {
   _CPU_AND_GPU_CODE_ static void compute(const CONSTPTR(TVoxel) &src, DEVICEPTR(TVoxel) &dst, int maxW) {
