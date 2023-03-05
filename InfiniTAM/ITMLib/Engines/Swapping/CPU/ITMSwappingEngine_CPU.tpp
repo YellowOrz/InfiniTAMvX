@@ -20,21 +20,24 @@ ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CPU(void) {
  */
 template<class TVoxel>
 int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;//全局缓存指针
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;//全局缓存指针 // 初始化场景全局缓存的指针
 
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);//交换状态指针
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);//交换状态指针 // 初始化交换状态指针为否
 
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);//是否需要缓存的本地ID
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);//是否需要缓存的本地ID   // 初始化交换状态指针为否
 
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);
-  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
-  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  //初始化已同步体素的状态指针
+  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 初始化已经同步合并的数据状态指针为否
+  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);   // 初始化需要存入的全局ID的状态指针为否
 
-  int noTotalEntries = globalCache->noTotalEntries;
-
-  int noNeededEntries = 0;
+  int noTotalEntries = globalCache->noTotalEntries;                     // 总条目
+  // 统计信息还没有合并的需要存入的条目数量并记录其ID
+  // state = 0 最近的数据在主机上，数据目前不在活动内存中
+  // state = 1 主机上的数据和活动内存中的数据，信息还没有合并
+  // state = 2 最近的数据在活动内存中，应该在某个时候将这些数据保存回主机
+  int noNeededEntries = 0;  // 初始化需要存入的条目数为0
   for (int entryId = 0; entryId < noTotalEntries; entryId++) {
-    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;
+    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;   // SDF_TRANSFER_BLOCK_NUM 在一次交换操作中传输的最大块数，大小为0x1000
     if (swapStates[entryId].state == 1) {
       neededEntryIDs_local[noNeededEntries] = entryId;
       noNeededEntries++;
