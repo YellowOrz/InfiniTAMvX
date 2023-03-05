@@ -33,9 +33,9 @@
 /** \brief
 	A single entry in the hash table.
 */
-struct ITMHashEntry {
+struct ITMHashEntry {   //连续的数组  用于记录映射关系
   /** Position of the corner of the 8x8x8 volume, that identifies the entry. */
-  Vector3s pos;
+  Vector3s pos;  //x, y, z,
   /** Offset in the excess list. */
   int offset;
   /** Pointer to the voxel block array.
@@ -43,7 +43,7 @@ struct ITMHashEntry {
       - -1 identifies an entry that has been removed (swapped out)
       - <-1 identifies an unallocated block
   */
-  int ptr;
+  int ptr; //记录在其数组中的位置
 };
 
 namespace ITMLib {

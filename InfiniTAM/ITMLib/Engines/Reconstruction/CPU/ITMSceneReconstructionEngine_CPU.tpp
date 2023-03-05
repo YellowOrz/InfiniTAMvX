@@ -42,75 +42,100 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(ITM
   scene->index.SetLastFreeExcessListId(SDF_EXCESS_LIST_SIZE - 1);
 }
 
-template<class TVoxel>//ITM场景重建引擎
+/**
+ * ITM场景重建引擎
+ * @tparam [in]TVoxel
+ * @param [in]scene
+ * @param [in]view
+ * @param [in]trackingState
+ * @param [in]renderState 存储场景重建和可视化引擎使用的渲染状态。
+ */
+template<class TVoxel>
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(ITMScene<TVoxel,
                                                                                               ITMVoxelBlockHash> *scene,//ITM体素块哈希表
                                                                                      const ITMView *view,//
                                                                                      const ITMTrackingState *trackingState,//ITM跟踪状态
-                                                                                     const ITMRenderState *renderState) {//ITM渲染状态
-  Vector2i rgbImgSize = view->rgb->noDims;//RGB图像大小
-  Vector2i depthImgSize = view->depth->noDims;//深度图大小
-  float voxelSize = scene->sceneParams->voxelSize;//体素大小
+                                                                                     const ITMRenderState *renderState) {//ITM渲染状态Vector2i rgbImgSize = view->rgb->noDims;//RGB图像大小
+  //！ 变量初始化
+  Vector2i depthImgSize = view->depth->noDims;//深度图大小 //获得当前帧的彩色图像 大小 以像素为单位
+  float voxelSize = scene->sceneParams->voxelSize;//体素大小 //获得当前帧的深度图像 大小 以像素为单位
 
   Matrix4f M_d, M_rgb;
   Vector4f projParams_d, projParams_rgb;
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;//ITM渲染状态
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;//ITM渲染状态//存储场景重建和可视化引擎使用的渲染状态。
 
-  M_d = trackingState->pose_d->GetM();//跟踪状态位姿
+  M_d = trackingState->pose_d->GetM();//跟踪状态位姿//当前深度图像位姿  4*4
+    // trafo_rgb_to_depth  此转换将点从 RGB 相机坐标系转移到深度相机坐标系。  calib_inv 变换矩阵的逆矩阵 用于配准
   if (TVoxel::hasColorInformation) M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d;//
 
-  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;
-  projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;
+  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;  //深度相机的内在参数中的  校准矩阵 4*1
+  projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;  //彩色相机的内在参数中的 校准矩阵 4*1
 
-  float mu = scene->sceneParams->mu;//场景参数
-  int maxW = scene->sceneParams->maxW;
+  float mu = scene->sceneParams->mu;//场景参数//场景参数中的一个数值
+  int maxW = scene->sceneParams->maxW;//voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
 
-  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);//获取深度值
-  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);//深度置信度
-  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);//读取rgb图像
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();//
-  ITMHashEntry *hashTable = scene->index.GetEntries();//ITM哈希表
+  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);  //获取深度图像的指针
+  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);
+    //获取深度图像置信度的指针   置信度为 被摄像头观测的次数，出现在其视野里的次数
+  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);  //获取彩色图的指针
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();  //获得体素块
+  ITMHashEntry *hashTable = scene->index.GetEntries();  //获得哈希表指针 //ITM哈希表
 
-  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();//可见条目id
-  int noVisibleEntries = renderState_vh->noVisibleEntries;//不可见条目
+  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();  //可见voxel blocks 的ID 的指针 //可见条目id
+  int noVisibleEntries = renderState_vh->noVisibleEntries;  //实时的条目数 //不可见条目
 
-  bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;
+  bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;  //到达最大观测次数后是否继续融合
   //bool approximateIntegration = !trackingState->requiresFullRendering;
 
 #ifdef WITH_OPENMP
-#pragma omp parallel for//表示接下来的循环将被多线程执行
+#pragma omp parallel for //表示接下来的循环将被多线程执行
+//pragma omp parallel for是OpenMP中的一个指令，表示接下来的for循环将被多线程执行，另外每次循环之间不能有关系
 #endif
-  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {//遍历不可见条目
+   //！开始处理
+
+/*
+   1 所有的block存储在连续的内存之中 即称VBA
+   2 voxel block 由8*8*8个voxel组成。voxel 存储 sdf，color 和 weight 信息
+   3 hash table 连续的数组  其记录的映射关系（对应）关系   其中ptr储存该block在array 中的位置
+   4 哈希函数 输入一个block的ID坐标（pos） 返回一个独一无二的 index（即ptr GTR(）
+
+    哈希冲突即为 不同的pos计算出相同的ptr
+    解决方法为将映射相同ptr的block的全部存储下来，offset初始化为-1 如有冲突offset为两个相同ptr的entry的距离 查找时，遍历直至offset<=-1
+*/
+  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {    //遍历hash table //遍历不可见条目
     Vector3i globalPos;
     const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];//建立ITM哈希表
 
-    if (currentHashEntry.ptr < 0) continue;
+    if (currentHashEntry.ptr < 0) continue;  //如果ptr为- 则该block没有储存数据
 
     //世界坐标系中目标三维体素位置
-    globalPos.x = currentHashEntry.pos.x;
+    globalPos.x = currentHashEntry.pos.x;   //该block的ID坐标（应该是世界坐标系下的坐标）
     globalPos.y = currentHashEntry.pos.y;
     globalPos.z = currentHashEntry.pos.z;
-    globalPos *= SDF_BLOCK_SIZE;
+    globalPos *= SDF_BLOCK_SIZE;    //
 
-    TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);
 
+    TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);   //SDF_BLOCK_SIZE3 512
+    //构建8*8*8模型
     for (int z = 0; z < SDF_BLOCK_SIZE; z++)
       for (int y = 0; y < SDF_BLOCK_SIZE; y++)
-        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {
+        for (int x = 0; x < SDF_BLOCK_SIZE; x++) {//循环整个block 的每一个voxel
           Vector4f pt_model;
           int locId;
 
-          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
+          locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;  //给每个voxel一个ID
 
           if (stopIntegratingAtMaxW) if (localVoxelBlock[locId].w_depth == maxW) continue;
-          //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) continue;
+          // stopIntegratingAtMaxW  到达最大观测次数后是否继续融合  maxW  voxel的最大观测次数，用来融合
 
+          //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) continue;
+          //TODO（h）：与投影成图像 TSDF 有关 复习kinectfusion
           //3d点在局部SDF_BLOCK_SIZE中坐标
           pt_model.x = (float) (globalPos.x + x) * voxelSize;
           pt_model.y = (float) (globalPos.y + y) * voxelSize;
-          pt_model.z = (float) (globalPos.z + z) * voxelSize;
-          pt_model.w = 1.0f;
+          pt_model.z = (float) (globalPos.z + z) * voxelSize;   //globalPos 为卷角坐标*8  voxelSize 单位米
+          pt_model.w = 1.0f;  // 为了后续使用齐次坐标？
 
           //对体素块进行更新
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
@@ -126,7 +151,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
               confidence,
               depthImgSize,
               rgb,
-              rgbImgSize);
+              rgbImgSize);  //更新体素保存的一些信息    根据hasColorInformation  hasConfidenceInformation 的bool值来选择函数
         }
   }
 }
@@ -139,34 +164,34 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
                                                                                          const ITMRenderState *renderState,
                                                                                          bool onlyUpdateVisibleList,
                                                                                          bool resetVisibleList) {
-  Vector2i depthImgSize = view->depth->noDims;
-  float voxelSize = scene->sceneParams->voxelSize;
+  Vector2i depthImgSize = view->depth->noDims;   //图像的大小 像素为单位
+  float voxelSize = scene->sceneParams->voxelSize;  //单位米
 
   Matrix4f M_d, invM_d;
   Vector4f projParams_d, invProjParams_d;
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;
-  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  //存储场景重建和可视化引擎使用的渲染状态。
+  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;  //实时列表的条目数
 
-  M_d = trackingState->pose_d->GetM();
-  M_d.inv(invM_d);
+  M_d = trackingState->pose_d->GetM();  //  深度相机的当前位姿 用4*4的矩阵
+  M_d.inv(invM_d);  //逆矩阵 invM_d 为M_d的逆矩阵
 
-  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;
+  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all; //深度相机的内在参数   校准参数的4*1矩阵
   invProjParams_d = projParams_d;
-  invProjParams_d.x = 1.0f / invProjParams_d.x;
+  invProjParams_d.x = 1.0f / invProjParams_d.x;  //x y z w
   invProjParams_d.y = 1.0f / invProjParams_d.y;
 
   float mu = scene->sceneParams->mu;
-
-  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);
+    //获取一系列的指针
+  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);  //获得浮点值深度图像的指针
   int *voxelAllocationList = scene->localVBA.GetAllocationList();
-  int *excessAllocationList = scene->index.GetExcessAllocationList();
-  ITMHashEntry *hashTable = scene->index.GetEntries();
+  int *excessAllocationList = scene->index.GetExcessAllocationList();  //获得溢出的列表的ID？
+  ITMHashEntry *hashTable = scene->index.GetEntries(); //获得哈希表里的数据的指针
   ITMHashSwapState *swapStates = scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
-  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType();
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();  //获得可见entrys的ID
+  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType();  //
   uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);
-  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU);
+  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU);  //获得块坐标？
   int noTotalEntries = scene->index.noTotalEntries;
 
   bool useSwapping = scene->globalCache != NULL;
@@ -179,11 +204,13 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   int noVisibleEntries = 0;
 
   memset(entriesAllocType, 0, noTotalEntries);
+  //将 entriesAllocType 中 长度为noTotalEntries 内存块填充数字0 内存清零
 
   for (int i = 0; i < renderState_vh->noVisibleEntries; i++)
-    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
+    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed 在前一帧可见且未流式传输
 
-  //build hashVisibility
+
+  //build hashVisibility 创建
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -205,20 +232,20 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
                                    scene->sceneParams->viewFrustum_min,
                                    scene->sceneParams->viewFrustum_max);
   }
-
+   //TODO 构建哈希分配以及可见类型pp？
   if (onlyUpdateVisibleList) useSwapping = false;
   if (!onlyUpdateVisibleList) {
-    //allocate
+    //allocate 分配
     for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
       int vbaIdx, exlIdx;
       unsigned char hashChangeType = entriesAllocType[targetIdx];
 
       switch (hashChangeType) {
-        case 1: //needs allocation, fits in the ordered list
+        case 1: //needs allocation, fits in the ordered list 需要分配，适合有序列表
           vbaIdx = lastFreeVoxelBlockId;
           lastFreeVoxelBlockId--;//voxel block array剩余空位
 
-          if (vbaIdx >= 0) //there is room in the voxel block array
+          if (vbaIdx >= 0) //there is room in the voxel block array 体素块阵列中有空间
           {
             Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标
 

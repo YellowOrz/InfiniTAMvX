@@ -18,10 +18,10 @@ _CPU_AND_GPU_CODE_ inline float getColorDifferenceSq(DEVICEPTR(Vector4f) *locati
   pt_model = locations[locId_global];//模型点坐标
   colour_known = colours[locId_global];//表面点的列表
 
-  //将点投影到图像中
+  //将点投影到图像中 // 获取上一帧的摄像头的位子
   pt_camera = M * pt_model;
 
-  if (pt_camera.z <= 0) return -1.0f;
+  if (pt_camera.z <= 0) return -1.0f;  // 排除坐标不正确的点
 
   //将三维坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams.x * pt_camera.x / pt_camera.z + projParams.z;
