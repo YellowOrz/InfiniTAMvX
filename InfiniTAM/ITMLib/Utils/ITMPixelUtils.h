@@ -12,9 +12,10 @@ template<typename T>
 _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear(const CONSTPTR(ORUtils::Vector4<T>) *source,
                                                        const THREADPTR(Vector2f) &position,
                                                        const CONSTPTR(Vector2i) &imgSize) {
-  const Vector2i p((int) floor(position.x), (int) floor(position.y));
+  const Vector2i p((int) floor(position.x), (int) floor(position.y));//x，y方向放大倍数
   const Vector2f delta(position.x - (float) p.x, position.y - (float) p.y);
 
+  //获取目标像素周围四个点坐标值
   ORUtils::Vector4<T> a = source[p.x + p.y * imgSize.x];
   ORUtils::Vector4<T> b(T(0)), c(T(0)), d(T(0));
 
@@ -23,6 +24,7 @@ _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear(const CONSTPTR(ORUtils::V
   if (delta.x != 0 && delta.y != 0) d = source[(p.x + 1) + (p.y + 1) * imgSize.x];
 
   Vector4f result;
+  //通过目标图像在原图对应的几何坐标位置,输出对应位置的几何坐标
   result.x = ((float) a.x * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.x * delta.x * (1.0f - delta.y) +
       (float) c.x * (1.0f - delta.x) * delta.y + (float) d.x * delta.x * delta.y);
   result.y = ((float) a.y * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.y * delta.x * (1.0f - delta.y) +
@@ -78,19 +80,22 @@ _CPU_AND_GPU_CODE_ inline Vector2f interpolateBilinear_Vector2(const CONSTPTR(OR
   return result;
 }
 
+//计算目标像素在源图像中的位置
 template<typename T>
 _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear_withHoles(const CONSTPTR(ORUtils::Vector4<T>) *source,
                                                                  const THREADPTR(Vector2f) &position,
                                                                  const CONSTPTR(Vector2i) &imgSize) {
-  const Vector2s p((short) floor(position.x), (short) floor(position.y));
+  const Vector2s p((short) floor(position.x), (short) floor(position.y));//x，y方向放大倍数
   const Vector2f delta(position.x - (float) p.x, position.y - (float) p.y);
 
+  //获取目标像素周围四个点坐标值
   const ORUtils::Vector4<T> a = source[p.x + p.y * imgSize.x];
   const ORUtils::Vector4<T> b = source[(p.x + 1) + p.y * imgSize.x];
   const ORUtils::Vector4<T> c = source[p.x + (p.y + 1) * imgSize.x];
   const ORUtils::Vector4<T> d = source[(p.x + 1) + (p.y + 1) * imgSize.x];
 
   Vector4f result;
+  //边界溢出处理
   if (a.w < 0 || b.w < 0 || c.w < 0 || d.w < 0) {
     result.x = 0;
     result.y = 0;
@@ -99,6 +104,7 @@ _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear_withHoles(const CONSTPTR(
     return result;
   }
 
+  //通过目标图像在原图对应的几何坐标位置,输出对应位置的几何坐标
   result.x = ((float) a.x * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.x * delta.x * (1.0f - delta.y) +
       (float) c.x * (1.0f - delta.x) * delta.y + (float) d.x * delta.x * delta.y);
   result.y = ((float) a.y * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.y * delta.x * (1.0f - delta.y) +
