@@ -14,13 +14,17 @@ template<class TVoxel>
 ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CPU(void) {
 }
 
+/**
+ * @tparam TVoxel 体素信息
+ * @param scene
+ */
 template<class TVoxel>
 int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;//全局缓存指针
 
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);//交换状态指针
 
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);//是否需要缓存的本地ID
 
   TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);

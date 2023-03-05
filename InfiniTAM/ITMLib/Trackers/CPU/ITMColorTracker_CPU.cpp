@@ -37,12 +37,12 @@ int ITMColorTracker_CPU::F_oneLevel(float *f, ORUtils::SE3Pose *pose) {
   for (int locId = 0; locId < noTotalPoints; locId++) {
     float colorDiffSq = getColorDifferenceSq(locations, colours, rgb, imgSize, locId, projParams, M);
     if (colorDiffSq >= 0) {
-      final_f += colorDiffSq;
-      countedPoints_valid++;
+      final_f += colorDiffSq;//对颜色误差进行累加
+      countedPoints_valid++;//记录有效点数目
     }
   }
 
-  if (countedPoints_valid == 0) {
+  if (countedPoints_valid == 0) { //无颜色差异
     final_f = 1e10;
     scaleForOcclusions = 1.0;
   } else { scaleForOcclusions = (float) noTotalPoints / countedPoints_valid; }
@@ -63,11 +63,13 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
 
   Matrix4f M = pose->GetM();
 
+  //目标图像尺寸大小
   Vector2i imgSize = viewHierarchy->GetLevel(levelId)->rgb->noDims;
 
   float scaleForOcclusions;
 
   bool rotationOnly = iterationType == TRACKER_ITERATION_ROTATION;
+  //构建一个上三角矩阵来依次填入海塞矩阵
   int numPara = rotationOnly ? 3 : 6, startPara = rotationOnly ? 3 : 0,
       numParaSQ = rotationOnly ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
 
@@ -87,24 +89,30 @@ void ITMColorTracker_CPU::G_oneLevel(float *gradient, float *hessian, ORUtils::S
     computePerPointGH_rt_Color(localGradient, localHessian, locations, colours, rgb, imgSize, locId,
                                projParams, M, gx, gy, 6, 0);
 
+    //该点是否有效
     bool isValidPoint = computePerPointGH_rt_Color(localGradient, localHessian, locations, colours, rgb, imgSize, locId,
                                                    projParams, M, gx, gy, numPara, startPara);
 
+    //将有效点的误差数据进行累加
     if (isValidPoint) {
       for (int i = 0; i < numPara; i++) globalGradient[i] += localGradient[i];
       for (int i = 0; i < numParaSQ; i++) globalHessian[i] += localHessian[i];
     }
   }
 
+  //最终的误差函数
   scaleForOcclusions = (float) noTotalPoints / countedPoints_valid;
   if (countedPoints_valid == 0) { scaleForOcclusions = 1.0f; }
 
+  //填充海塞矩阵的下三角
   for (int para = 0, counter = 0; para < numPara; para++) {
     gradient[para] = globalGradient[para] * scaleForOcclusions;
     for (int col = 0; col <= para; col++, counter++)
       hessian[para + col * numPara] = globalHessian[counter] * scaleForOcclusions;
   }
+  //填充海塞矩阵的上三角
   for (int row = 0; row < numPara; row++) {
-    for (int col = row + 1; col < numPara; col++) hessian[row + col * numPara] = hessian[col + row * numPara];
+    for (int col = row + 1; col < numPara; col++)
+      hessian[row + col * numPara] = hessian[col + row * numPara];
   }
 }

@@ -26,6 +26,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
 
+  //当前帧三维坐标
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
@@ -38,26 +39,32 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
   // project into previous rendered image
   tmp3Dpoint_reproj = scenePose * tmp3Dpoint;
   if (tmp3Dpoint_reproj.z <= 0.0f) return false;
+  //将当前帧投影到相机坐标
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
 
+  //剔除超过边界的点
   if (!((tmp2Dpoint.x >= 0.0f) && (tmp2Dpoint.x <= sceneImageSize.x - 2) && (tmp2Dpoint.y >= 0.0f)
       && (tmp2Dpoint.y <= sceneImageSize.y - 2)))
     return false;
 
+  //用双线性插值法得到相机坐标系下三维坐标点
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);
   if (curr3Dpoint.w < 0.0f) return false;
 
+  //当前点的法向量
   ptDiff.x = curr3Dpoint.x - tmp3Dpoint.x;
   ptDiff.y = curr3Dpoint.y - tmp3Dpoint.y;
   ptDiff.z = curr3Dpoint.z - tmp3Dpoint.z;
   float dist = ptDiff.x * ptDiff.x + ptDiff.y * ptDiff.y + ptDiff.z * ptDiff.z;
 
-  if (dist > distThresh) return false;
+  if (dist > distThresh) return false;//剔除误差较大的点
 
+  //原模型中得到的坐标点
   corr3Dnormal = interpolateBilinear_withHoles(normalsMap, tmp2Dpoint, sceneImageSize);
 //	if (corr3Dnormal.w < 0.0f) return false;
 
+  //点到面的ICP方法，计算当前位姿的误差函数
   b = corr3Dnormal.x * ptDiff.x + corr3Dnormal.y * ptDiff.y + corr3Dnormal.z * ptDiff.z;
 
   // TODO check whether normal matches normal from image, done in the original paper, but does not seem to be required
@@ -75,6 +82,7 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(THREADPTR(float) *A,
     A[0] = +tmp3Dpoint.z * corr3Dnormal.y - tmp3Dpoint.y * corr3Dnormal.z;
     A[1] = -tmp3Dpoint.z * corr3Dnormal.x + tmp3Dpoint.x * corr3Dnormal.z;
     A[2] = +tmp3Dpoint.y * corr3Dnormal.x - tmp3Dpoint.x * corr3Dnormal.y;
+    //误差函数对当前求得的法向量的偏导数就是模型点的法向量的本身
     A[!shortIteration ? 3 : 0] = corr3Dnormal.x;
     A[!shortIteration ? 4 : 1] = corr3Dnormal.y;
     A[!shortIteration ? 5 : 2] = corr3Dnormal.z;
@@ -120,16 +128,18 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth(THREADPTR(float) *localNa
 
   if (!ret) return false;
 
-  localF = b * b;
+  localF = b * b;//当前帧误差函数
 
 #if (defined(__CUDACC__) && defined(__CUDA_ARCH__)) || (defined(__METALC__))
 #pragma unroll
 #endif
   for (int r = 0, counter = 0; r < noPara; r++) {
+    //当前帧雅可比矩阵
     localNabla[r] = b * A[r];
 #if (defined(__CUDACC__) && defined(__CUDA_ARCH__)) || (defined(__METALC__))
 #pragma unroll
 #endif
+    //当前帧海塞矩阵
     for (int c = 0; c <= r; c++, counter++) localHessian[counter] = A[r] * A[c];
   }
 

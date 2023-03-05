@@ -23,6 +23,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
@@ -32,15 +33,16 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   if (depth_measure <= 0.0f) return -1;
 
   // check whether voxel needs updating
+  //如果体素靠近或在观测表面的前面，则将相应的观测值加到累积和中
   eta = depth_measure - pt_camera.z;
   if (eta < -mu) return eta;
 
   // compute updated SDF value and reliability
-  oldF = TVoxel::valueToFloat(voxel.sdf);
-  oldW = voxel.w_depth;
+  oldF = TVoxel::valueToFloat(voxel.sdf);//上一帧体素块的sdf值
+  oldW = voxel.w_depth;//上一帧体素块的权重
 
-  newF = MIN(1.0f, eta / mu);
-  newW = 1;
+  newF = MIN(1.0f, eta / mu);//当前帧体素块的sdf值
+  newW = 1;//当前帧体素块的权重
 
   newF = oldW * oldF + newW * newF;
   newW = oldW + newW;
@@ -48,8 +50,8 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   newW = MIN(newW, maxW);
 
   // write back
-  voxel.sdf = TVoxel::floatToValue(newF);
-  voxel.w_depth = newW;
+  voxel.sdf = TVoxel::floatToValue(newF);//计算坐标理论值和实际测量值的差值，若大于mu，则更新
+  voxel.w_depth = newW;//更新体素块的权重
 
   return eta;
 }
@@ -73,6 +75,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
@@ -100,7 +103,7 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   // write back^
   voxel.sdf = TVoxel::floatToValue(newF);
   voxel.w_depth = newW;
-  voxel.confidence += TVoxel::floatToValue(confidence[locId]);
+  voxel.confidence += TVoxel::floatToValue(confidence[locId]);//更新体素块的置信度
 
   return eta;
 }
@@ -122,31 +125,36 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
   float newW, oldW;
 
   buffV3u = voxel.clr;
-  oldW = (float) voxel.w_color;
+  oldW = (float) voxel.w_color;//上一帧体素块的权重
 
-  oldC = TO_FLOAT3(buffV3u) / 255.0f;
+  oldC = TO_FLOAT3(buffV3u) / 255.0f;//上一帧体素块的权重
   newC = oldC;
 
+  //将点投影到图像中
   pt_camera = M_rgb * pt_model;
 
+  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标
   pt_image.x = projParams_rgb.x * pt_camera.x / pt_camera.z + projParams_rgb.z;
   pt_image.y = projParams_rgb.y * pt_camera.y / pt_camera.z + projParams_rgb.w;
 
+  //剔除不在图像范围内的点
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return;
 
   rgb_measure = TO_VECTOR3(interpolateBilinear(rgb, pt_image, imgSize)) / 255.0f;
   //rgb_measure = rgb[(int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x].toVector3().toFloat() / 255.0f;
   newW = 1;
 
-  newC = oldC * oldW + rgb_measure * newW;
-  newW = oldW + newW;
+  newC = oldC * oldW + rgb_measure * newW;//当前帧体素块的rgb信息
+  newW = oldW + newW;//当前帧体素块的权重
   newC /= newW;
   newW = MIN(newW, maxW);
 
+  //更新体素块的rgb信息和权重
   voxel.clr = TO_UCHAR3(newC * 255.0f);
   voxel.w_color = (uchar) newW;
 }
 
+//根据体素是否存储颜色信息或置信信息，分四种情况对体素进行更新
 template<bool hasColor, bool hasConfidence, class TVoxel>
 struct ComputeUpdatedVoxelInfo;
 
@@ -257,6 +265,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
       || (depth_measure + mu) > viewFrustum_max)
     return;
 
+  //图像坐标中的深度
   pt_camera_f.z = depth_measure;
   pt_camera_f.x = pt_camera_f.z * ((float(x) - projParams_d.z) * projParams_d.x);
   pt_camera_f.y = pt_camera_f.z * ((float(y) - projParams_d.w) * projParams_d.y);
@@ -281,7 +290,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
 
   //add neighbouring blocks
   for (int i = 0; i < noSteps; i++) {
-    blockPos = TO_SHORT_FLOOR3(point);
+    blockPos = TO_SHORT_FLOOR3(point);//在此线段上获取voxel对应的voxel block坐标
 
     //compute index in hash table
     hashIdx = hashIndex(blockPos);
@@ -291,6 +300,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
 
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
+    //检查该voxel block是否已经allocation
     if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
       //entry has been streamed out but is visible or in memory and visible
       entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;
@@ -323,6 +333,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
         entriesAllocType[hashIdx] = isExcess ? 2 : 1; //needs allocation
         if (!isExcess) entriesVisibleType[hashIdx] = 1; //new entry is visible
 
+        //没有allocation，在哈希表上进行标记，之后遍历哈希表进行更新
         blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1);
       }
     }
@@ -331,7 +342,7 @@ _CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *
   }
 }
 
-template<bool useSwapping>
+template<bool useSwapping>//TODO:这里不太明白useSwapping的true或false对下面的函数起什么作用
 _CPU_AND_GPU_CODE_ inline void checkPointVisibility(THREADPTR(bool) &isVisible,
                                                     THREADPTR(bool) &isVisibleEnlarged,
                                                     const THREADPTR(Vector4f) &pt_image,
@@ -347,16 +358,17 @@ _CPU_AND_GPU_CODE_ inline void checkPointVisibility(THREADPTR(bool) &isVisible,
   pt_buff.x = projParams_d.x * pt_buff.x / pt_buff.z + projParams_d.z;
   pt_buff.y = projParams_d.y * pt_buff.y / pt_buff.z + projParams_d.w;
 
-  if (pt_buff.x >= 0 && pt_buff.x < imgSize.x && pt_buff.y >= 0 && pt_buff.y < imgSize.y) {
+  if (pt_buff.x >= 0 && pt_buff.x < imgSize.x && pt_buff.y >= 0 && pt_buff.y < imgSize.y) {//若点在图像范围之内，可见也放大可见
     isVisible = true;
     isVisibleEnlarged = true;
   } else if (useSwapping) {
-    Vector4i lims;
+    Vector4i lims;//否则对图像范围进行一定转换
     lims.x = -imgSize.x / 8;
     lims.y = imgSize.x + imgSize.x / 8;
     lims.z = -imgSize.y / 8;
     lims.w = imgSize.y + imgSize.y / 8;
 
+    //若点在转换后的图像范围内，点放大可见
     if (pt_buff.x >= lims.x && pt_buff.x < lims.y && pt_buff.y >= lims.z && pt_buff.y < lims.w)
       isVisibleEnlarged = true;
   }
@@ -376,7 +388,7 @@ _CPU_AND_GPU_CODE_ inline void checkBlockVisibility(THREADPTR(bool) &isVisible,
   isVisible = false;
   isVisibleEnlarged = false;
 
-  // 0 0 0
+  // 0 0 0 初始图像范围内块是否可见
   pt_image.x = (float) hashPos.x * factor;
   pt_image.y = (float) hashPos.y * factor;
   pt_image.z = (float) hashPos.z * factor;
@@ -384,38 +396,38 @@ _CPU_AND_GPU_CODE_ inline void checkBlockVisibility(THREADPTR(bool) &isVisible,
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 0 1
+  // 0 0 1 z方向扩大后块是否可见
   pt_image.z += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 1 1
+  // 0 1 1 y,z方向扩大后块是否可见
   pt_image.y += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 1 1
+  // 1 1 1 x,y,z方向扩大后块是否可见
   pt_image.x += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 1 0
+  // 1 1 0 x,y方向扩大后块是否可见
   pt_image.z -= factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 0 0
+  // 1 0 0 x方向扩大后块是否可见
   pt_image.y -= factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 0 1 0
+  // 0 1 0 y方向扩大后块是否可见
   pt_image.x -= factor;
   pt_image.y += factor;
   checkPointVisibility<useSwapping>(isVisible, isVisibleEnlarged, pt_image, M_d, projParams_d, imgSize);
   if (isVisible) return;
 
-  // 1 0 1
+  // 1 0 1 x,z方向扩大后块是否可见
   pt_image.x += factor;
   pt_image.y -= factor;
   pt_image.z += factor;

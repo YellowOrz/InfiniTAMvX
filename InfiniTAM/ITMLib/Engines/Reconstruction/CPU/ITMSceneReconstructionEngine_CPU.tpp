@@ -42,51 +42,52 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(ITM
   scene->index.SetLastFreeExcessListId(SDF_EXCESS_LIST_SIZE - 1);
 }
 
-template<class TVoxel>
+template<class TVoxel>//ITM场景重建引擎
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(ITMScene<TVoxel,
-                                                                                              ITMVoxelBlockHash> *scene,
-                                                                                     const ITMView *view,
-                                                                                     const ITMTrackingState *trackingState,
-                                                                                     const ITMRenderState *renderState) {
-  Vector2i rgbImgSize = view->rgb->noDims;
-  Vector2i depthImgSize = view->depth->noDims;
-  float voxelSize = scene->sceneParams->voxelSize;
+                                                                                              ITMVoxelBlockHash> *scene,//ITM体素块哈希表
+                                                                                     const ITMView *view,//
+                                                                                     const ITMTrackingState *trackingState,//ITM跟踪状态
+                                                                                     const ITMRenderState *renderState) {//ITM渲染状态
+  Vector2i rgbImgSize = view->rgb->noDims;//RGB图像大小
+  Vector2i depthImgSize = view->depth->noDims;//深度图大小
+  float voxelSize = scene->sceneParams->voxelSize;//体素大小
 
   Matrix4f M_d, M_rgb;
   Vector4f projParams_d, projParams_rgb;
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;//ITM渲染状态
 
-  M_d = trackingState->pose_d->GetM();
-  if (TVoxel::hasColorInformation) M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d;
+  M_d = trackingState->pose_d->GetM();//跟踪状态位姿
+  if (TVoxel::hasColorInformation) M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d;//
 
   projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;
   projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;
 
-  float mu = scene->sceneParams->mu;
+  float mu = scene->sceneParams->mu;//场景参数
   int maxW = scene->sceneParams->maxW;
 
-  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);
-  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);
-  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  ITMHashEntry *hashTable = scene->index.GetEntries();
+  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);//获取深度值
+  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU);//深度置信度
+  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);//读取rgb图像
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();//
+  ITMHashEntry *hashTable = scene->index.GetEntries();//ITM哈希表
 
-  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();
-  int noVisibleEntries = renderState_vh->noVisibleEntries;
+  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();//可见条目id
+  int noVisibleEntries = renderState_vh->noVisibleEntries;//不可见条目
 
   bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;
   //bool approximateIntegration = !trackingState->requiresFullRendering;
 
 #ifdef WITH_OPENMP
-#pragma omp parallel for
+#pragma omp parallel for//表示接下来的循环将被多线程执行
 #endif
-  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {
+  for (int entryId = 0; entryId < noVisibleEntries; entryId++) {//遍历不可见条目
     Vector3i globalPos;
-    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];
+    const ITMHashEntry &currentHashEntry = hashTable[visibleEntryIds[entryId]];//建立ITM哈希表
 
     if (currentHashEntry.ptr < 0) continue;
 
+    //世界坐标系中目标三维体素位置
     globalPos.x = currentHashEntry.pos.x;
     globalPos.y = currentHashEntry.pos.y;
     globalPos.z = currentHashEntry.pos.z;
@@ -105,11 +106,13 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           if (stopIntegratingAtMaxW) if (localVoxelBlock[locId].w_depth == maxW) continue;
           //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) continue;
 
+          //3d点在局部SDF_BLOCK_SIZE中坐标
           pt_model.x = (float) (globalPos.x + x) * voxelSize;
           pt_model.y = (float) (globalPos.y + y) * voxelSize;
           pt_model.z = (float) (globalPos.z + z) * voxelSize;
           pt_model.w = 1.0f;
 
+          //对体素块进行更新
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId],
               pt_model,
@@ -213,19 +216,20 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
       switch (hashChangeType) {
         case 1: //needs allocation, fits in the ordered list
           vbaIdx = lastFreeVoxelBlockId;
-          lastFreeVoxelBlockId--;
+          lastFreeVoxelBlockId--;//voxel block array剩余空位
 
           if (vbaIdx >= 0) //there is room in the voxel block array
           {
-            Vector4s pt_block_all = blockCoords[targetIdx];
+            Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标
 
             ITMHashEntry hashEntry;
             hashEntry.pos.x = pt_block_all.x;
             hashEntry.pos.y = pt_block_all.y;
             hashEntry.pos.z = pt_block_all.z;
-            hashEntry.ptr = voxelAllocationList[vbaIdx];
+            hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
             hashEntry.offset = 0;
 
+            //目标块三维世界坐标和体素块数组地址填充哈希表
             hashTable[targetIdx] = hashEntry;
           } else {
             // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its state.
@@ -244,21 +248,25 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 
           if (vbaIdx >= 0 && exlIdx >= 0) //there is room in the voxel block array and excess list
           {
-            Vector4s pt_block_all = blockCoords[targetIdx];
+            Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标位置
 
             ITMHashEntry hashEntry;
             hashEntry.pos.x = pt_block_all.x;
             hashEntry.pos.y = pt_block_all.y;
             hashEntry.pos.z = pt_block_all.z;
-            hashEntry.ptr = voxelAllocationList[vbaIdx];
-            hashEntry.offset = 0;
+            hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
+            hashEntry.offset = 0;//偏移量，用于定位每个特定体素块的体素数据
 
+            //将链接列表的枚举将移动到超额分配列表
             int exlOffset = excessAllocationList[exlIdx];
 
+            //更改链接列表中最后找到的条目指向新填充的条目
             hashTable[targetIdx].offset = exlOffset + 1; //connect to child
 
+            //目标块三维世界坐标和体素块数组地址填充哈希表
             hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; //add child to the excess list
 
+            //条目标记类型为可见
             entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; //make child visible and in memory
           } else {
             // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
