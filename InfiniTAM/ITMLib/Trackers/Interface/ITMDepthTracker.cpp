@@ -34,7 +34,7 @@ ITMDepthTracker::ITMDepthTracker(Vector2i imgSize,
   map = new ORUtils::HomkerMap(2);
   svmClassifier = new ORUtils::SVMClassifier(map->getDescriptorSize(4));
 
-  //all below obtained from dataset in matlab
+  //all below obtained from dataset in matlab   ？？？
   float w[20];
   w[0] = -3.15813f;
   w[1] = -2.38038f;
@@ -116,12 +116,12 @@ void ITMDepthTracker::PrepareForEvaluation() {
   for (int i = 1; i < viewHierarchy->GetNoLevels(); i++) {
     ITMTemplatedHierarchyLevel<ITMFloatImage> *currentLevelView = viewHierarchy->GetLevel(i);
     ITMTemplatedHierarchyLevel<ITMFloatImage> *previousLevelView = viewHierarchy->GetLevel(i - 1);
-    lowLevelEngine->FilterSubsampleWithHoles(currentLevelView->data, previousLevelView->data);
+    lowLevelEngine->FilterSubsampleWithHoles(currentLevelView->data, previousLevelView->data);  // 滤波？？？
     currentLevelView->intrinsics = previousLevelView->intrinsics * 0.5f;
 
     ITMSceneHierarchyLevel *currentLevelScene = sceneHierarchy->GetLevel(i);
     ITMSceneHierarchyLevel *previousLevelScene = sceneHierarchy->GetLevel(i - 1);
-    //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->pointsMap, previousLevelScene->pointsMap);
+    //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->pointsMap, previousLevelScene->pointsMap);  // ???
     //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->normalsMap, previousLevelScene->normalsMap);
     currentLevelScene->intrinsics = previousLevelScene->intrinsics * 0.5f;
   }
@@ -137,9 +137,11 @@ void ITMDepthTracker::SetEvaluationParams(int levelId) {
 void ITMDepthTracker::ComputeDelta(float *step, float *nabla, float *hessian, bool shortIteration) const {
   for (int i = 0; i < 6; i++) step[i] = 0;
 
-  if (shortIteration) {
+  if (shortIteration) {   // 只计算旋转or平移，取hessian的前3*3
     float smallHessian[3 * 3];
-    for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) smallHessian[r + c * 3] = hessian[r + c * 6];
+    for (int r = 0; r < 3; r++) 
+      for (int c = 0; c < 3; c++) 
+        smallHessian[r + c * 3] = hessian[r + c * 6];
 
     ORUtils::Cholesky cholA(smallHessian, 3);
     cholA.Backsub(step, nabla);
@@ -151,10 +153,11 @@ void ITMDepthTracker::ComputeDelta(float *step, float *nabla, float *hessian, bo
 
 bool ITMDepthTracker::HasConverged(float *step) const {
   float stepLength = 0.0f;
-  for (int i = 0; i < 6; i++) stepLength += step[i] * step[i];
+  for (int i = 0; i < 6; i++) 
+    stepLength += step[i] * step[i];
 
-  if (sqrt(stepLength) / 6 < terminationThreshold) return true; //converged
-
+  if (sqrt(stepLength) / 6 < terminationThreshold) 
+    return true; //converged
   return false;
 }
 
@@ -162,32 +165,34 @@ void ITMDepthTracker::ApplyDelta(const Matrix4f &para_old, const float *delta, M
   float step[6];
 
   switch (iterationType) {
-    case TRACKER_ITERATION_ROTATION: step[0] = (float) (delta[0]);
-      step[1] = (float) (delta[1]);
-      step[2] = (float) (delta[2]);
-      step[3] = 0.0f;
-      step[4] = 0.0f;
-      step[5] = 0.0f;
-      break;
-    case TRACKER_ITERATION_TRANSLATION: step[0] = 0.0f;
-      step[1] = 0.0f;
-      step[2] = 0.0f;
-      step[3] = (float) (delta[0]);
-      step[4] = (float) (delta[1]);
-      step[5] = (float) (delta[2]);
-      break;
-    default:
-    case TRACKER_ITERATION_BOTH: step[0] = (float) (delta[0]);
-      step[1] = (float) (delta[1]);
-      step[2] = (float) (delta[2]);
-      step[3] = (float) (delta[3]);
-      step[4] = (float) (delta[4]);
-      step[5] = (float) (delta[5]);
-      break;
+  case TRACKER_ITERATION_ROTATION:
+    step[0] = (float)(delta[0]);
+    step[1] = (float)(delta[1]);
+    step[2] = (float)(delta[2]);
+    step[3] = 0.0f;
+    step[4] = 0.0f;
+    step[5] = 0.0f;
+    break;
+  case TRACKER_ITERATION_TRANSLATION:
+    step[0] = 0.0f;
+    step[1] = 0.0f;
+    step[2] = 0.0f;
+    step[3] = (float)(delta[0]);
+    step[4] = (float)(delta[1]);
+    step[5] = (float)(delta[2]);
+    break;
+  default:
+  case TRACKER_ITERATION_BOTH:
+    step[0] = (float)(delta[0]);
+    step[1] = (float)(delta[1]);
+    step[2] = (float)(delta[2]);
+    step[3] = (float)(delta[3]);
+    step[4] = (float)(delta[4]);
+    step[5] = (float)(delta[5]);
+    break;
   }
 
-  Matrix4f Tinc;
-
+  Matrix4f Tinc;    // TODO: 直接初始化成单位阵更简单
   Tinc.m00 = 1.0f;
   Tinc.m10 = step[2];
   Tinc.m20 = -step[1];
@@ -205,46 +210,52 @@ void ITMDepthTracker::ApplyDelta(const Matrix4f &para_old, const float *delta, M
   Tinc.m23 = 0.0f;
   Tinc.m33 = 1.0f;
 
-  para_new = Tinc * para_old;
+  para_new = Tinc * para_old;   // 更新增量
 }
 
 void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_good, float f_old) {
-  size_t noTotalPoints = viewHierarchy->GetLevel(0)->data->dataSize;
+  //! 计算ICP中匹配点的比例
+  size_t noTotalPoints = viewHierarchy->GetLevel(0)->data->dataSize;      // 深度图总像素？？？
+  int noValidPointsMax = lowLevelEngine->CountValidDepths(view->depth);   // 深度有效的像素点数
 
-  int noValidPointsMax = lowLevelEngine->CountValidDepths(view->depth);
-
-  float normFactor_v1 = (float) noValidPoints_old / (float) noTotalPoints;
-  float normFactor_v2 = (float) noValidPoints_old / (float) noValidPointsMax;
-
+  float normFactor_v1 = (float)noValidPoints_old / (float)noTotalPoints;
+  float normFactor_v2 = (float)noValidPoints_old / (float)noValidPointsMax;
+  
+  //! 使用Cholesky对ICP得到的最好的Hessian再次分解
   float det = 0.0f;
   if (iterationType == TRACKER_ITERATION_BOTH) {
     ORUtils::Cholesky cholA(hessian_good, 6);
-    det = cholA.Determinant();
-    if (isnan(det)) det = 0.0f;
+    det = cholA.Determinant();    //为啥是空的？？？
+    if (isnan(det))
+      det = 0.0f;
   }
 
   float det_norm_v1 = 0.0f;
   if (iterationType == TRACKER_ITERATION_BOTH) {
     float h[6 * 6];
-    for (int i = 0; i < 6 * 6; ++i) h[i] = hessian_good[i] * normFactor_v1;
+    for (int i = 0; i < 6 * 6; ++i)
+      h[i] = hessian_good[i] * normFactor_v1;
     ORUtils::Cholesky cholA(h, 6);
     det_norm_v1 = cholA.Determinant();
-    if (isnan(det_norm_v1)) det_norm_v1 = 0.0f;
+    if (isnan(det_norm_v1))
+      det_norm_v1 = 0.0f;
   }
 
   float det_norm_v2 = 0.0f;
   if (iterationType == TRACKER_ITERATION_BOTH) {
     float h[6 * 6];
-    for (int i = 0; i < 6 * 6; ++i) h[i] = hessian_good[i] * normFactor_v2;
+    for (int i = 0; i < 6 * 6; ++i)
+      h[i] = hessian_good[i] * normFactor_v2;
     ORUtils::Cholesky cholA(h, 6);
     det_norm_v2 = cholA.Determinant();
-    if (isnan(det_norm_v2)) det_norm_v2 = 0.0f;
+    if (isnan(det_norm_v2))
+      det_norm_v2 = 0.0f;
   }
-
-  float finalResidual_v2 = sqrt(
-      ((float) noValidPoints_old * f_old + (float) (noValidPointsMax - noValidPoints_old) * distThresh[0])
-          / (float) noValidPointsMax);
-  float percentageInliers_v2 = (float) noValidPoints_old / (float) noValidPointsMax;
+  //! 计算跟踪质量
+  float finalResidual_v2 =
+      sqrt(((float)noValidPoints_old * f_old + (float)(noValidPointsMax - noValidPoints_old) * distThresh[0]) /
+           (float)noValidPointsMax);
+  float percentageInliers_v2 = (float)noValidPoints_old / (float)noValidPointsMax;
 
   trackingState->trackerResult = ITMTrackingState::TRACKING_FAILED;
   trackingState->trackerScore = finalResidual_v2;
@@ -259,14 +270,16 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
 
     float score = svmClassifier->Classify(mapped);
 
-    if (score > 0) trackingState->trackerResult = ITMTrackingState::TRACKING_GOOD;
-    else if (score > -10.0f) trackingState->trackerResult = ITMTrackingState::TRACKING_POOR;
+    if (score > 0)
+      trackingState->trackerResult = ITMTrackingState::TRACKING_GOOD;
+    else if (score > -10.0f)
+      trackingState->trackerResult = ITMTrackingState::TRACKING_POOR;
   }
 }
 
 void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view) {
   if (!trackingState->HasValidPointCloud()) return;
-
+  //! 准备
   this->SetEvaluationData(trackingState, view);
   this->PrepareForEvaluation();
 
@@ -280,11 +293,11 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
 
   for (int i = 0; i < 6 * 6; ++i) hessian_good[i] = 0.0f;
   for (int i = 0; i < 6; ++i) nabla_good[i] = 0.0f;
-
+  //! 遍历金字塔的每一层 进行配准
   for (int levelId = viewHierarchy->GetNoLevels() - 1; levelId >= 0; levelId--) {
     this->SetEvaluationParams(levelId);
     if (iterationType == TRACKER_ITERATION_NONE) continue;
-
+    // 设置初始位姿
     Matrix4f approxInvPose = trackingState->pose_d->GetInvM();
     ORUtils::SE3Pose lastKnownGoodPose(*(trackingState->pose_d));
     f_old = 1e20f;
@@ -293,14 +306,16 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
 
     for (int iterNo = 0; iterNo < noIterationsPerLevel[levelId]; iterNo++) {
       // evaluate error function and gradients
+      //! 计算误差、nabla算子和H矩阵，后面平均后梯度下降？？？
       noValidPoints_new = this->ComputeGandH(f_new, nabla_new, hessian_new, approxInvPose);
 
       // check if error increased. If so, revert
-      if ((noValidPoints_new <= 0) || (f_new > f_old)) {
+      //! 检查误差
+      if ((noValidPoints_new <= 0) || (f_new > f_old)) {    // 有效点减少 or 误差增大，重新计算，步长增加
         trackingState->pose_d->SetFrom(&lastKnownGoodPose);
         approxInvPose = trackingState->pose_d->GetInvM();
         lambda *= 10.0f;
-      } else {
+      } else {                                              // 有效点增加 or 误差减少，步长减少，记录结果
         lastKnownGoodPose.SetFrom(trackingState->pose_d);
         f_old = f_new;
         noValidPoints_old = noValidPoints_new;
@@ -310,9 +325,10 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
         lambda /= 10.0f;
       }
       for (int i = 0; i < 6 * 6; ++i) A[i] = hessian_good[i];
-      for (int i = 0; i < 6; ++i) A[i + i * 6] *= 1.0f + lambda;
+      for (int i = 0; i < 6; ++i) A[i + i * 6] *= 1.0f + lambda;    // A 矩阵的对角线上加lambda
 
       // compute a new step and make sure we've got an SE3
+      //! 更新位姿
       ComputeDelta(step, nabla_good, A, iterationType != TRACKER_ITERATION_BOTH);
       ApplyDelta(approxInvPose, step, approxInvPose);
       trackingState->pose_d->SetInvM(approxInvPose);
@@ -320,6 +336,7 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
       approxInvPose = trackingState->pose_d->GetInvM();
 
       // if step is small, assume it's going to decrease the error and finish
+      //! 收敛 退出迭代
       if (HasConverged(step)) break;
     }
   }
