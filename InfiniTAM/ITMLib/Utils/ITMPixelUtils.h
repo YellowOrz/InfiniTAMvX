@@ -61,8 +61,8 @@ template<typename T>
 _CPU_AND_GPU_CODE_ inline Vector2f interpolateBilinear_Vector2(const CONSTPTR(ORUtils::Vector2<T>) *source,
                                                                const THREADPTR(Vector2f) &position,
                                                                const CONSTPTR(Vector2i) &imgSize) {
-  const Vector2i p((int) floor(position.x), (int) floor(position.y));
-  const Vector2f delta(position.x - (float) p.x, position.y - (float) p.y);
+  const Vector2i p((int) floor(position.x), (int) floor(position.y));           // position的整数部分
+  const Vector2f delta(position.x - (float) p.x, position.y - (float) p.y);     // position的小数部分
 
   ORUtils::Vector2<T> a = source[p.x + p.y * imgSize.x];
   ORUtils::Vector2<T> b(T(0)), c(T(0)), d(T(0));
@@ -73,14 +73,22 @@ _CPU_AND_GPU_CODE_ inline Vector2f interpolateBilinear_Vector2(const CONSTPTR(OR
 
   Vector2f result;
   result.x = ((float) a.x * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.x * delta.x * (1.0f - delta.y) +
-      (float) c.x * (1.0f - delta.x) * delta.y + (float) d.x * delta.x * delta.y);
+              (float) c.x * (1.0f - delta.x) * delta.y + (float) d.x * delta.x * delta.y);
   result.y = ((float) a.y * (1.0f - delta.x) * (1.0f - delta.y) + (float) b.y * delta.x * (1.0f - delta.y) +
-      (float) c.y * (1.0f - delta.x) * delta.y + (float) d.y * delta.x * delta.y);
+              (float) c.y * (1.0f - delta.x) * delta.y + (float) d.y * delta.x * delta.y);
 
   return result;
 }
 
-//计算目标像素在源图像中的位置
+/**
+ * 在source上找到position的邻居，对position这个位置进行插值
+ * @details position是float，邻居坐标即是整数
+ * @tparam T
+ * @param[in] source    反投影后的深度图 或者 对应的法向量图。Vetor4的第4维是权重？？？
+ * @param[in] position  二维图像上的坐标
+ * @param[in] imgSize
+ * @return  插值后的三维点
+ */
 template<typename T>
 _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear_withHoles(const CONSTPTR(ORUtils::Vector4<T>) *source,
                                                                  const THREADPTR(Vector2f) &position,
@@ -95,7 +103,7 @@ _CPU_AND_GPU_CODE_ inline Vector4f interpolateBilinear_withHoles(const CONSTPTR(
   const ORUtils::Vector4<T> d = source[(p.x + 1) + (p.y + 1) * imgSize.x];
 
   Vector4f result;
-  //边界溢出处理
+  // 超出图片边界则退出
   if (a.w < 0 || b.w < 0 || c.w < 0 || d.w < 0) {
     result.x = 0;
     result.y = 0;
