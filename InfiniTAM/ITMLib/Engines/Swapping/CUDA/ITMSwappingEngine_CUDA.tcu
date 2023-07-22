@@ -222,8 +222,7 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSc
                                 sizeof(int),
                                 cudaMemcpyHostToDevice));
 
-      cleanMemory_device <<
-          < gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, swapStates, hashTable, localVBA,
+      cleanMemory_device <<< gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, swapStates, hashTable, localVBA,
           neededEntryIDs_local, noNeededEntries);
       ORcudaKernelCheck;
 
@@ -274,8 +273,7 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScen
 
     ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int)));
 
-    buildListToClean_device <<
-        < gridSize, blockSize >> >(entriesToClean_device, noNeededEntries_device, hashTable, entriesVisibleType, scene->index.noTotalEntries);
+    buildListToClean_device <<< gridSize, blockSize >> >(entriesToClean_device, noNeededEntries_device, hashTable, entriesVisibleType, scene->index.noTotalEntries);
 
     ORcudaSafeCall(cudaMemcpy(&noNeededEntries, noNeededEntries_device, sizeof(int), cudaMemcpyDeviceToHost));
   }
@@ -298,8 +296,7 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScen
                                 sizeof(int),
                                 cudaMemcpyHostToDevice));
 
-      cleanMemory_device <<
-          < gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, hashTable, localVBA, entriesToClean_device, noNeededEntries);
+      cleanMemory_device <<< gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, hashTable, localVBA, entriesToClean_device, noNeededEntries);
 
       ORcudaSafeCall(cudaMemcpy(&scene->localVBA.lastFreeBlockId,
                                 noAllocatedVoxelEntries_device,

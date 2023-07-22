@@ -193,8 +193,7 @@ void ITMViewBuilder_CUDA::ComputeNormalAndWeights(ITMFloat4Image *normal_out,
   dim3 gridSize
       ((int) ceil((float) imgDims.x / (float) blockSize.x), (int) ceil((float) imgDims.y / (float) blockSize.y));
 
-  ComputeNormalAndWeight_device <<
-      < gridSize, blockSize >> >(depthData_in, normalData_out, sigmaZData_out, imgDims, intrinsic);
+  ComputeNormalAndWeight_device <<< gridSize, blockSize >> >(depthData_in, normalData_out, sigmaZData_out, imgDims, intrinsic);
   ORcudaKernelCheck;
 }
 
