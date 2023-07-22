@@ -192,8 +192,7 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   ORcudaSafeCall(cudaMemsetAsync(entriesAllocType_device, 0, sizeof(unsigned char) * noTotalEntries));
 
   if (gridSizeVS.x > 0) {
-    setToType3 <<
-        < gridSizeVS, cudaBlockSizeVS >> > (entriesVisibleType, visibleEntryIDs, renderState_vh->noVisibleEntries);
+    setToType3 <<< gridSizeVS, cudaBlockSizeVS >> > (entriesVisibleType, visibleEntryIDs, renderState_vh->noVisibleEntries);
     ORcudaKernelCheck;
   }
 
@@ -205,28 +204,24 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   bool useSwapping = scene->globalCache != NULL;
   if (onlyUpdateVisibleList) useSwapping = false;
   if (!onlyUpdateVisibleList) {
-    allocateVoxelBlocksList_device <<
-        < gridSizeAL, cudaBlockSizeAL >> >(voxelAllocationList, excessAllocationList, hashTable,
+    allocateVoxelBlocksList_device <<< gridSizeAL, cudaBlockSizeAL >> >(voxelAllocationList, excessAllocationList, hashTable,
         noTotalEntries, (AllocationTempData *) allocationTempData_device, entriesAllocType_device, entriesVisibleType,
         blockCoords_device);
     ORcudaKernelCheck;
   }
 
   if (useSwapping) {
-    buildVisibleList_device<true> <<
-        < gridSizeAL, cudaBlockSizeAL >> >(hashTable, swapStates, noTotalEntries, visibleEntryIDs,
+    buildVisibleList_device<true> <<< gridSizeAL, cudaBlockSizeAL >> >(hashTable, swapStates, noTotalEntries, visibleEntryIDs,
         (AllocationTempData *) allocationTempData_device, entriesVisibleType, M_d, projParams_d, depthImgSize, voxelSize);
     ORcudaKernelCheck;
   } else {
-    buildVisibleList_device<false> <<
-        < gridSizeAL, cudaBlockSizeAL >> >(hashTable, swapStates, noTotalEntries, visibleEntryIDs,
+    buildVisibleList_device<false> <<< gridSizeAL, cudaBlockSizeAL >> >(hashTable, swapStates, noTotalEntries, visibleEntryIDs,
         (AllocationTempData *) allocationTempData_device, entriesVisibleType, M_d, projParams_d, depthImgSize, voxelSize);
     ORcudaKernelCheck;
   }
 
   if (useSwapping) {
-    reAllocateSwappedOutVoxelBlocks_device <<
-        < gridSizeAL, cudaBlockSizeAL >> >(voxelAllocationList, hashTable, noTotalEntries,
+    reAllocateSwappedOutVoxelBlocks_device <<< gridSizeAL, cudaBlockSizeAL >> >(voxelAllocationList, hashTable, noTotalEntries,
         (AllocationTempData *) allocationTempData_device, entriesVisibleType);
     ORcudaKernelCheck;
   }
