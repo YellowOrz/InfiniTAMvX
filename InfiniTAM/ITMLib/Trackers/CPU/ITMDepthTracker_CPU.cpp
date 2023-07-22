@@ -27,15 +27,15 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   if (iterationType == TRACKER_ITERATION_NONE) return 0;      // 应该放到这个函数的第一行？？？
 
   //! 参数准备
+  bool shortIteration = (iterationType == TRACKER_ITERATION_ROTATION) ||  // 只有旋转or平移，则Hessian、Nabla只算一半
+                        (iterationType == TRACKER_ITERATION_TRANSLATION);
+  int noPara = shortIteration ? 3 : 6,
+      noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
   float sumHessian[6 * 6], sumNabla[6], sumF= 0.0f;   // Hessian矩阵、Nabla算子 和 误差
   int noValidPoints = 0;                              //用于记录无意义的点
   memset(sumHessian, 0, sizeof(float) * noParaSQ);    //对sumHessian 清零
   memset(sumNabla, 0, sizeof(float) * noPara);        //对sumNabla 清零
-  // 只跟踪旋转or平移，Hessian、Nabla 都只用算一半
-  bool shortIteration = (iterationType == TRACKER_ITERATION_ROTATION) || 
-                        (iterationType == TRACKER_ITERATION_TRANSLATION);
-  int noPara = shortIteration ? 3 : 6,  
-      noParaSQ = shortIteration ? 3 + 2 + 1 : 6 + 5 + 4 + 3 + 2 + 1;
+
   
   //! 计算每个像素的 误差、Hessian矩阵 和 Nabla算子
   for (int y = 0; y < viewImageSize.y; y++)

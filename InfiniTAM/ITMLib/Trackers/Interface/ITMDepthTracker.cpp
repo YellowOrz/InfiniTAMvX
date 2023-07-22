@@ -7,20 +7,13 @@
 
 using namespace ITMLib;
 
-ITMDepthTracker::ITMDepthTracker(Vector2i imgSize,
-                                 TrackerIterationType *trackingRegime,
-                                 int noHierarchyLevels,
-                                 float terminationThreshold,
-                                 float failureDetectorThreshold,
-                                 const ITMLowLevelEngine *lowLevelEngine,
-                                 MemoryDeviceType memoryType) {
-  viewHierarchy = new ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> >(imgSize,
-                                                                                    trackingRegime,
-                                                                                    noHierarchyLevels,
-                                                                                    memoryType,
-                                                                                    true);
-  sceneHierarchy =
-      new ITMImageHierarchy<ITMSceneHierarchyLevel>(imgSize, trackingRegime, noHierarchyLevels, memoryType, true);
+ITMDepthTracker::ITMDepthTracker(Vector2i imgSize, TrackerIterationType *trackingRegime, int noHierarchyLevels,
+                                 float terminationThreshold, float failureDetectorThreshold,
+                                 const ITMLowLevelEngine *lowLevelEngine, MemoryDeviceType memoryType) {
+  viewHierarchy = new ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage>>(imgSize, trackingRegime,
+                                                                                   noHierarchyLevels, memoryType, true);
+  sceneHierarchy = new ITMImageHierarchy<ITMSceneHierarchyLevel>(imgSize, trackingRegime, noHierarchyLevels, 
+                                                                  memoryType, true);
 
   this->noIterationsPerLevel = new int[noHierarchyLevels];
   this->distThresh = new float[noHierarchyLevels];
@@ -34,28 +27,12 @@ ITMDepthTracker::ITMDepthTracker(Vector2i imgSize,
   map = new ORUtils::HomkerMap(2);
   svmClassifier = new ORUtils::SVMClassifier(map->getDescriptorSize(4));
 
-  //all below obtained from dataset in matlab   ？？？
+  //all below obtained from dataset in matlab  这是啥 ？？？
   float w[20];
-  w[0] = -3.15813f;
-  w[1] = -2.38038f;
-  w[2] = 1.93359f;
-  w[3] = 1.56642f;
-  w[4] = 1.76306f;
-  w[5] = -0.747641f;
-  w[6] = 4.41852f;
-  w[7] = 1.72048f;
-  w[8] = -0.482545f;
-  w[9] = -5.07793f;
-  w[10] = 1.98676f;
-  w[11] = -0.45688f;
-  w[12] = 2.53969f;
-  w[13] = -3.50527f;
-  w[14] = -1.68725f;
-  w[15] = 2.31608f;
-  w[16] = 5.14778f;
-  w[17] = 2.31334f;
-  w[18] = -14.128f;
-  w[19] = 6.76423f;
+  w[0] = -3.15813f;w[1] = -2.38038f;w[2] = 1.93359f;w[3] = 1.56642f;w[4] = 1.76306f;
+  w[5] = -0.747641f;w[6] = 4.41852f;w[7] = 1.72048f;w[8] = -0.482545f;w[9] = -5.07793f;
+  w[10] = 1.98676f;w[11] = -0.45688f;w[12] = 2.53969f;w[13] = -3.50527f;w[14] = -1.68725f;
+  w[15] = 2.31608f;w[16] = 5.14778f;w[17] = 2.31334f;w[18] = -14.128f;w[19] = 6.76423f;
 
   float b = 9.334260e-01f + failureDetectorThreshold;
 
@@ -78,7 +55,7 @@ ITMDepthTracker::~ITMDepthTracker(void) {
 
 void ITMDepthTracker::SetupLevels(int numIterCoarse, int numIterFine, float distThreshCoarse, float distThreshFine) {
   int noHierarchyLevels = viewHierarchy->GetNoLevels();
-
+  //! 计算金字塔每一层的迭代次数
   if ((numIterCoarse != -1) && (numIterFine != -1)) {
     float step = (float) (numIterCoarse - numIterFine) / (float) (noHierarchyLevels - 1);
     float val = (float) numIterCoarse;
@@ -87,6 +64,7 @@ void ITMDepthTracker::SetupLevels(int numIterCoarse, int numIterFine, float dist
       val -= step;
     }
   }
+  //! 计算金字塔每一层的误差阈值
   if ((distThreshCoarse >= 0.0f) && (distThreshFine >= 0.0f)) {
     float step = (float) (distThreshCoarse - distThreshFine) / (float) (noHierarchyLevels - 1);
     float val = distThreshCoarse;
@@ -221,12 +199,12 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
   float normFactor_v1 = (float)noValidPoints_old / (float)noTotalPoints;
   float normFactor_v2 = (float)noValidPoints_old / (float)noValidPointsMax;
   
-  //! 使用Cholesky对ICP得到的最好的Hessian再次分解
+  //! 使用Cholesky对ICP得到的最好的Hessian再次分解？？？
   float det = 0.0f;
   if (iterationType == TRACKER_ITERATION_BOTH) {
     ORUtils::Cholesky cholA(hessian_good, 6);
-    det = cholA.Determinant();    //为啥是空的？？？
-    if (isnan(det))
+    det = cholA.Determinant();
+    if (isnan(det))   // 行列式为无穷说明？？？
       det = 0.0f;
   }
 
@@ -251,7 +229,7 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
     if (isnan(det_norm_v2))
       det_norm_v2 = 0.0f;
   }
-  //! 计算跟踪质量
+  //! 计算跟踪质量的分数
   float finalResidual_v2 =
       sqrt(((float)noValidPoints_old * f_old + (float)(noValidPointsMax - noValidPoints_old) * distThresh[0]) /
            (float)noValidPointsMax);
@@ -259,7 +237,7 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
 
   trackingState->trackerResult = ITMTrackingState::TRACKING_FAILED;
   trackingState->trackerScore = finalResidual_v2;
-
+  //! 质量可以的使用svm分类器归类
   if (noValidPointsMax != 0 && noTotalPoints != 0 && det_norm_v1 > 0 && det_norm_v2 > 0) {
     Vector4f inputVector(log(det_norm_v1), log(det_norm_v2), finalResidual_v2, percentageInliers_v2);
 
