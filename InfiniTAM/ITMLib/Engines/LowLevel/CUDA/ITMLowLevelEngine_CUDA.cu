@@ -17,33 +17,29 @@ ITMLowLevelEngine_CUDA::~ITMLowLevelEngine_CUDA(void) {
   ORcudaSafeCall(cudaFree(counterTempData_device));
   ORcudaSafeCall(cudaFreeHost(counterTempData_host));
 }
-
+/** RGB转灰度 */
 __global__ void convertColourToIntensity_device(float *imageData_out, Vector2i dims, const Vector4u *imageData_in);
-
+/** 对图片进行2x2的均值滤波  */
 __global__ void boxFilter2x2_device(float *imageData_out, const float *imageData_in, Vector2i dims);
-
-__global__ void filterSubsample_device(float *imageData_out,
-                                       Vector2i newDims,
-                                       const float *imageData_in,
+/** 将图片缩小一半。通过2x2的均值滤波，图片大小不变  */
+__global__ void filterSubsample_device(float *imageData_out, Vector2i newDims, const float *imageData_in,
                                        Vector2i oldDims);
-__global__ void filterSubsample_device(Vector4u *imageData_out,
-                                       Vector2i newDims,
-                                       const Vector4u *imageData_in,
+/** 将图片缩小一半。通过2x2的均值滤波  */
+__global__ void filterSubsample_device(Vector4u *imageData_out, Vector2i newDims, const Vector4u *imageData_in,
                                        Vector2i oldDims);
-
-__global__ void filterSubsampleWithHoles_device(float *imageData_out,
-                                                Vector2i newDims,
-                                                const float *imageData_in,
+/** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
+__global__ void filterSubsampleWithHoles_device(float *imageData_out, Vector2i newDims, const float *imageData_in,
                                                 Vector2i oldDims);
-__global__ void filterSubsampleWithHoles_device(Vector4f *imageData_out,
-                                                Vector2i newDims,
-                                                const Vector4f *imageData_in,
+/** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
+__global__ void filterSubsampleWithHoles_device(Vector4f *imageData_out, Vector2i newDims, const Vector4f *imageData_in,
                                                 Vector2i oldDims);
-
+/** 计算x方向的梯度 */
 __global__ void gradientX_device(Vector4s *grad, const Vector4u *image, Vector2i imgSize);
+/** 计算y方向的梯度 */
 __global__ void gradientY_device(Vector4s *grad, const Vector4u *image, Vector2i imgSize);
+/** 计算x和y方向的梯度 */
 __global__ void gradientXY_device(Vector2f *grad, const float *image, Vector2i imgSize);
-
+/** 统计深度图中有效像素个数。深度>0 即 有效 */
 __global__ void countValidDepths_device(const float *imageData_in, int imgSizeTotal, int *counterTempData_device);
 
 // host methods
@@ -259,20 +255,17 @@ __global__ void boxFilter2x2_device(float *imageData_out, const float *imageData
   boxFilter2x2(imageData_out, x, y, dims, imageData_in, x, y, dims);
 }
 
-__global__ void filterSubsample_device(Vector4u *imageData_out,
-                                       Vector2i newDims,
-                                       const Vector4u *imageData_in,
+__global__ void filterSubsample_device(Vector4u *imageData_out, Vector2i newDims, const Vector4u *imageData_in,
                                        Vector2i oldDims) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
 
-  if (x > newDims.x - 1 || y > newDims.y - 1) return;
+  if (x > newDims.x - 1 || y > newDims.y - 1)
+    return;
 
   filterSubsample(imageData_out, x, y, newDims, imageData_in, oldDims);
 }
 
-__global__ void filterSubsample_device(float *imageData_out,
-                                       Vector2i newDims,
-                                       const float *imageData_in,
+__global__ void filterSubsample_device(float *imageData_out, Vector2i newDims, const float *imageData_in,
                                        Vector2i oldDims) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -281,9 +274,7 @@ __global__ void filterSubsample_device(float *imageData_out,
   boxFilter2x2(imageData_out, x, y, newDims, imageData_in, x * 2, y * 2, oldDims);
 }
 
-__global__ void filterSubsampleWithHoles_device(float *imageData_out,
-                                                Vector2i newDims,
-                                                const float *imageData_in,
+__global__ void filterSubsampleWithHoles_device(float *imageData_out, Vector2i newDims, const float *imageData_in,
                                                 Vector2i oldDims) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -292,9 +283,7 @@ __global__ void filterSubsampleWithHoles_device(float *imageData_out,
   filterSubsampleWithHoles(imageData_out, x, y, newDims, imageData_in, oldDims);
 }
 
-__global__ void filterSubsampleWithHoles_device(Vector4f *imageData_out,
-                                                Vector2i newDims,
-                                                const Vector4f *imageData_in,
+__global__ void filterSubsampleWithHoles_device(Vector4f *imageData_out, Vector2i newDims, const Vector4f *imageData_in,
                                                 Vector2i oldDims) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
 

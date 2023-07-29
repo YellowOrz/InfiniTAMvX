@@ -162,9 +162,11 @@ void ITMLowLevelEngine_CPU::GradientXY(ITMFloat2Image *grad_out, const ITMFloatI
 
 int ITMLowLevelEngine_CPU::CountValidDepths(const ITMFloatImage *image_in) const {
   int noValidPoints = 0;
-  const float *imageData_in = image_in->GetData(MEMORYDEVICE_CPU);
+  const float *imageData_in = image_in->GetData(MEMORYDEVICE_CPU);  // 获取深度
 
-  for (int i = 0; i < image_in->noDims.x * image_in->noDims.y; ++i) if (imageData_in[i] > 0.0) noValidPoints++;
+  for (int i = 0; i < image_in->noDims.x * image_in->noDims.y; ++i)
+    if (imageData_in[i] > 0.0)
+      noValidPoints++;
 
   return noValidPoints;
 }
