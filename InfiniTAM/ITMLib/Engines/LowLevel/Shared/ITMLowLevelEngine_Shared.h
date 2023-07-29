@@ -3,17 +3,17 @@
 #pragma once
 
 #include "../../../Utils/ITMMath.h"
-
-_CPU_AND_GPU_CODE_ inline void convertColourToIntensity(DEVICEPTR(float) *imageData_out, int x, int y, Vector2i dims,
-                                                        const CONSTPTR(Vector4u) *imageData_in) {
+/** RGB转灰度 */
+_CPU_AND_GPU_CODE_ inline void convertColourToIntensity(DEVICEPTR(float) * imageData_out, int x, int y, Vector2i dims,
+                                                        const CONSTPTR(Vector4u) * imageData_in) {
   const int linear_pos = y * dims.x + x;
   const Vector4u colour = imageData_in[linear_pos];
 
   imageData_out[linear_pos] = (0.299f * colour.x + 0.587f * colour.y + 0.114f * colour.z) / 255.f;
 }
-
-_CPU_AND_GPU_CODE_ inline void filterSubsample(DEVICEPTR(Vector4u) *imageData_out, int x, int y, Vector2i newDims,
-                                               const CONSTPTR(Vector4u) *imageData_in, Vector2i oldDims) {
+/** 将Vector4u类型的图片进行2x2的均值滤波 */
+_CPU_AND_GPU_CODE_ inline void filterSubsample(DEVICEPTR(Vector4u) * imageData_out, int x, int y, Vector2i newDims,
+                                               const CONSTPTR(Vector4u) * imageData_in, Vector2i oldDims) {
   int src_pos_x = x * 2, src_pos_y = y * 2;
   Vector4u pixel_out, pixels_in[4];
 
@@ -29,9 +29,10 @@ _CPU_AND_GPU_CODE_ inline void filterSubsample(DEVICEPTR(Vector4u) *imageData_ou
 
   imageData_out[x + y * newDims.x] = pixel_out;
 }
-
-_CPU_AND_GPU_CODE_ inline void boxFilter2x2(DEVICEPTR(float) *imageData_out, int x_out, int y_out, Vector2i newDims,
-                                            const CONSTPTR(float) *imageData_in, int x_in, int y_in, Vector2i oldDims) {
+/** 对float类型的图片进行2x2的均值滤波 */
+_CPU_AND_GPU_CODE_ inline void boxFilter2x2(DEVICEPTR(float) * imageData_out, int x_out, int y_out, Vector2i newDims,
+                                            const CONSTPTR(float) * imageData_in, int x_in, int y_in,
+                                            Vector2i oldDims) {
   float pixel_out = 0.f;
 
   pixel_out += imageData_in[(x_in + 0) + (y_in + 0) * oldDims.x];
@@ -41,9 +42,10 @@ _CPU_AND_GPU_CODE_ inline void boxFilter2x2(DEVICEPTR(float) *imageData_out, int
 
   imageData_out[x_out + y_out * newDims.x] = pixel_out / 4.f;
 }
-
-_CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(float) *imageData_out, int x, int y, Vector2i newDims,
-                                                        const CONSTPTR(float) *imageData_in, Vector2i oldDims) {
+/** 将带洞（有无效像素）、float类型的图片进行2x2的均值滤波 */
+_CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(float) * imageData_out, int x, int y,
+                                                        Vector2i newDims, const CONSTPTR(float) * imageData_in,
+                                                        Vector2i oldDims) {
   int src_pos_x = x * 2, src_pos_y = y * 2;
   float pixel_out = 0.0f, pixel_in, no_good_pixels = 0.0f;
 
@@ -71,16 +73,14 @@ _CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(float) *imageD
     no_good_pixels++;
   }
 
-  if (no_good_pixels > 0) pixel_out /= no_good_pixels;
+  if (no_good_pixels > 0)
+    pixel_out /= no_good_pixels;
 
   imageData_out[x + y * newDims.x] = pixel_out;
 }
-
-_CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(Vector4f) *imageData_out,
-                                                        int x,
-                                                        int y,
-                                                        Vector2i newDims,
-                                                        const CONSTPTR(Vector4f) *imageData_in,
+/** 将带洞（有无效像素）、Vector4u类型的图片进行2x2的均值滤波 */
+_CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(Vector4f) * imageData_out, int x, int y,
+                                                        Vector2i newDims, const CONSTPTR(Vector4f) * imageData_in,
                                                         Vector2i oldDims) {
   int src_pos_x = x * 2, src_pos_y = y * 2;
   Vector4f pixel_out(0.0f), pixel_in;
@@ -110,16 +110,16 @@ _CPU_AND_GPU_CODE_ inline void filterSubsampleWithHoles(DEVICEPTR(Vector4f) *ima
     no_good_pixels++;
   }
 
-  if (no_good_pixels > 0) pixel_out /= no_good_pixels;
-  else { pixel_out.w = -1.0f; }
+  if (no_good_pixels > 0)
+    pixel_out /= no_good_pixels;
+  else {
+    pixel_out.w = -1.0f;
+  }
 
   imageData_out[x + y * newDims.x] = pixel_out;
 }
-
-_CPU_AND_GPU_CODE_ inline void gradientX(DEVICEPTR(Vector4s) *grad,
-                                         int x,
-                                         int y,
-                                         const CONSTPTR(Vector4u) *image,
+/** 计算图像在x方向的梯度 */
+_CPU_AND_GPU_CODE_ inline void gradientX(DEVICEPTR(Vector4s) * grad, int x, int y, const CONSTPTR(Vector4u) * image,
                                          Vector2i imgSize) {
   Vector4s d1, d2, d3, d_out;
 
@@ -127,9 +127,9 @@ _CPU_AND_GPU_CODE_ inline void gradientX(DEVICEPTR(Vector4s) *grad,
   d1.y = image[(x + 1) + (y - 1) * imgSize.x].y - image[(x - 1) + (y - 1) * imgSize.x].y;
   d1.z = image[(x + 1) + (y - 1) * imgSize.x].z - image[(x - 1) + (y - 1) * imgSize.x].z;
 
-  d2.x = image[(x + 1) + (y) * imgSize.x].x - image[(x - 1) + (y) * imgSize.x].x;
-  d2.y = image[(x + 1) + (y) * imgSize.x].y - image[(x - 1) + (y) * imgSize.x].y;
-  d2.z = image[(x + 1) + (y) * imgSize.x].z - image[(x - 1) + (y) * imgSize.x].z;
+  d2.x = image[(x + 1) + (y)*imgSize.x].x - image[(x - 1) + (y)*imgSize.x].x;
+  d2.y = image[(x + 1) + (y)*imgSize.x].y - image[(x - 1) + (y)*imgSize.x].y;
+  d2.z = image[(x + 1) + (y)*imgSize.x].z - image[(x - 1) + (y)*imgSize.x].z;
 
   d3.x = image[(x + 1) + (y + 1) * imgSize.x].x - image[(x - 1) + (y + 1) * imgSize.x].x;
   d3.y = image[(x + 1) + (y + 1) * imgSize.x].y - image[(x - 1) + (y + 1) * imgSize.x].y;
@@ -144,11 +144,8 @@ _CPU_AND_GPU_CODE_ inline void gradientX(DEVICEPTR(Vector4s) *grad,
 
   grad[x + y * imgSize.x] = d_out;
 }
-
-_CPU_AND_GPU_CODE_ inline void gradientY(DEVICEPTR(Vector4s) *grad,
-                                         int x,
-                                         int y,
-                                         const CONSTPTR(Vector4u) *image,
+/** 计算图像在y方向的梯度 */
+_CPU_AND_GPU_CODE_ inline void gradientY(DEVICEPTR(Vector4s) * grad, int x, int y, const CONSTPTR(Vector4u) * image,
                                          Vector2i imgSize) {
   Vector4s d1, d2, d3, d_out;
 
@@ -173,24 +170,30 @@ _CPU_AND_GPU_CODE_ inline void gradientY(DEVICEPTR(Vector4s) *grad,
 
   grad[x + y * imgSize.x] = d_out;
 }
-
-_CPU_AND_GPU_CODE_ inline void gradientXY(DEVICEPTR(Vector2f) *grad,
-                                          int x,
-                                          int y,
-                                          const CONSTPTR(float) *image,
+/** 计算图像在x、y方向的梯度 */
+_CPU_AND_GPU_CODE_ inline void gradientXY(DEVICEPTR(Vector2f) * grad, int x, int y, const CONSTPTR(float) * image,
                                           Vector2i imgSize) {
   Vector2f d1, d2, d3, d_out;
 
   // Compute gradient in the X direction
+  // 计算x方向梯度，所用卷积核如下
+  // 1 0 -1
+  // 1 0 -1
+  // 1 0 -1
   d1.x = image[(y - 1) * imgSize.x + (x + 1)] - image[(y - 1) * imgSize.x + (x - 1)];
-  d2.x = image[(y) * imgSize.x + (x + 1)] - image[(y) * imgSize.x + (x - 1)];
+  d2.x = image[(y)*imgSize.x + (x + 1)] - image[(y)*imgSize.x + (x - 1)];
   d3.x = image[(y + 1) * imgSize.x + (x + 1)] - image[(y + 1) * imgSize.x + (x - 1)];
 
   // Compute gradient in the Y direction
+  // 计算y方向梯度，所用卷积核如下
+  // -1 -1 -1
+  //  0  0  0
+  //  1  1  1
   d1.y = image[(y + 1) * imgSize.x + (x - 1)] - image[(y - 1) * imgSize.x + (x - 1)];
   d2.y = image[(y + 1) * imgSize.x + (x)] - image[(y - 1) * imgSize.x + (x)];
   d3.y = image[(y + 1) * imgSize.x + (x + 1)] - image[(y - 1) * imgSize.x + (x + 1)];
-
+  
+  // 求和平均。中间十字的权重更大
   d_out.x = (d1.x + 2.f * d2.x + d3.x) / 8.f;
   d_out.y = (d1.y + 2.f * d2.y + d3.y) / 8.f;
 

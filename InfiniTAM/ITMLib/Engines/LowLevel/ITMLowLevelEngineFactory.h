@@ -14,7 +14,8 @@ struct ITMLowLevelEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief Makes a low-level engine.
+   * \brief 构造预处理模块
+   * Makes a low-level engine.
    *
    * \param deviceType  The device on which the low-level engine should operate.
    */
