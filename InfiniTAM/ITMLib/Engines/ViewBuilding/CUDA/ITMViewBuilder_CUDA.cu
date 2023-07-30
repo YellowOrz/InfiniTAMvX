@@ -17,23 +17,17 @@ ITMViewBuilder_CUDA::~ITMViewBuilder_CUDA(void) {}
 // kernel function declaration 
 //
 //---------------------------------------------------------------------------
-
-
-__global__ void convertDisparityToDepth_device(float *depth_out,
-                                               const short *depth_in,
-                                               Vector2f disparityCalibParams,
-                                               float fx_depth,
-                                               Vector2i imgSize);
-__global__ void convertDepthAffineToFloat_device(float *d_out,
-                                                 const short *d_in,
-                                                 Vector2i imgSize,
+/** 将Kinect的视差图转成深度图 */
+__global__ void convertDisparityToDepth_device(float *depth_out, const short *depth_in, Vector2f disparityCalibParams,
+                                               float fx_depth, Vector2i imgSize);
+/** Affine模式的深度图，将单个像素的深度值从short转float */                                               
+__global__ void convertDepthAffineToFloat_device(float *d_out, const short *d_in, Vector2i imgSize,
                                                  Vector2f depthCalibParams);
+/** 对图像中的单个像素进行双边滤波 */                                                 
 __global__ void filterDepth_device(float *imageData_out, const float *imageData_in, Vector2i imgDims);
-__global__ void ComputeNormalAndWeight_device(const float *depth_in,
-                                              Vector4f *normal_out,
-                                              float *sigmaL_out,
-                                              Vector2i imgDims,
-                                              Vector4f intrinsic);
+/** 计算深度图单个像素的法向量和不确定性（权重），用于衡量深度图噪声 */
+__global__ void ComputeNormalAndWeight_device(const float *depth_in, Vector4f *normal_out, float *sigmaL_out,
+                                              Vector2i imgDims, Vector4f intrinsic);
 
 //---------------------------------------------------------------------------
 //
@@ -41,12 +35,9 @@ __global__ void ComputeNormalAndWeight_device(const float *depth_in,
 //
 //---------------------------------------------------------------------------
 
-void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr,
-                                     ITMUChar4Image *rgbImage,
-                                     ITMShortImage *rawDepthImage,
-                                     bool useBilateralFilter,
-                                     bool modelSensorNoise,
-                                     bool storePreviousImage) {
+void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr, ITMUChar4Image *rgbImage, ITMShortImage *rawDepthImage,
+                                     bool useBilateralFilter, bool modelSensorNoise, bool storePreviousImage) {
+  //! 防止view还未初始化
   if (*view_ptr == NULL) {
     *view_ptr = new ITMView(calib, rgbImage->noDims, rawDepthImage->noDims, true);
     if (this->shortImage != NULL) delete this->shortImage;
@@ -61,30 +52,26 @@ void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr,
   }
 
   ITMView *view = *view_ptr;
-
+  //! 存储上一帧
   if (storePreviousImage) {
     if (!view->rgb_prev) view->rgb_prev = new ITMUChar4Image(rgbImage->noDims, true, true);
     else view->rgb_prev->SetFrom(view->rgb, MemoryBlock<Vector4u>::CUDA_TO_CUDA);
   }
-
+  //! 将rgb-d图保存到view中
   view->rgb->SetFrom(rgbImage, MemoryBlock<Vector4u>::CPU_TO_CUDA);
   this->shortImage->SetFrom(rawDepthImage, MemoryBlock<short>::CPU_TO_CUDA);
-
+  //! 将深度图 转成能用的类型。因为读进来的深度图是转换过的，使用short类型存储
   switch (view->calib.disparityCalib.GetType()) {
-    case ITMDisparityCalib::TRAFO_KINECT:
-      this->ConvertDisparityToDepth(view->depth,
-                                    this->shortImage,
-                                    &(view->calib.intrinsics_d),
-                                    view->calib.disparityCalib.GetParams());
-      break;
-    case ITMDisparityCalib::TRAFO_AFFINE:
-      this->ConvertDepthAffineToFloat(view->depth,
-                                      this->shortImage,
-                                      view->calib.disparityCalib.GetParams());
-      break;
-    default: break;
+  case ITMDisparityCalib::TRAFO_KINECT:
+    this->ConvertDisparityToDepth(view->depth, this->shortImage, &(view->calib.intrinsics_d),
+                                  view->calib.disparityCalib.GetParams());
+    break;
+  case ITMDisparityCalib::TRAFO_AFFINE:
+    this->ConvertDepthAffineToFloat(view->depth, this->shortImage, view->calib.disparityCalib.GetParams());
+    break;
+  default: break;
   }
-
+  //! 对 深度图 做5次 双边滤波
   if (useBilateralFilter) {
     //5 steps of bilateral filtering
     this->DepthFiltering(this->floatImage, view->depth);
@@ -94,22 +81,17 @@ void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr,
     this->DepthFiltering(this->floatImage, view->depth);
     view->depth->SetFrom(this->floatImage, MemoryBlock<float>::CUDA_TO_CUDA);
   }
-
+  //! 计算深度图的法向量和不确定性（权重），用于衡量深度图噪声
   if (modelSensorNoise) {
-    this->ComputeNormalAndWeights(view->depthNormal,
-                                  view->depthUncertainty,
-                                  view->depth,
+    this->ComputeNormalAndWeights(view->depthNormal, view->depthUncertainty, view->depth,
                                   view->calib.intrinsics_d.projectionParamsSimple.all);
   }
 }
 
-void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr,
-                                     ITMUChar4Image *rgbImage,
-                                     ITMShortImage *depthImage,
-                                     bool useBilateralFilter,
-                                     ITMIMUMeasurement *imuMeasurement,
-                                     bool modelSensorNoise,
+void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr, ITMUChar4Image *rgbImage, ITMShortImage *depthImage,
+                                     bool useBilateralFilter, ITMIMUMeasurement *imuMeasurement, bool modelSensorNoise,
                                      bool storePreviousImage) {
+  //! 防止view还未初始化
   if (*view_ptr == NULL) {
     *view_ptr = new ITMViewIMU(calib, rgbImage->noDims, depthImage->noDims, true);
     if (this->shortImage != NULL) delete this->shortImage;
@@ -122,17 +104,15 @@ void ITMViewBuilder_CUDA::UpdateView(ITMView **view_ptr,
       (*view_ptr)->depthUncertainty = new ITMFloatImage(depthImage->noDims, true, true);
     }
   }
-
+  //! 将IMU保存到view中     // TODO：不用保存上一帧的IMU信息吗？
   ITMViewIMU *imuView = (ITMViewIMU *) (*view_ptr);
   imuView->imu->SetFrom(imuMeasurement);
-
+  //! RGBD数据的保存相同
   this->UpdateView(view_ptr, rgbImage, depthImage, useBilateralFilter, modelSensorNoise, storePreviousImage);
 }
 
-void ITMViewBuilder_CUDA::ConvertDisparityToDepth(ITMFloatImage *depth_out,
-                                                  const ITMShortImage *depth_in,
-                                                  const ITMIntrinsics *depthIntrinsics,
-                                                  Vector2f disparityCalibParams) {
+void ITMViewBuilder_CUDA::ConvertDisparityToDepth(ITMFloatImage *depth_out, const ITMShortImage *depth_in,
+                                                  const ITMIntrinsics *depthIntrinsics, Vector2f disparityCalibParams) {
   Vector2i imgSize = depth_in->noDims;
 
   const short *d_in = depth_in->GetData(MEMORYDEVICE_CUDA);
@@ -203,11 +183,8 @@ void ITMViewBuilder_CUDA::ComputeNormalAndWeights(ITMFloat4Image *normal_out,
 //
 //---------------------------------------------------------------------------
 
-__global__ void convertDisparityToDepth_device(float *d_out,
-                                               const short *d_in,
-                                               Vector2f disparityCalibParams,
-                                               float fx_depth,
-                                               Vector2i imgSize) {
+__global__ void convertDisparityToDepth_device(float *d_out, const short *d_in, Vector2f disparityCalibParams,
+                                               float fx_depth, Vector2i imgSize) {
   int x = threadIdx.x + blockIdx.x * blockDim.x;
   int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -216,9 +193,7 @@ __global__ void convertDisparityToDepth_device(float *d_out,
   convertDisparityToDepth(d_out, x, y, d_in, disparityCalibParams, fx_depth, imgSize);
 }
 
-__global__ void convertDepthAffineToFloat_device(float *d_out,
-                                                 const short *d_in,
-                                                 Vector2i imgSize,
+__global__ void convertDepthAffineToFloat_device(float *d_out, const short *d_in, Vector2i imgSize,
                                                  Vector2f depthCalibParams) {
   int x = threadIdx.x + blockIdx.x * blockDim.x;
   int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -236,11 +211,8 @@ __global__ void filterDepth_device(float *imageData_out, const float *imageData_
   filterDepth(imageData_out, imageData_in, x, y, imgDims);
 }
 
-__global__ void ComputeNormalAndWeight_device(const float *depth_in,
-                                              Vector4f *normal_out,
-                                              float *sigmaZ_out,
-                                              Vector2i imgDims,
-                                              Vector4f intrinsic) {
+__global__ void ComputeNormalAndWeight_device(const float *depth_in, Vector4f *normal_out, float *sigmaZ_out,
+                                              Vector2i imgDims, Vector4f intrinsic) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
   int idx = x + y * imgDims.x;
 
@@ -252,4 +224,3 @@ __global__ void ComputeNormalAndWeight_device(const float *depth_in,
     computeNormalAndWeight(depth_in, normal_out, sigmaZ_out, x, y, imgDims, intrinsic);
   }
 }
-

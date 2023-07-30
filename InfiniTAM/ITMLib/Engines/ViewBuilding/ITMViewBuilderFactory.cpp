@@ -14,23 +14,23 @@ namespace ITMLib {
 ITMViewBuilder *ITMViewBuilderFactory::MakeViewBuilder(const ITMRGBDCalib &calib,
                                                        ITMLibSettings::DeviceType deviceType) {
   ITMViewBuilder *viewBuilder = NULL;
-
+  // 根据 设备类型 构建 view builder
   switch (deviceType) {
-    case ITMLibSettings::DEVICE_CPU:viewBuilder = new ITMViewBuilder_CPU(calib);
-      break;
-    case ITMLibSettings::DEVICE_CUDA:
+  case ITMLibSettings::DEVICE_CPU:    // CPU
+    viewBuilder = new ITMViewBuilder_CPU(calib);
+    break;
+  case ITMLibSettings::DEVICE_CUDA:   // GPU
 #ifndef COMPILE_WITHOUT_CUDA
-      viewBuilder = new ITMViewBuilder_CUDA(calib);
+    viewBuilder = new ITMViewBuilder_CUDA(calib);
 #endif
-      break;
-    case ITMLibSettings::DEVICE_METAL:
+    break;
+  case ITMLibSettings::DEVICE_METAL:  // Apple
 #ifdef COMPILE_WITH_METAL
-      viewBuilder = new ITMViewBuilder_CPU(calib);
+    viewBuilder = new ITMViewBuilder_CPU(calib);
 #endif
-      break;
+    break;
   }
 
   return viewBuilder;
 }
-
 }
