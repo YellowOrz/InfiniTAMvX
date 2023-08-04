@@ -19,7 +19,7 @@ class ITMLowLevelEngine_CPU : public ITMLowLevelEngine {
   /** 将图片缩小一半。通过2x2的均值滤波
    * @note 不用模板函数是因为Vector4u里面有4个数字
    */
-  void FilterSubsample(ITMFloatImage *image_out, const ITMFloatImage *image_in) const;、
+  void FilterSubsample(ITMFloatImage *image_out, const ITMFloatImage *image_in) const;
   /** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
   void FilterSubsampleWithHoles(ITMFloatImage *image_out, const ITMFloatImage *image_in) const;
   /** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
