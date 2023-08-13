@@ -4,10 +4,11 @@
 
 namespace ITMLib {
 /// The tracker iteration type used to define the tracking iteration regime
+/** 迭代的跟踪类型。在ITMLibSettings => trackerConfig => levels里设置 */
 enum TrackerIterationType {
-  TRACKER_ITERATION_ROTATION,
-  TRACKER_ITERATION_TRANSLATION,
-  TRACKER_ITERATION_BOTH,
-  TRACKER_ITERATION_NONE
+  TRACKER_ITERATION_ROTATION,     // 只有旋转
+  TRACKER_ITERATION_TRANSLATION,  // 只有平移
+  TRACKER_ITERATION_BOTH,         // 都要
+  TRACKER_ITERATION_NONE          // 都不要。
 };
 }

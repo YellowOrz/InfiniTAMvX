@@ -18,9 +18,9 @@
  * @param[in] sceneImageSize  场景的
  * @param[in] sceneIntrinsics 
  * @param[in] approxInvPose   初始位姿，=上一帧的位姿？？？
- * @param[in] scenePose       场景位姿？？？
- * @param[in] pointsMap       场景投影出来的三维点？？？
- * @param[in] normalsMap      投影点对应的法向量
+ * @param[in] scenePose       投影帧位姿？？？
+ * @param[in] pointsMap       投影帧出来的三维点？？？
+ * @param[in] normalsMap      投影帧对应的法向量
  * @param[in] distThresh      距离阈值，用来剔除误差大的点
  * @return
  */
@@ -33,12 +33,12 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(
     const CONSTPTR(Vector4f) * pointsMap, const CONSTPTR(Vector4f) * normalsMap, float distThresh) {
   if (depth <= 1e-8f) return false;   // 深度太小的跳过     放到computePerPointGH_Depth里面更快？？？
 
-  Vector4f tmp3Dpoint, tmp3Dpoint_reproj;
+  Vector4f tmp3Dpoint, tmp3Dpoint_reproj;     // CUDA中，先分配会更快吗？
   Vector3f ptDiff;
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
 
-  //! 计算当前像素在上一帧的三维坐标
+  //! 计算当前帧中像素的三维坐标
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);  // 在当前帧下的三维坐标
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
@@ -47,16 +47,15 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(
   tmp3Dpoint = approxInvPose * tmp3Dpoint;  // 变换到上一帧坐标系下
   tmp3Dpoint.w = 1.0f;
 
-  //! 通过重投影找到 在上一帧 中的 匹配点
+  //! 通过重投影找到 投影帧 中的 匹配点
   // project into previous rendered image  
-  // 变换到scene坐标系下 ？？？上一帧的坐标投射到之前的渲染图像总区
-  tmp3Dpoint_reproj = scenePose * tmp3Dpoint;
-  if (tmp3Dpoint_reproj.z <= 0.0f) return false;  // 用z坐标来判断？
+  tmp3Dpoint_reproj = scenePose * tmp3Dpoint;     // 变换到投影帧的坐标系下 ？？？上一帧的坐标投射到之前的渲染图像总区
+  if (tmp3Dpoint_reproj.z <= 0.0f) return false;  // 检测深度
   // 投影到scene的成像平面，会是小数
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
   if (!((tmp2Dpoint.x >= 0.0f) && (tmp2Dpoint.x <= sceneImageSize.x - 2) && (tmp2Dpoint.y >= 0.0f)
-      && (tmp2Dpoint.y <= sceneImageSize.y - 2)))  // 剔除超过边界的点  为什么是2？？？ 
+      && (tmp2Dpoint.y <= sceneImageSize.y - 2)))  // 剔除边界附近的点  为什么是2？？？ 
     return false;
   
   curr3Dpoint = interpolateBilinear_withHoles(pointsMap, tmp2Dpoint, sceneImageSize);   // 用双线性插值找对应点

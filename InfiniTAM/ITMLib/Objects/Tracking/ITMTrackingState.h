@@ -6,13 +6,13 @@
 #include "../Misc/ITMPointCloud.h"
 
 namespace ITMLib {
-/** \brief
+/** \brief 记录tracking过程中的变量，如相机位姿、raycast的点云等
     Stores some internal variables about the current tracking
     state, most importantly the camera pose
 */
 class ITMTrackingState {
  public:
-  /** @brief
+  /** @brief raycasting得到的点云
       Excerpt of the scene used by the tracker to align
       a new frame.
 
@@ -21,25 +21,28 @@ class ITMTrackingState {
   */
   ITMPointCloud *pointCloud;
 
+  // raycasting的点云的位姿
   /// The pose used to generate the point cloud.
   ORUtils::SE3Pose *pose_pointCloud;
 
+  // 已经跟踪的帧数。在extended track中作为权重
   /// Frames processed from start of tracking
   /// Used as weight in the extended tracker
   int framesProcessed;
 
   int age_pointCloud;
-
+  // 当前深度图的位姿
   /// Current pose of the depth camera.
   ORUtils::SE3Pose *pose_d;
 
+  // 跟踪结果。0=failed，1=poor，2=good
   /// Tracking quality: 1.0: success, 0.0: failure
   enum TrackingResult {
     TRACKING_GOOD = 2,
     TRACKING_POOR = 1,
     TRACKING_FAILED = 0
   } trackerResult;
-
+  // 跟踪质量得分
   /// Score associated to the tracking result.
   float trackerScore;
 

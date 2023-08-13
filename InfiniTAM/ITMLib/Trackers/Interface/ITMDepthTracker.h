@@ -28,18 +28,16 @@ class ITMDepthTracker : public ITMTracker {
 
   int *noIterationsPerLevel;  // 金字塔每一层的迭代次数
 
-  float terminationThreshold;
-  /**
-   * @brief ???
-   * 
-   */
+  float terminationThreshold; // 判断跟踪结果是否收敛的阈值。用来跟△T的模长对比
+  /** 构建图像金字塔 */
   void PrepareForEvaluation();
   /**
-   * @brief ???
-   * 
-   * @param levelId 
+   * @brief 从金字塔中取出当前层级的数据。
+   * 包含层级数、当前帧和投影帧数据、匹配类型（r、t、b）
+   * @param levelId 层级数。数字越大，图片越大？？？
    */
   void SetEvaluationParams(int levelId);
+
   /**
    * @brief 使用Cholesky求解增量方程，得到△T
    * 
@@ -54,13 +52,12 @@ class ITMDepthTracker : public ITMTracker {
    * @details delta前3个数字对应rotation见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface 
    *          Registration》的公式(6)
    * @param[in] para_old  老位姿
-   * @param[in] delta     位姿增量，维度6*1，前3个是旋转向量，后3个是平移
+   * @param[in] delta     位姿增量，维度6*1，前3个是旋转向量（SO3？），后3个是平移
    * @param[out] para_new 新位姿
    */
   void ApplyDelta(const Matrix4f &para_old, const float *delta, Matrix4f &para_new) const;
   /**
    * @brief 跟踪结果是否收敛，根据△T的模长判断
-   * 
    * @param[in] step △T
    * @return true，收敛
    */
@@ -82,18 +79,18 @@ class ITMDepthTracker : public ITMTracker {
    */
   void UpdatePoseQuality(int noValidPoints_old, float *hessian_good, float f_old);
 
-  ORUtils::HomkerMap *map;               // ？？？
-  ORUtils::SVMClassifier *svmClassifier; // 判别跟踪质量的分类器
-  Vector4f mu, sigma;                    // ？？？
+  ORUtils::HomkerMap *map;               // SVM分类器所需？？？
+  ORUtils::SVMClassifier *svmClassifier; // 判别跟踪质量的SVM分类器
+  Vector4f mu, sigma;                    // SVM分类器所需？？？
 
 protected:
   float *distThresh;  // 金字塔每一层的距离阈值，用来筛选匹配
 
-  int levelId;
-  TrackerIterationType iterationType;
+  int levelId;        // 金字塔当前层数
+  TrackerIterationType iterationType;   // 迭代的跟踪类型。在ITMLibSettings => trackerConfig => levels里设置
 
-  Matrix4f scenePose;                          // scene位姿。是三维模型相对世界坐标系的位姿？？？
-  ITMSceneHierarchyLevel *sceneHierarchyLevel; // scene的金字塔
+  Matrix4f scenePose;                          // 投影帧的位姿。是三维模型相对世界坐标系的位姿？？？
+  ITMSceneHierarchyLevel *sceneHierarchyLevel; // 投影帧的金字塔
   ITMTemplatedHierarchyLevel<ITMFloatImage> *viewHierarchyLevel; // 当前帧的金字塔
   /**
    * @brief 计算point-to-plane ICP的Hessian矩阵、Nabla算子 和 误差
@@ -120,12 +117,12 @@ protected:
   bool requiresDepthReliability() const { return false; }
   bool requiresPointCloudRendering() const { return true; }
   /**
-   * @brief 
+   * @brief 设置金字塔迭代的参数。下面“小”就是尺寸最小的
    * 
-   * @param[in] numIterCoarse     金字塔最大一层的ICP迭代次数
-   * @param[in] numIterFine       金字塔最小一层的ICP迭代次数
-   * @param[in] distThreshCoarse  金字塔最大一层的距离误差
-   * @param[in] distThreshFine    金字塔最小一层的距离误差
+   * @param[in] numIterCoarse     金字塔最小一层的ICP迭代次数
+   * @param[in] numIterFine       金字塔最大一层的ICP迭代次数
+   * @param[in] distThreshCoarse  金字塔最小一层的距离误差
+   * @param[in] distThreshFine    金字塔最大一层的距离误差
    */
   void SetupLevels(int numIterCoarse, int numIterFine, float distThreshCoarse, float distThreshFine);
 

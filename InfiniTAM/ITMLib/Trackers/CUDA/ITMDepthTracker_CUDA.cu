@@ -48,11 +48,11 @@ ITMDepthTracker_CUDA::~ITMDepthTracker_CUDA(void) {
 }
 
 int ITMDepthTracker_CUDA::ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
-  //! 从scene中获取所需信息
-  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CUDA);   // 三维坐标点。第4个数字是w？？？
-  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CUDA); // 法向量。第4个数字是w？？？
-  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;                         // 场景相机内参
-  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;                   // 场景图像大小
+  //! 从投影帧中获取所需信息
+  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CUDA);   // 投影帧的三维坐标点。第4个数字是w？？？
+  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CUDA); // 投影帧的法向量。第4个数字是w？？？
+  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;                         // 投影帧的相机内参
+  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;                   // 投影帧的图像大小
   //! 从当前帧获取所需信息
   float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CUDA); // 获取当前帧的深度图（以一维存储）
   Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;            // 当前帧相机内参
@@ -64,7 +64,7 @@ int ITMDepthTracker_CUDA::ComputeGandH(float &f, float *nabla, float *hessian, M
   bool shortIteration =
       (iterationType == TRACKER_ITERATION_ROTATION) || (iterationType == TRACKER_ITERATION_TRANSLATION);
 
-  int noPara = shortIteration ? 3 : 6;  // CPU版本中的noParaSQ放在下面的核函数
+  int noPara = shortIteration ? 3 : 6;  // GPU版本中的noParaSQ放在下面的核函数
   
   //! 计算每个像素的 误差、Hessian矩阵 和 Nabla算子
   dim3 blockSize(16, 16);
@@ -72,7 +72,7 @@ int ITMDepthTracker_CUDA::ComputeGandH(float &f, float *nabla, float *hessian, M
                 (int)ceil((float)viewImageSize.y / (float)blockSize.y));
   ORcudaSafeCall(cudaMemset(accu_device, 0, sizeof(AccuCell)));
 
-  struct ITMDepthTracker_KernelParameters args;
+  struct ITMDepthTracker_KernelParameters args;   // 核函数所需参数
   args.accu = accu_device;
   args.depth = depth;
   args.approxInvPose = approxInvPose;
@@ -126,9 +126,9 @@ int ITMDepthTracker_CUDA::ComputeGandH(float &f, float *nabla, float *hessian, M
  * @param[out] accu           计算结果，包含Hessian矩阵、Nabla算子、误差
  * @param[in] depth
  * @param[in] approxInvPose   初始位姿，=上一帧的位姿？？？
- * @param[in] pointsMap       场景投影出来的三维点？？？
- * @param[in] normalsMap      投影点对应的法向量
- * @param[in] sceneIntrinsics 场景的
+ * @param[in] pointsMap       投影帧出来的三维点？？？
+ * @param[in] normalsMap      投影帧对应的法向量
+ * @param[in] sceneIntrinsics 投影帧的
  * @param[in] sceneImageSize
  * @param[in] scenePose
  * @param[in] viewIntrinsics  当前帧的

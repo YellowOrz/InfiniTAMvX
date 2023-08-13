@@ -10,6 +10,7 @@ using namespace ITMLib;
 ITMDepthTracker::ITMDepthTracker(Vector2i imgSize, TrackerIterationType *trackingRegime, int noHierarchyLevels,
                                  float terminationThreshold, float failureDetectorThreshold,
                                  const ITMLowLevelEngine *lowLevelEngine, MemoryDeviceType memoryType) {
+  //! 初始化金字塔
   viewHierarchy = new ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage>>(imgSize, trackingRegime,
                                                                                    noHierarchyLevels, memoryType, true);
   sceneHierarchy = new ITMImageHierarchy<ITMSceneHierarchyLevel>(imgSize, trackingRegime, noHierarchyLevels, 
@@ -24,15 +25,16 @@ ITMDepthTracker::ITMDepthTracker(Vector2i imgSize, TrackerIterationType *trackin
 
   this->terminationThreshold = terminationThreshold;
 
+  //! 设置SVM分类器
   map = new ORUtils::HomkerMap(2);
   svmClassifier = new ORUtils::SVMClassifier(map->getDescriptorSize(4));
 
   //all below obtained from dataset in matlab  这是啥 ？？？
   float w[20];
-  w[0] = -3.15813f;w[1] = -2.38038f;w[2] = 1.93359f;w[3] = 1.56642f;w[4] = 1.76306f;
-  w[5] = -0.747641f;w[6] = 4.41852f;w[7] = 1.72048f;w[8] = -0.482545f;w[9] = -5.07793f;
-  w[10] = 1.98676f;w[11] = -0.45688f;w[12] = 2.53969f;w[13] = -3.50527f;w[14] = -1.68725f;
-  w[15] = 2.31608f;w[16] = 5.14778f;w[17] = 2.31334f;w[18] = -14.128f;w[19] = 6.76423f;
+  w[0] = -3.15813f; w[1] = -2.38038f; w[2] = 1.93359f;  w[3] = 1.56642f;  w[4] = 1.76306f;
+  w[5] = -0.747641f;w[6] = 4.41852f;  w[7] = 1.72048f;  w[8] = -0.482545f;w[9] = -5.07793f;
+  w[10] = 1.98676f; w[11] = -0.45688f;w[12] = 2.53969f; w[13] = -3.50527f;w[14] = -1.68725f;
+  w[15] = 2.31608f; w[16] = 5.14778f; w[17] = 2.31334f; w[18] = -14.128f; w[19] = 6.76423f;
 
   float b = 9.334260e-01f + failureDetectorThreshold;
 
@@ -78,7 +80,7 @@ void ITMDepthTracker::SetupLevels(int numIterCoarse, int numIterFine, float dist
 void ITMDepthTracker::SetEvaluationData(ITMTrackingState *trackingState, const ITMView *view) {
   this->trackingState = trackingState;
   this->view = view;
-
+  // 设置内参
   sceneHierarchy->GetLevel(0)->intrinsics = view->calib.intrinsics_d.projectionParamsSimple.all;
   viewHierarchy->GetLevel(0)->intrinsics = view->calib.intrinsics_d.projectionParamsSimple.all;
 
@@ -91,25 +93,27 @@ void ITMDepthTracker::SetEvaluationData(ITMTrackingState *trackingState, const I
 }
 
 void ITMDepthTracker::PrepareForEvaluation() {
+  // 准备金字塔每一层的数据：（上小下大）上一层的尺寸是下一层的1/2
   for (int i = 1; i < viewHierarchy->GetNoLevels(); i++) {
-    ITMTemplatedHierarchyLevel<ITMFloatImage> *currentLevelView = viewHierarchy->GetLevel(i);
-    ITMTemplatedHierarchyLevel<ITMFloatImage> *previousLevelView = viewHierarchy->GetLevel(i - 1);
-    lowLevelEngine->FilterSubsampleWithHoles(currentLevelView->data, previousLevelView->data);  // 滤波？？？
-    currentLevelView->intrinsics = previousLevelView->intrinsics * 0.5f;
+    ITMTemplatedHierarchyLevel<ITMFloatImage> *currentLevelView = viewHierarchy->GetLevel(i);       // 当前输入帧
+    ITMTemplatedHierarchyLevel<ITMFloatImage> *previousLevelView = viewHierarchy->GetLevel(i - 1);  // 上一输入帧
+    lowLevelEngine->FilterSubsampleWithHoles(currentLevelView->data, previousLevelView->data);      // 尺寸缩小为1/2
+    currentLevelView->intrinsics = previousLevelView->intrinsics * 0.5f;                            // 内参跟着变
 
-    ITMSceneHierarchyLevel *currentLevelScene = sceneHierarchy->GetLevel(i);
-    ITMSceneHierarchyLevel *previousLevelScene = sceneHierarchy->GetLevel(i - 1);
-    //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->pointsMap, previousLevelScene->pointsMap);  // ???
+    ITMSceneHierarchyLevel *currentLevelScene = sceneHierarchy->GetLevel(i);                        // 当前投影帧
+    ITMSceneHierarchyLevel *previousLevelScene = sceneHierarchy->GetLevel(i - 1);                   // 上一投影帧
+    // TODO: 投影帧不用缩小吗？？？投影帧不弄金字塔？？？永远只跟原始的投影帧率匹配吗？
+    //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->pointsMap, previousLevelScene->pointsMap);  
     //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->normalsMap, previousLevelScene->normalsMap);
-    currentLevelScene->intrinsics = previousLevelScene->intrinsics * 0.5f;
+    currentLevelScene->intrinsics = previousLevelScene->intrinsics * 0.5f;                          // 内参跟着变
   }
 }
 
 void ITMDepthTracker::SetEvaluationParams(int levelId) {
-  this->levelId = levelId;
-  this->iterationType = viewHierarchy->GetLevel(levelId)->iterationType;
-  this->sceneHierarchyLevel = sceneHierarchy->GetLevel(0);
-  this->viewHierarchyLevel = viewHierarchy->GetLevel(levelId);
+  this->levelId = levelId;                                                // 金字塔当前层数
+  this->iterationType = viewHierarchy->GetLevel(levelId)->iterationType;  // 迭代的跟踪类型
+  this->sceneHierarchyLevel = sceneHierarchy->GetLevel(0);                // 投影帧没有金字塔？？？
+  this->viewHierarchyLevel = viewHierarchy->GetLevel(levelId);            // 从输入帧金字塔取数据
 }
 
 void ITMDepthTracker::ComputeDelta(float *step, float *nabla, float *hessian, bool shortIteration) const {
@@ -123,7 +127,7 @@ void ITMDepthTracker::ComputeDelta(float *step, float *nabla, float *hessian, bo
 
     ORUtils::Cholesky cholA(smallHessian, 3);
     cholA.Backsub(step, nabla);
-  } else {
+  } else {                // 旋转和平移都计算
     ORUtils::Cholesky cholA(hessian, 6);
     cholA.Backsub(step, nabla);
   }
@@ -237,7 +241,7 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
 
   trackingState->trackerResult = ITMTrackingState::TRACKING_FAILED;
   trackingState->trackerScore = finalResidual_v2;
-  //! 质量可以的使用svm分类器归类
+  //! 使用svm分类器给 质量 分类（GOOD or POOR）
   if (noValidPointsMax != 0 && noTotalPoints != 0 && det_norm_v1 > 0 && det_norm_v2 > 0) {
     Vector4f inputVector(log(det_norm_v1), log(det_norm_v2), finalResidual_v2, percentageInliers_v2);
 
@@ -257,9 +261,9 @@ void ITMDepthTracker::UpdatePoseQuality(int noValidPoints_old, float *hessian_go
 
 void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView *view) {
   if (!trackingState->HasValidPointCloud()) return;
-  //! 准备
-  this->SetEvaluationData(trackingState, view);
-  this->PrepareForEvaluation();
+  //! 准备数据&&金字塔
+  this->SetEvaluationData(trackingState, view);   // 输入和投影图片
+  this->PrepareForEvaluation();                   // 金字塔
 
   float f_old = 1e10, f_new;
   int noValidPoints_new;
@@ -273,6 +277,7 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
   for (int i = 0; i < 6; ++i) nabla_good[i] = 0.0f;
   //! 遍历金字塔的每一层 进行配准
   for (int levelId = viewHierarchy->GetNoLevels() - 1; levelId >= 0; levelId--) {
+    // 获取当前层的数据
     this->SetEvaluationParams(levelId);
     if (iterationType == TRACKER_ITERATION_NONE) continue;
     // 设置初始位姿
@@ -288,7 +293,7 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
       noValidPoints_new = this->ComputeGandH(f_new, nabla_new, hessian_new, approxInvPose);
 
       // check if error increased. If so, revert
-      //! 检查误差
+      //! 检查误差 && 构建线性方程Ax=b。
       if ((noValidPoints_new <= 0) || (f_new > f_old)) {    // 有效点减少 or 误差增大，重新计算，步长增加
         trackingState->pose_d->SetFrom(&lastKnownGoodPose);
         approxInvPose = trackingState->pose_d->GetInvM();
@@ -298,23 +303,27 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
         f_old = f_new;
         noValidPoints_old = noValidPoints_new;
 
-        for (int i = 0; i < 6 * 6; ++i) hessian_good[i] = hessian_new[i] / noValidPoints_new;
-        for (int i = 0; i < 6; ++i) nabla_good[i] = nabla_new[i] / noValidPoints_new;
+        for (int i = 0; i < 6 * 6; ++i)   // 矩阵A
+          hessian_good[i] = hessian_new[i] / noValidPoints_new;
+        for (int i = 0; i < 6; ++i)       // 矩阵b
+          nabla_good[i] = nabla_new[i] / noValidPoints_new;
         lambda /= 10.0f;
       }
-      for (int i = 0; i < 6 * 6; ++i) A[i] = hessian_good[i];
-      for (int i = 0; i < 6; ++i) A[i + i * 6] *= 1.0f + lambda;    // A 矩阵的对角线上加lambda
+      for (int i = 0; i < 6 * 6; ++i)     // 不能用hessian_good作为矩阵A，∵要A要加lambda，而hessian_good后面用于判断跟踪质量
+        A[i] = hessian_good[i];
+      for (int i = 0; i < 6; ++i) 
+        A[i + i * 6] *= 1.0f + lambda;    // A 矩阵的对角线上加lambda
 
       // compute a new step and make sure we've got an SE3
-      //! 更新位姿
+      //! 解方程后，更新位姿
       ComputeDelta(step, nabla_good, A, iterationType != TRACKER_ITERATION_BOTH);
       ApplyDelta(approxInvPose, step, approxInvPose);
-      trackingState->pose_d->SetInvM(approxInvPose);
+      trackingState->pose_d->SetInvM(approxInvPose);    // 取逆后保存到位姿中。∵approxInvPose是从
       trackingState->pose_d->Coerce();
       approxInvPose = trackingState->pose_d->GetInvM();
 
       // if step is small, assume it's going to decrease the error and finish
-      //! 收敛 退出迭代
+      //! 若收敛 退出迭代
       if (HasConverged(step)) break;
     }
   }
