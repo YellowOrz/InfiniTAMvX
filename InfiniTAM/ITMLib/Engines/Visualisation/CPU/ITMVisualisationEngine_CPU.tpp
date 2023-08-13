@@ -116,72 +116,64 @@ int ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CountVisibleBlocks(co
   return ret;
 }
 
-template<class TVoxel, class TIndex>
+template <class TVoxel, class TIndex>
 void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene,
                                                                       const ORUtils::SE3Pose *pose,
                                                                       const ITMIntrinsics *intrinsics,
                                                                       ITMRenderState *renderState) const {
+  //! 获取彩色图大小 && raycast得到的图片
   Vector2i imgSize = renderState->renderingRangeImage->noDims;
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
-
+  //! 给每个像素赋值最小和最大深度（0.2-3）
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
     //TODO : this could be improved a bit...
     Vector2f &pixel = minmaxData[locId];
-    pixel.x = 0.2f;
-    pixel.y = 3.0f;
+    pixel.x = 0.2f;   // 最小值
+    pixel.y = 3.0f;   // 最大值
   }
 }
 
-template<class TVoxel>
-void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths(const ITMScene<TVoxel,
-                                                                                                ITMVoxelBlockHash> *scene,
-                                                                                 const ORUtils::SE3Pose *pose,
-                                                                                 const ITMIntrinsics *intrinsics,
-                                                                                 ITMRenderState *renderState) const {
+template <class TVoxel>
+void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths(
+    const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
+    ITMRenderState *renderState) const {
+  //! 获取彩色图大小 && raycast得到的图片
   Vector2i imgSize = renderState->renderingRangeImage->noDims;
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
-
+  //! 给每个像素赋值最小和最大深度
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
     Vector2f &pixel = minmaxData[locId];
-    pixel.x = FAR_AWAY;
-    pixel.y = VERY_CLOSE;
+    pixel.x = FAR_AWAY;     // 最小值
+    pixel.y = VERY_CLOSE;   // 最大值
   }
 
-  float voxelSize = scene->sceneParams->voxelSize;
-
-  std::vector<RenderingBlock> renderingBlocks(MAX_RENDERING_BLOCKS);
-  int numRenderingBlocks = 0;
-
+  //! 获取可见的entry的id
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;
-
   const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
   int noVisibleEntries = renderState_vh->noVisibleEntries;
 
   //go through list of visible 8x8x8 blocks
+  //! 遍历每个可见的entry，找到需要render的block
+  std::vector<RenderingBlock> renderingBlocks(MAX_RENDERING_BLOCKS);  // render小块，看下面就懂了
+  int numRenderingBlocks = 0;
+  float voxelSize = scene->sceneParams->voxelSize;
   for (int blockNo = 0; blockNo < noVisibleEntries; ++blockNo) {
     const ITMHashEntry &blockData(scene->index.GetEntries()[visibleEntryIDs[blockNo]]);
-
-    Vector2i upperLeft, lowerRight;
+    // 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
+    Vector2i upperLeft, lowerRight;   // 包围盒的左上、右下坐标
     Vector2f zRange;
     bool validProjection = false;
     if (blockData.ptr >= 0) {
-      validProjection = ProjectSingleBlock(blockData.pos,
-                                           pose->GetM(),
-                                           intrinsics->projectionParamsSimple.all,
-                                           imgSize,
-                                           voxelSize,
-                                           upperLeft,
-                                           lowerRight,
-                                           zRange);
+      validProjection = ProjectSingleBlock(blockData.pos, pose->GetM(), intrinsics->projectionParamsSimple.all, imgSize,
+                                           voxelSize, upperLeft, lowerRight, zRange);
     }
     if (!validProjection) continue;
+    // 分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)。ceilf是说不够完整一块的不要？？？？为啥要分块渲染？？？
+    Vector2i requiredRenderingBlocks((int)ceilf((float)(lowerRight.x - upperLeft.x + 1) / (float)renderingBlockSizeX),
+                                     (int)ceilf((float)(lowerRight.y - upperLeft.y + 1) / (float)renderingBlockSizeY));
+    int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;    // 分块数量
 
-    Vector2i
-        requiredRenderingBlocks((int) ceilf((float) (lowerRight.x - upperLeft.x + 1) / (float) renderingBlockSizeX),
-                                (int) ceilf((float) (lowerRight.y - upperLeft.y + 1) / (float) renderingBlockSizeY));
-    int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;
-
-    if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS) continue;
+    if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS) continue;   // raycast单帧中小块的数量有限制
     int offset = numRenderingBlocks;
     numRenderingBlocks += requiredNumBlocks;
 
@@ -189,6 +181,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
   }
 
   // go through rendering blocks
+  //! 遍历小块，确定最后raycasting像素的最大和最小深度值。分小块是为了防止 多个block的包围盒 的重叠区域太多，导致浪费吗？？？
   for (int blockNo = 0; blockNo < numRenderingBlocks; ++blockNo) {
     // fill minmaxData
     const RenderingBlock &b(renderingBlocks[blockNo]);

@@ -31,27 +31,38 @@ _CPU_AND_GPU_CODE_ inline Vector4f InvertProjectionParams(const THREADPTR(Vector
   return Vector4f(1.0f / projParams.x, 1.0f / projParams.y, -projParams.z, -projParams.w);
 }
 
-_CPU_AND_GPU_CODE_ inline bool ProjectSingleBlock(const THREADPTR(Vector3s) &blockPos,
-                                                  const THREADPTR(Matrix4f) &pose,
-                                                  const THREADPTR(Vector4f) &intrinsics,
-                                                  const THREADPTR(Vector2i) &imgSize,
-                                                  float voxelSize,
-                                                  THREADPTR(Vector2i) &upperLeft,
-                                                  THREADPTR(Vector2i) &lowerRight,
-                                                  THREADPTR(Vector2f) &zRange) {
+/**
+ * @brief 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
+ * @param[in] blockPos      block在场景中的全局位姿（id）
+ * @param[in] pose          当前视角的相机位姿
+ * @param[in] intrinsics    相机内参
+ * @param[in] imgSize       图像大小
+ * @param[in] voxelSize     voxel的实际尺寸
+ * @param[out] upperLeft    block在当前帧投影的包围盒 左上角坐标
+ * @param[out] lowerRight   block在当前帧投影的包围盒 右下角坐标
+ * @param[out] zRange       block在当前帧坐标系下的 深度范围
+ * @return                  是否投影成功。深度值为非正数 && 投影不到图像上，都为false
+ */
+_CPU_AND_GPU_CODE_ inline bool
+ProjectSingleBlock(const THREADPTR(Vector3s) & blockPos, const THREADPTR(Matrix4f) & pose,
+                   const THREADPTR(Vector4f) & intrinsics, const THREADPTR(Vector2i) & imgSize, float voxelSize,
+                   THREADPTR(Vector2i) & upperLeft, THREADPTR(Vector2i) & lowerRight, THREADPTR(Vector2f) & zRange) {
   upperLeft = imgSize / minmaximg_subsample;
   lowerRight = Vector2i(-1, -1);
   zRange = Vector2f(FAR_AWAY, VERY_CLOSE);
+  //! 依次将block的8个顶点投影到二维平面上
   for (int corner = 0; corner < 8; ++corner) {
     // project all 8 corners down to 2D image
+    // 获取当前顶点的id坐标
     Vector3s tmp = blockPos;
     tmp.x += (corner & 1) ? 1 : 0;
     tmp.y += (corner & 2) ? 1 : 0;
     tmp.z += (corner & 4) ? 1 : 0;
+    // 获取真实世界坐标 && 变换到相机坐标系下
     Vector4f pt3d(TO_FLOAT3(tmp) * (float) SDF_BLOCK_SIZE * voxelSize, 1.0f);
     pt3d = pose * pt3d;
     if (pt3d.z < 1e-6) continue;
-
+    // 投影到二维平面上
     Vector2f pt2d;
     pt2d.x = (intrinsics.x * pt3d.x / pt3d.z + intrinsics.z) / minmaximg_subsample;
     pt2d.y = (intrinsics.y * pt3d.y / pt3d.z + intrinsics.w) / minmaximg_subsample;
@@ -79,23 +90,33 @@ _CPU_AND_GPU_CODE_ inline bool ProjectSingleBlock(const THREADPTR(Vector3s) &blo
   return true;
 }
 
-_CPU_AND_GPU_CODE_ inline void CreateRenderingBlocks(DEVICEPTR(RenderingBlock) *renderingBlockList,
-                                                     int offset,
-                                                     const THREADPTR(Vector2i) &upperLeft,
-                                                     const THREADPTR(Vector2i) &lowerRight,
-                                                     const THREADPTR(Vector2f) &zRange) {
+/**
+ * @brief 将可见的block在当前视角下的二维投影分块。 为啥不放到ProjectSingleBlock？？？？
+ * @param[in,out] renderingBlockList  raycast当前帧所有小块的数组首地址
+ * @param[in] offset                  当前block的小块的起始id
+ * @param[in] upperLeft               当前block 包围盒的左上角
+ * @param[in] lowerRight              当前block 包围盒的右下角
+ * @param[in] zRange                  当前block的深度范围
+ */
+_CPU_AND_GPU_CODE_ inline void CreateRenderingBlocks(DEVICEPTR(RenderingBlock) * renderingBlockList, int offset,
+                                                     const THREADPTR(Vector2i) & upperLeft,
+                                                     const THREADPTR(Vector2i) & lowerRight,
+                                                     const THREADPTR(Vector2f) & zRange) {
   // split bounding box into 16x16 pixel rendering blocks
+  //! 将包围盒分割成16x16的小块 为啥不把前面算好的块数传进来？？？
   for (int by = 0; by < ceil((float) (1 + lowerRight.y - upperLeft.y) / renderingBlockSizeY); ++by) {
     for (int bx = 0; bx < ceil((float) (1 + lowerRight.x - upperLeft.x) / renderingBlockSizeX); ++bx) {
-      if (offset >= MAX_RENDERING_BLOCKS) return;
+      if (offset >= MAX_RENDERING_BLOCKS) return;   // 没有必要吧？？？CreateExpectedDepths中已经保证超过范围的不进入这个函数了
       //for each rendering block: add it to the list
       DEVICEPTR(RenderingBlock) &b(renderingBlockList[offset++]);
+      // 计算每个小块自己的包围盒
       b.upperLeft.x = upperLeft.x + bx * renderingBlockSizeX;
       b.upperLeft.y = upperLeft.y + by * renderingBlockSizeY;
       b.lowerRight.x = upperLeft.x + (bx + 1) * renderingBlockSizeX - 1;
       b.lowerRight.y = upperLeft.y + (by + 1) * renderingBlockSizeY - 1;
       if (b.lowerRight.x > lowerRight.x) b.lowerRight.x = lowerRight.x;
       if (b.lowerRight.y > lowerRight.y) b.lowerRight.y = lowerRight.y;
+      // 深度值范围不变
       b.zRange = zRange;
     }
   }

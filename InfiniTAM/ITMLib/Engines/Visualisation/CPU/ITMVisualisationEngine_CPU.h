@@ -20,10 +20,16 @@ class ITMVisualisationEngine_CPU : public ITMVisualisationEngine<TVoxel, TIndex>
                          const ITMRenderState *renderState,
                          int minBlockId,
                          int maxBlockId) const;
-  void CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene,
-                            const ORUtils::SE3Pose *pose,
-                            const ITMIntrinsics *intrinsics,
-                            ITMRenderState *renderState) const;
+  /**
+   * @brief Create a Expected Depths object
+   * 
+   * @param scene 
+   * @param pose 
+   * @param intrinsics 
+   * @param renderState 
+   */
+  void CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
+                            const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const;
   void RenderImage(const ITMScene<TVoxel, TIndex> *scene,
                    const ORUtils::SE3Pose *pose,
                    const ITMIntrinsics *intrinsics,

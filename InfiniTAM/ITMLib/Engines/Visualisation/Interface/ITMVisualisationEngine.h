@@ -74,15 +74,16 @@ class ITMVisualisationEngine : public IITMVisualisationEngine {
                                  const ITMRenderState *renderState,
                                  int minBlockId = 0,
                                  int maxBlockId = SDF_LOCAL_BLOCK_NUM) const = 0;
-
-  /** Given scene, pose and intrinsics, create an estimate
-  of the minimum and maximum depths at each pixel of
-  an image.
-  */
-  virtual void CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene,
-                                    const ORUtils::SE3Pose *pose,
-                                    const ITMIntrinsics *intrinsics,
-                                    ITMRenderState *renderState) const = 0;
+  /**
+   * @brief 估计后面raycast得到图片中每个像素的最大&&最小深度（0.2-3）
+   * Given scene, pose and intrinsics, create an estimate of the minimum and maximum depths at each pixel of an image.
+   * @param[in] scene       三维场景
+   * @param[in] pose        rrb图像坐标系下的相机位姿
+   * @param[in] intrinsics  输入图像的相机内参
+   * @param[in] renderState 存储raycast得到的图片
+   */
+  virtual void CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
+                                    const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const = 0;
 
   /** This will render an image using raycasting. */
   virtual void RenderImage(const ITMScene<TVoxel, TIndex> *scene,
