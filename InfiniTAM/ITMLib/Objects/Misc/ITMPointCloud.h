@@ -10,7 +10,7 @@ class ITMPointCloud {
  public:
   uint noTotalPoints;
 
-  ORUtils::Image<Vector4f> *locations, *colours;
+  ORUtils::Image<Vector4f> *locations, *colours;  // 点云中的坐标和颜色（不一定是RGB，可以是法向量）。为啥是4f？？？
 
   explicit ITMPointCloud(Vector2i imgSize, MemoryDeviceType memoryType) {
     this->noTotalPoints = 0;

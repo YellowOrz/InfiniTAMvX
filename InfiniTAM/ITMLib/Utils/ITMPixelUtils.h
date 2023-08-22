@@ -82,7 +82,7 @@ _CPU_AND_GPU_CODE_ inline Vector2f interpolateBilinear_Vector2(const CONSTPTR(OR
 
 /**
  * 在source上找到position的邻居，对position这个位置进行插值
- * @details position是float，邻居坐标即是整数
+ * @note position是float，邻居坐标即是整数
  * @tparam T
  * @param[in] source    反投影后的深度图 或者 对应的法向量图。Vetor4的第4维是权重？？？
  * @param[in] position  二维图像上的坐标

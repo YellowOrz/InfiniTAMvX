@@ -28,7 +28,7 @@ ITMLibSettings::ITMLibSettings(void)
                         true,     // 是否使用高斯加权置信度
                         true) {   // 是否融合
   // skips every other point when using the colour renderer for creating a point cloud
-  skipPoints = true;
+  skipPoints = true;  // raycasting渲染RGB的点云时，是否要跳过一些点
 
   // create all the things required for marching cubes and mesh extraction
   // - uses additional memory (lots!)

@@ -37,17 +37,13 @@ using namespace ITMLib;
  * @param[in] arg3 深度图所在文件夹路径
  * @param[in] arg4 IMU文件路径
  */
-static void CreateDefaultImageSource(ImageSourceEngine *&imageSource,
-                                     IMUSourceEngine *&imuSource,
-                                     const char *arg1,
-                                     const char *arg2,
-                                     const char *arg3,
-                                     const char *arg4) {
+static void CreateDefaultImageSource(ImageSourceEngine *&imageSource, IMUSourceEngine *&imuSource, const char *arg1,
+                                     const char *arg2, const char *arg3, const char *arg4) {
   const char *calibFile = arg1;
   const char *filename1 = arg2;
   const char *filename2 = arg3;
   const char *filename_imu = arg4;
-  //! 相机标定文件路径为viewer，则创建空白图片数据源，之后使用viewer mode
+  //! 相机标定文件路径=viewer，则创建空白图片数据源，之后使用viewer mode
   if (strcmp(calibFile, "viewer") == 0) {
     imageSource = new BlankImageGenerator("", Vector2i(640, 480));
     printf("starting in viewer mode: make sure to press n first to initiliase the views ... \n");
@@ -179,34 +175,24 @@ try {
   //! 根据设置中的模式，构建SLAM系统
   ITMMainEngine *mainEngine = NULL;
   switch (internalSettings->libMode) {
-    case ITMLibSettings::LIBMODE_BASIC:
-      mainEngine = new ITMBasicEngine<ITMVoxel, ITMVoxelIndex>(internalSettings,
-                                                               imageSource->getCalib(),
-                                                               imageSource->getRGBImageSize(),
-                                                               imageSource->getDepthImageSize());
-      break;
-    case ITMLibSettings::LIBMODE_BASIC_SURFELS:
-      mainEngine = new ITMBasicSurfelEngine<ITMSurfelT>(internalSettings,
-                                                        imageSource->getCalib(),
-                                                        imageSource->getRGBImageSize(),
-                                                        imageSource->getDepthImageSize());
-      break;
-    case ITMLibSettings::LIBMODE_LOOPCLOSURE:
-      mainEngine = new ITMMultiEngine<ITMVoxel, ITMVoxelIndex>(internalSettings,
-                                                               imageSource->getCalib(),
-                                                               imageSource->getRGBImageSize(),
-                                                               imageSource->getDepthImageSize());
-      break;
-    default: throw std::runtime_error("Unsupported library mode!");
-      break;
+  case ITMLibSettings::LIBMODE_BASIC:         // 使用Voxel & 哈希 & 无回环
+    mainEngine = new ITMBasicEngine<ITMVoxel, ITMVoxelIndex>(   // ITMVoxelIndex等价于ITMVoxelBlockHash
+        internalSettings, imageSource->getCalib(), imageSource->getRGBImageSize(), imageSource->getDepthImageSize());
+    break;
+  case ITMLibSettings::LIBMODE_BASIC_SURFELS: // 使用surfel & 无回环
+    mainEngine = new ITMBasicSurfelEngine<ITMSurfelT>(internalSettings, imageSource->getCalib(),
+                                                      imageSource->getRGBImageSize(), imageSource->getDepthImageSize());
+    break;
+  case ITMLibSettings::LIBMODE_LOOPCLOSURE:   // 使用Voxel & 哈希 & 有回环
+    mainEngine = new ITMMultiEngine<ITMVoxel, ITMVoxelIndex>(
+        internalSettings, imageSource->getCalib(), imageSource->getRGBImageSize(), imageSource->getDepthImageSize());
+    break;
+  default:
+    throw std::runtime_error("Unsupported library mode!");
+    break;
   }
   //! 初始化SLAM系统的UI界面
-  UIEngine::Instance()->Initialise(argc,
-                                   argv,
-                                   imageSource,
-                                   imuSource,
-                                   mainEngine,
-                                   "./Files/Out",
+  UIEngine::Instance()->Initialise(argc, argv, imageSource, imuSource, mainEngine, "./Files/Out",
                                    internalSettings->deviceType);
   //! 运行SLAM系统
   UIEngine::Instance()->Run();

@@ -25,7 +25,7 @@
 #define _CPU_AND_GPU_CONSTANT_
 #endif
 
-#if defined(__METALC__) // for METAL device code
+#if defined(__METALC__) // for METAL device code    // 给Apple用的
 #define THREADPTR(x) thread x
 #define DEVICEPTR(x) device x
 #define THREADGRPPTR(x) threadgroup x

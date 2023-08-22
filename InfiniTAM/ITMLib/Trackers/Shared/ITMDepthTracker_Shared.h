@@ -5,7 +5,7 @@
 #include "../../Utils/ITMPixelUtils.h"
 /**
  * 计算point-to-plane ICP转最小二乘问题后的A和b
- * @details A和b的公式见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface Registration》的(8)和(10)
+ * @note A和b的公式见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface Registration》的(8)和(10)
  * @tparam shortIteration
  * @tparam rotationOnly
  * @param[out] A

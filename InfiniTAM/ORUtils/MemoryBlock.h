@@ -19,8 +19,9 @@
 #include <string.h>
 
 namespace ORUtils {
-/** \brief
+/** \brief 内存结构。存储位置可选内存or显存，在各种设备上都可以正常工作
 Represents memory blocks, templated on the data type
+* @tparam T 数据类型。int、float之类的
 */
 template<typename T>
 class MemoryBlock {

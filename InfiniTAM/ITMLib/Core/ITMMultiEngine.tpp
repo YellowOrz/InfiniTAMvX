@@ -23,20 +23,18 @@ static const float F_maxdistattemptreloc = 0.05f;
 // loop closure global adjustment runs on a separate thread
 static const bool separateThreadGlobalAdjustment = true;
 
-template<typename TVoxel, typename TIndex>
-ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
-                                               const ITMRGBDCalib &calib,
-                                               Vector2i imgSize_rgb,
-                                               Vector2i imgSize_d) {
+template <typename TVoxel, typename TIndex>
+ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings, const ITMRGBDCalib &calib,
+                                               Vector2i imgSize_rgb, Vector2i imgSize_d) {
   // 深度图和彩色图的尺寸
   if ((imgSize_d.x == -1) || (imgSize_d.y == -1)) imgSize_d = imgSize_rgb;
   // 系统设置
   this->settings = settings;
   // 设备类型
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
-  // 最底层的预处理模块
+  // 最底层的图像处理模块
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
-  // 可视化窗口   TODO(xzf)
+  // 输入图像预处理模块
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
   // 可视化（渲染）
   visualisationEngine = ITMVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
@@ -53,11 +51,7 @@ ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
   // IMU预积分器
   imuCalibrator = new ITMIMUCalibrator_iPad();
   // 跟踪
-  tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb,
-                                               imgSize_d,
-                                               settings,
-                                               lowLevelEngine,
-                                               imuCalibrator,
+  tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb, imgSize_d, settings, lowLevelEngine, imuCalibrator,
                                                &settings->sceneParams);
   trackingController = new ITMTrackingController(tracker, settings);
   trackedImageSize = trackingController->GetTrackedImageSize(imgSize_rgb, imgSize_d);
@@ -72,12 +66,8 @@ ITMMultiEngine<TVoxel, TIndex>::ITMMultiEngine(const ITMLibSettings *settings,
 
   view = NULL; // will be allocated by the view builder
   // 重定位： 随机蕨
-  relocaliser = new FernRelocLib::Relocaliser<float>(imgSize_d,
-                                                     Vector2f(settings->sceneParams.viewFrustum_min,
-                                                              settings->sceneParams.viewFrustum_max),
-                                                     0.1f,
-                                                     1000,
-                                                     4);
+  relocaliser = new FernRelocLib::Relocaliser<float>(
+      imgSize_d, Vector2f(settings->sceneParams.viewFrustum_min, settings->sceneParams.viewFrustum_max), 0.1f, 1000, 4);
   // 全局优化
   mGlobalAdjustmentEngine = new ITMGlobalAdjustmentEngine();
   mScheduleGlobalAdjustment = false;

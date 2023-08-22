@@ -9,7 +9,7 @@
 
 namespace ITMLib {
 class IITMVisualisationEngine {
- public:
+public:
   enum RenderImageType {
     RENDER_SHADED_GREYSCALE,
     RENDER_SHADED_GREYSCALE_IMAGENORMALS,
@@ -18,11 +18,7 @@ class IITMVisualisationEngine {
     RENDER_COLOUR_FROM_CONFIDENCE
   };
 
-  enum RenderRaycastSelection {
-    RENDER_FROM_NEW_RAYCAST,
-    RENDER_FROM_OLD_RAYCAST,
-    RENDER_FROM_OLD_FORWARDPROJ
-  };
+  enum RenderRaycastSelection { RENDER_FROM_NEW_RAYCAST, RENDER_FROM_OLD_RAYCAST, RENDER_FROM_OLD_FORWARDPROJ };
 
   virtual ~IITMVisualisationEngine(void) {}
 
@@ -31,10 +27,12 @@ class IITMVisualisationEngine {
   static void WeightToUchar4(ITMUChar4Image *dst, const ITMFloatImage *src);
 };
 
-template<class TIndex>
-struct IndexToRenderState { typedef ITMRenderState type; };
-template<>
-struct IndexToRenderState<ITMVoxelBlockHash> { typedef ITMRenderState_VH type; };
+template <class TIndex> struct IndexToRenderState {
+  typedef ITMRenderState type;
+};
+template <> struct IndexToRenderState<ITMVoxelBlockHash> {
+  typedef ITMRenderState_VH type;
+};
 
 /** \brief
     Interface to engines helping with the visualisation of
@@ -48,9 +46,8 @@ struct IndexToRenderState<ITMVoxelBlockHash> { typedef ITMRenderState_VH type; }
     in an image, which can be used to speed up raycasting
     operations.
     */
-template<class TVoxel, class TIndex>
-class ITMVisualisationEngine : public IITMVisualisationEngine {
- public:
+template <class TVoxel, class TIndex> class ITMVisualisationEngine : public IITMVisualisationEngine {
+public:
   /** Creates a render state, containing rendering info
   for the scene.
   */
@@ -62,18 +59,14 @@ class ITMVisualisationEngine : public IITMVisualisationEngine {
   appropriate visualisation state object, created
   previously using allocateInternalState().
   */
-  virtual void FindVisibleBlocks(const ITMScene<TVoxel, TIndex> *scene,
-                                 const ORUtils::SE3Pose *pose,
-                                 const ITMIntrinsics *intrinsics,
-                                 ITMRenderState *renderState) const = 0;
+  virtual void FindVisibleBlocks(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
+                                 const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const = 0;
 
   /** Given a render state, Count the number of visible blocks
   with minBlockId <= blockID <= maxBlockId .
   */
-  virtual int CountVisibleBlocks(const ITMScene<TVoxel, TIndex> *scene,
-                                 const ITMRenderState *renderState,
-                                 int minBlockId = 0,
-                                 int maxBlockId = SDF_LOCAL_BLOCK_NUM) const = 0;
+  virtual int CountVisibleBlocks(const ITMScene<TVoxel, TIndex> *scene, const ITMRenderState *renderState,
+                                 int minBlockId = 0, int maxBlockId = SDF_LOCAL_BLOCK_NUM) const = 0;
   /**
    * @brief 估计后面raycast得到图片中每个像素的最大&&最小深度（0.2-3）
    * Given scene, pose and intrinsics, create an estimate of the minimum and maximum depths at each pixel of an image.
@@ -86,45 +79,34 @@ class ITMVisualisationEngine : public IITMVisualisationEngine {
                                     const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const = 0;
 
   /** This will render an image using raycasting. */
-  virtual void RenderImage(const ITMScene<TVoxel, TIndex> *scene,
-                           const ORUtils::SE3Pose *pose,
-                           const ITMIntrinsics *intrinsics,
-                           const ITMRenderState *renderState,
-                           ITMUChar4Image *outputImage,
-                           RenderImageType type = RENDER_SHADED_GREYSCALE,
+  virtual void RenderImage(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
+                           const ITMIntrinsics *intrinsics, const ITMRenderState *renderState,
+                           ITMUChar4Image *outputImage, RenderImageType type = RENDER_SHADED_GREYSCALE,
                            RenderRaycastSelection raycastType = RENDER_FROM_NEW_RAYCAST) const = 0;
 
   /** Finds the scene surface using raycasting. */
-  virtual void FindSurface(const ITMScene<TVoxel, TIndex> *scene,
-                           const ORUtils::SE3Pose *pose,
-                           const ITMIntrinsics *intrinsics,
-                           const ITMRenderState *renderState) const = 0;
+  virtual void FindSurface(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
+                           const ITMIntrinsics *intrinsics, const ITMRenderState *renderState) const = 0;
 
   /** Create a point cloud as required by the
   ITMLib::Engine::ITMColorTracker classes.
   */
-  virtual void CreatePointCloud(const ITMScene<TVoxel, TIndex> *scene,
-                                const ITMView *view,
-                                ITMTrackingState *trackingState,
-                                ITMRenderState *renderState,
+  virtual void CreatePointCloud(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
+                                ITMTrackingState *trackingState, ITMRenderState *renderState,
                                 bool skipPoints) const = 0;
 
   /** Create an image of reference points and normals as
   required by the ITMLib::Engine::ITMDepthTracker classes.
   */
-  virtual void CreateICPMaps(const ITMScene<TVoxel, TIndex> *scene,
-                             const ITMView *view,
-                             ITMTrackingState *trackingState,
-                             ITMRenderState *renderState) const = 0;
+  virtual void CreateICPMaps(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
+                             ITMTrackingState *trackingState, ITMRenderState *renderState) const = 0;
 
   /** Create an image of reference points and normals as
   required by the ITMLib::Engine::ITMDepthTracker classes.
 
   Incrementally previous raycast result.
   */
-  virtual void ForwardRender(const ITMScene<TVoxel, TIndex> *scene,
-                             const ITMView *view,
-                             ITMTrackingState *trackingState,
-                             ITMRenderState *renderState) const = 0;
+  virtual void ForwardRender(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
+                             ITMTrackingState *trackingState, ITMRenderState *renderState) const = 0;
 };
-}
+} // namespace ITMLib

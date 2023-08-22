@@ -44,11 +44,9 @@ void UIEngine::glutDisplayFunction() {
   // get updated images from processing thread
   //! 获取待会儿要显示的图像
   // 大窗口的图像：从重建好的三维模型上来
-  uiEngine->mainEngine->GetImage(uiEngine->outImage[0],
-                                 uiEngine->outImageType[0],
-                                 &uiEngine->freeviewPose,
+  uiEngine->mainEngine->GetImage(uiEngine->outImage[0], uiEngine->outImageType[0], &uiEngine->freeviewPose,
                                  &uiEngine->freeviewIntrinsics);
-  // 子窗口的图像：来自预处理
+  // 子窗口的图像：来自输入图像的预处理
   for (int w = 1; w < NUM_WIN; w++)
     uiEngine->mainEngine->GetImage(uiEngine->outImage[w], uiEngine->outImageType[w]);
 
@@ -73,15 +71,8 @@ void UIEngine::glutDisplayFunction() {
       for (int w = 0; w < NUM_WIN; w++) {   // Draw each sub window
         if (uiEngine->outImageType[w] == ITMMainEngine::InfiniTAM_IMAGE_UNKNOWN) continue;   // 跳过未知类型的图片
         glBindTexture(GL_TEXTURE_2D, uiEngine->textureId[w]);
-        glTexImage2D(GL_TEXTURE_2D,
-                     0,
-                     GL_RGBA,
-                     showImgs[w]->noDims.x,
-                     showImgs[w]->noDims.y,
-                     0,
-                     GL_RGBA,
-                     GL_UNSIGNED_BYTE,
-                     showImgs[w]->GetData(MEMORYDEVICE_CPU));
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, showImgs[w]->noDims.x, showImgs[w]->noDims.y, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, showImgs[w]->GetData(MEMORYDEVICE_CPU));
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glBegin(GL_QUADS);
@@ -188,148 +179,153 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
   UIEngine *uiEngine = UIEngine::Instance();
 
   switch (key) {
-    case 'n': printf("processing one frame ...\n");
-      uiEngine->mainLoopAction = UIEngine::PROCESS_FRAME;
-      break;
-    case 'b': printf("processing input source ...\n");
-      uiEngine->mainLoopAction = UIEngine::PROCESS_VIDEO;
-      break;
-    case 's':
-      if (uiEngine->isRecording) {
-        printf("stopped recoding disk ...\n");
-        uiEngine->isRecording = false;
-      } else {
-        printf("started recoding disk ...\n");
-        uiEngine->currentFrameNo = 0;
-        uiEngine->isRecording = true;
-      }
-      break;
-    case 'v':
-      if ((uiEngine->rgbVideoWriter != NULL) || (uiEngine->depthVideoWriter != NULL)) {
-        printf("stop recoding video\n");
-        delete uiEngine->rgbVideoWriter;
-        delete uiEngine->depthVideoWriter;
-        uiEngine->rgbVideoWriter = NULL;
-        uiEngine->depthVideoWriter = NULL;
-      } else {
-        printf("start recoding video\n");
-        uiEngine->rgbVideoWriter = new FFMPEGWriter();
-        uiEngine->depthVideoWriter = new FFMPEGWriter();
-      }
-      break;
-    case 'e':
-    case 27: // esc key
-      printf("exiting ...\n");
-      uiEngine->mainLoopAction = UIEngine::EXIT;
-      break;
-    case 'f': uiEngine->currentColourMode = 0;
-      if (uiEngine->freeviewActive) {
-        uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
-        uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH;
-
-        uiEngine->freeviewActive = false;
-      } else {
-        uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED;
-        uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
-
-        uiEngine->freeviewPose.SetFrom(uiEngine->mainEngine->GetTrackingState()->pose_d);
-        if (uiEngine->mainEngine->GetView() != NULL) {
-          uiEngine->freeviewIntrinsics = uiEngine->mainEngine->GetView()->calib.intrinsics_d;
-          uiEngine->outImage[0]->ChangeDims(uiEngine->mainEngine->GetView()->depth->noDims);
-        }
-
-        ITMMultiEngine<ITMVoxel, ITMVoxelIndex>
-            *multiEngine = dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
-        if (multiEngine != NULL) {
-          int idx = multiEngine->findPrimaryLocalMapIdx();
-          if (idx < 0) idx = 0;
-          multiEngine->setFreeviewLocalMapIdx(idx);
-        }
-
-        uiEngine->freeviewActive = true;
-      }
-      uiEngine->needsRefresh = true;
-      break;
-    case 'c': uiEngine->currentColourMode++;
-      if (((uiEngine->freeviewActive)
-          && ((unsigned) uiEngine->currentColourMode >= uiEngine->colourModes_freeview.size())) ||
-          ((!uiEngine->freeviewActive)
-          && ((unsigned) uiEngine->currentColourMode >= uiEngine->colourModes_main.size())))
-        uiEngine->currentColourMode = 0;
-      uiEngine->needsRefresh = true;
-      break;
-    case 't': {
-      uiEngine->integrationActive = !uiEngine->integrationActive;
-
-      ITMBasicEngine<ITMVoxel, ITMVoxelIndex>
-          *basicEngine = dynamic_cast<ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
-      if (basicEngine != NULL) {
-        if (uiEngine->integrationActive) basicEngine->turnOnIntegration();
-        else basicEngine->turnOffIntegration();
-      }
-
-      ITMBasicSurfelEngine<ITMSurfelT>
-          *basicSurfelEngine = dynamic_cast<ITMBasicSurfelEngine<ITMSurfelT> *>(uiEngine->mainEngine);
-      if (basicSurfelEngine != NULL) {
-        if (uiEngine->integrationActive) basicSurfelEngine->turnOnIntegration();
-        else basicSurfelEngine->turnOffIntegration();
-      }
+  case 'n':   //! 单帧跟踪模式，每次按n处理下一帧
+    printf("processing one frame ...\n");
+    uiEngine->mainLoopAction = UIEngine::PROCESS_FRAME;
+    break;
+  case 'b':   //! 视频流跟踪模式，数据从相机来
+    printf("processing input source ...\n");
+    uiEngine->mainLoopAction = UIEngine::PROCESS_VIDEO;
+    break;
+  case 's':   //! 切换 是否要将输入图片保存到硬盘上。默认不保存
+    if (uiEngine->isRecording) {
+      printf("stopped recoding disk ...\n");
+      uiEngine->isRecording = false;
+    } else {
+      printf("started recoding disk ...\n");
+      uiEngine->currentFrameNo = 0;
+      uiEngine->isRecording = true;
     }
-      break;
-    case 'w': {
-      printf("saving scene to model ... ");
-      uiEngine->mainEngine->SaveSceneToMesh("mesh.stl");
-      printf("done\n");
+    break;
+  case 'v':   //! 切换 是否要将输入彩色图和深度图分别以视频的形式保存到硬盘上。默认不保存
+    if ((uiEngine->rgbVideoWriter != NULL) || (uiEngine->depthVideoWriter != NULL)) {
+      printf("stop recoding video\n");
+      delete uiEngine->rgbVideoWriter;
+      delete uiEngine->depthVideoWriter;
+      uiEngine->rgbVideoWriter = NULL;
+      uiEngine->depthVideoWriter = NULL;
+    } else {
+      printf("start recoding video\n");
+      uiEngine->rgbVideoWriter = new FFMPEGWriter();
+      uiEngine->depthVideoWriter = new FFMPEGWriter();
     }
-      break;
-    case 'r': {
-      ITMBasicEngine<ITMVoxel, ITMVoxelIndex>
-          *basicEngine = dynamic_cast<ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
-      if (basicEngine != NULL) basicEngine->resetAll();
+    break;
+  case 'e':   //! 退出程序 && UI
+  case 27: // esc key
+    printf("exiting ...\n");
+    uiEngine->mainLoopAction = UIEngine::EXIT;
+    break;
+  case 'f':   //! 切换 自由视角（上帝视角） 和 固定视角（跟随相机）
+    uiEngine->currentColourMode = 0;
+    if (uiEngine->freeviewActive) {
+      uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
+      uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH;
 
-      ITMBasicSurfelEngine<ITMSurfelT>
-          *basicSurfelEngine = dynamic_cast<ITMBasicSurfelEngine<ITMSurfelT> *>(uiEngine->mainEngine);
-      if (basicSurfelEngine != NULL) basicSurfelEngine->resetAll();
-    }
-      break;
-    case 'k': {
-      printf("saving scene to disk ... ");
+      uiEngine->freeviewActive = false;
+    } else {
+      uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED;
+      uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
 
-      try {
-        uiEngine->mainEngine->SaveToFile();
-        printf("done\n");
+      uiEngine->freeviewPose.SetFrom(uiEngine->mainEngine->GetTrackingState()->pose_d);
+      if (uiEngine->mainEngine->GetView() != NULL) {
+        uiEngine->freeviewIntrinsics = uiEngine->mainEngine->GetView()->calib.intrinsics_d;
+        uiEngine->outImage[0]->ChangeDims(uiEngine->mainEngine->GetView()->depth->noDims);
       }
-      catch (const std::runtime_error &e) {
-        printf("failed: %s\n", e.what());
-      }
-    }
-      break;
-    case 'l': {
-      printf("loading scene from disk ... ");
 
-      try {
-        uiEngine->mainEngine->LoadFromFile();
-        printf("done\n");
-      }
-      catch (const std::runtime_error &e) {
-        printf("failed: %s\n", e.what());
-      }
-    }
-      break;
-    case '[':
-    case ']': {
-      ITMMultiEngine<ITMVoxel, ITMVoxelIndex>
-          *multiEngine = dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
+      ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *multiEngine =
+          dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
       if (multiEngine != NULL) {
-        int idx = multiEngine->getFreeviewLocalMapIdx();
-        if (key == '[') idx--;
-        else idx++;
-        multiEngine->changeFreeviewLocalMapIdx(&(uiEngine->freeviewPose), idx);
-        uiEngine->needsRefresh = true;
+        int idx = multiEngine->findPrimaryLocalMapIdx();
+        if (idx < 0)
+          idx = 0;
+        multiEngine->setFreeviewLocalMapIdx(idx);
       }
+
+      uiEngine->freeviewActive = true;
     }
-      break;
-    default: break;
+    uiEngine->needsRefresh = true;
+    break;
+  case 'c': //! 切换主界面的渲染方式（纹理 or 置信度 or 几何）
+    uiEngine->currentColourMode++;
+    if (((uiEngine->freeviewActive) &&
+         ((unsigned)uiEngine->currentColourMode >= uiEngine->colourModes_freeview.size())) ||
+        ((!uiEngine->freeviewActive) && ((unsigned)uiEngine->currentColourMode >= uiEngine->colourModes_main.size())))
+      uiEngine->currentColourMode = 0;
+    uiEngine->needsRefresh = true;
+    break;
+  case 't': { //! 切换 是否要三维模型融合（integration）
+    uiEngine->integrationActive = !uiEngine->integrationActive;
+
+    ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *basicEngine =
+        dynamic_cast<ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
+    if (basicEngine != NULL) {
+      if (uiEngine->integrationActive)
+        basicEngine->turnOnIntegration();
+      else
+        basicEngine->turnOffIntegration();
+    }
+
+    ITMBasicSurfelEngine<ITMSurfelT> *basicSurfelEngine =
+        dynamic_cast<ITMBasicSurfelEngine<ITMSurfelT> *>(uiEngine->mainEngine);
+    if (basicSurfelEngine != NULL) {
+      if (uiEngine->integrationActive)
+        basicSurfelEngine->turnOnIntegration();
+      else
+        basicSurfelEngine->turnOffIntegration();
+    }
+  } break;
+  case 'w': { //! 保存mesh模型到硬盘
+    printf("saving scene to model ... ");
+    uiEngine->mainEngine->SaveSceneToMesh("mesh.stl");
+    printf("done\n");
+  } break;
+  case 'r': { //! 重置
+    ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *basicEngine =
+        dynamic_cast<ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
+    if (basicEngine != NULL)
+      basicEngine->resetAll();
+
+    ITMBasicSurfelEngine<ITMSurfelT> *basicSurfelEngine =
+        dynamic_cast<ITMBasicSurfelEngine<ITMSurfelT> *>(uiEngine->mainEngine);
+    if (basicSurfelEngine != NULL)
+      basicSurfelEngine->resetAll();
+  } break;
+  case 'k': { //! 保存三维场景数据（TSDF和哈希表）
+    printf("saving scene to disk ... ");
+
+    try {
+      uiEngine->mainEngine->SaveToFile();
+      printf("done\n");
+    } catch (const std::runtime_error &e) {
+      printf("failed: %s\n", e.what());
+    }
+  } break;
+  case 'l': { //! 从硬盘中加载三维场景数据（TSDF和哈希表）
+    printf("loading scene from disk ... ");
+
+    try {
+      uiEngine->mainEngine->LoadFromFile();
+      printf("done\n");
+    } catch (const std::runtime_error &e) {
+      printf("failed: %s\n", e.what());
+    }
+  } break;
+  case '[':
+  case ']': { //! ？？？
+    ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *multiEngine =
+        dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
+    if (multiEngine != NULL) {
+      int idx = multiEngine->getFreeviewLocalMapIdx();
+      if (key == '[')
+        idx--;
+      else
+        idx++;
+      multiEngine->changeFreeviewLocalMapIdx(&(uiEngine->freeviewPose), idx);
+      uiEngine->needsRefresh = true;
+    }
+  } break;
+  default:
+    break;
   }
 
   if (uiEngine->freeviewActive)
@@ -602,7 +598,7 @@ void UIEngine::GetScreenshot(ITMUChar4Image *dest) const {
 }
 
 void UIEngine::ProcessFrame() {
-  //! 读取图片对和IMU
+  //! 读取 图片对 和 IMU
   if (!imageSource->hasMoreImages()) return;
   imageSource->getImages(inputRGBImage, inputRawDepthImage);
 
@@ -611,8 +607,7 @@ void UIEngine::ProcessFrame() {
     else imuSource->getMeasurement(inputIMUMeasurement);
   }
   //! 保存彩色图和深度图
-  // 以图片形式保存
-  if (isRecording) {
+  if (isRecording) {  // 以图片形式保存
     char str[250];
     sprintf(str, "%s/%04d.pgm", outFolder, currentFrameNo);
     SaveImageToFile(inputRawDepthImage, str);
@@ -622,8 +617,7 @@ void UIEngine::ProcessFrame() {
       SaveImageToFile(inputRGBImage, str);
     }
   }
-  // 以视频形式保存
-  if ((rgbVideoWriter != NULL) && (inputRGBImage->noDims.x != 0)) {
+  if ((rgbVideoWriter != NULL) && (inputRGBImage->noDims.x != 0)) { // 以视频形式保存
     if (!rgbVideoWriter->isOpen())
       rgbVideoWriter->open("out_rgb.avi", inputRGBImage->noDims.x, inputRGBImage->noDims.y,
                            /*是否为深度图*/false,  /*帧率*/30);
@@ -634,22 +628,23 @@ void UIEngine::ProcessFrame() {
       depthVideoWriter->open("out_d.avi", inputRawDepthImage->noDims.x, inputRawDepthImage->noDims.y, true, 30);
     depthVideoWriter->writeFrame(inputRawDepthImage);
   }
-  //! 记录时间 TODO(xzf): ?
+  //! 初始化单帧时间 和 平均时间
   sdkResetTimer(&timer_instant);
   sdkStartTimer(&timer_instant);
   sdkStartTimer(&timer_average);
   //! 跟踪单帧
   ITMTrackingState::TrackingResult trackerResult;
   //actual processing on the mailEngine
-  if (imuSource != NULL)
+  if (imuSource != NULL)  // 有IMU
     trackerResult = mainEngine->ProcessFrame(inputRGBImage, inputRawDepthImage, inputIMUMeasurement);
-  else trackerResult = mainEngine->ProcessFrame(inputRGBImage, inputRawDepthImage);
+  else                    // 无IMU
+    trackerResult = mainEngine->ProcessFrame(inputRGBImage, inputRawDepthImage);
   trackingResult = (int) trackerResult;
 
 #ifndef COMPILE_WITHOUT_CUDA
   ORcudaSafeCall(cudaThreadSynchronize());
 #endif
-  //! 停止记录时间 && 计算单帧处理时间
+  //! 停止记录单帧时间 && 计算单帧处理时间
   sdkStopTimer(&timer_instant);
   sdkStopTimer(&timer_average);
 

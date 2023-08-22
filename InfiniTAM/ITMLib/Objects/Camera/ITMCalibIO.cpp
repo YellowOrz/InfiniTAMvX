@@ -97,11 +97,8 @@ bool ITMLib::readRGBDCalib(const char *fileName, ITMRGBDCalib &dest) {
   return ITMLib::readRGBDCalib(f, dest);
 }
 
-bool ITMLib::readRGBDCalib(const char *rgbIntrinsicsFile,
-                           const char *depthIntrinsicsFile,
-                           const char *disparityCalibFile,
-                           const char *extrinsicsFile,
-                           ITMRGBDCalib &dest) {
+bool ITMLib::readRGBDCalib(const char *rgbIntrinsicsFile, const char *depthIntrinsicsFile,
+                           const char *disparityCalibFile, const char *extrinsicsFile, ITMRGBDCalib &dest) {
   bool ret = true;
   ret &= ITMLib::readIntrinsics(rgbIntrinsicsFile, dest.intrinsics_rgb);
   ret &= ITMLib::readIntrinsics(depthIntrinsicsFile, dest.intrinsics_d);

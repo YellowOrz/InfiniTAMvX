@@ -9,6 +9,8 @@
 
 namespace ORUtils {
 /** \brief
+ * Image数据结构
+ * @tparam T 像素的数据类型。float、short之类的
 Represents images, templated on the pixel type
 */
 template<typename T>

@@ -16,7 +16,8 @@ struct ITMMeshingEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief Makes a meshing engine.
+   * \brief 构造mesh模块
+   * Makes a meshing engine.
    *
    * \param deviceType  The device on which the meshing engine should operate.
    */

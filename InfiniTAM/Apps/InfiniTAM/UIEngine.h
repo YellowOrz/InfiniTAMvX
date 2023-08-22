@@ -77,6 +77,13 @@ class UIEngine {
 
   static void glutDisplayFunction();
   static void glutIdleFunction();
+  /**
+   * @brief UI界面中，键盘按键对应功能
+   * 
+   * @param[in] key 键盘按键
+   * @param x 没用到？？？
+   * @param y 没用到？？？
+   */
   static void glutKeyUpFunction(unsigned char key, int x, int y);
   static void glutMouseButtonFunction(int button, int state, int x, int y);
   static void glutMouseMoveFunction(int x, int y);

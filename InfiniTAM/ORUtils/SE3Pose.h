@@ -6,13 +6,14 @@
 #include "Matrix.h"
 
 namespace ORUtils {
-/** \brief
+/** \brief 相机位姿（旋转+平移）
     Represents a camera pose with rotation and translation
     parameters
 */
 class SE3Pose {
  private:
-  /** This is the minimal representation of the pose with
+  /** 相机位姿的参数形式（6x1），旋转用SO3表示
+   * This is the minimal representation of the pose with
       six parameters. The three rotation parameters are
       the Lie algebra representation of SO3.
   */
@@ -24,17 +25,20 @@ class SE3Pose {
     } each;
   } params;
 
-  /** The pose as a 4x4 transformation matrix ("modelview
+  /** 相机位姿的矩阵形式（4x4）
+   * The pose as a 4x4 transformation matrix ("modelview
       matrix).
   */
   Matrix4<float> M;
 
-  /** This will update the minimal parameterisation from
+  /** 相机位姿从 矩阵形式（4x4） 转 参数形式（6x1）
+   * This will update the minimal parameterisation from
       the current modelview matrix.
       */
   void SetParamsFromModelView();
 
-  /** This will update the "modelview matrix" M from the
+  /** 相机位姿从 参数形式（6x1） 转 矩阵形式（4x4） 
+   * This will update the "modelview matrix" M from the
       minimal representation.
   */
   void SetModelViewFromParams();
@@ -69,9 +73,12 @@ class SE3Pose {
   void SetRT(const Matrix3<float> &R, const Vector3<float> &t);
 
   Matrix4<float> GetInvM(void) const;
+
+  /** 将输入矩阵取逆后作为位姿矩阵 */
   void SetInvM(const Matrix4<float> &invM);
 
-  /** This will enforce the orthonormality constraints on
+  /** 保证旋转矩阵的正交性。建议在计算M之后调用  
+   * This will enforce the orthonormality constraints on
       the rotation matrix. It's recommended to call this
       function after manipulating the matrix M.
   */

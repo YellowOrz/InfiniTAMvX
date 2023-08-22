@@ -183,8 +183,10 @@ bool InfiniTAMApp::ProcessFrame(void) {
     else mImuSource->getMeasurement(inputIMUMeasurement);
   }
 
-  if (mRecordingMode) ((ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *) mMainEngine)->turnOffMainProcessing();
-  else ((ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *) mMainEngine)->turnOnMainProcessing();
+  if (mRecordingMode) 
+    ((ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *) mMainEngine)->turnOffMainProcessing();
+  else 
+    ((ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *) mMainEngine)->turnOnMainProcessing();
 
   sdkResetTimer(&timer_instant);
   sdkStartTimer(&timer_instant);

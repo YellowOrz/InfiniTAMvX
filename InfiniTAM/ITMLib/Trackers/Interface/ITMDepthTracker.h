@@ -13,18 +13,19 @@
 #include "../../../ORUtils/SVMClassifier.h"
 
 namespace ITMLib {
-/** Base class for engine performing ICP based depth tracking.
+/** 使用ICP的depth tarcking基类。类似KinectFusion。 
+ * Base class for engine performing ICP based depth tracking.
     A typical example would be the original KinectFusion
     tracking algorithm.
 */
 class ITMDepthTracker : public ITMTracker {
  private:
-  const ITMLowLevelEngine *lowLevelEngine;
-  ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;
-  ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy;
+  const ITMLowLevelEngine *lowLevelEngine;  // 
+  ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;  // 模型投影图片的金字塔
+  ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy; // 当前输入图片的金字塔
 
-  ITMTrackingState *trackingState;
-  const ITMView *view;
+  ITMTrackingState *trackingState;  // tracking过程中的变量，如相机位姿、raycast的点云等
+  const ITMView *view;        // 当前输入图片
 
   int *noIterationsPerLevel;  // 金字塔每一层的迭代次数
 
@@ -33,14 +34,13 @@ class ITMDepthTracker : public ITMTracker {
   void PrepareForEvaluation();
   /**
    * @brief 从金字塔中取出当前层级的数据。
-   * 包含层级数、当前帧和投影帧数据、匹配类型（r、t、b）
-   * @param levelId 层级数。数字越大，图片越大？？？
+   * @note包含层级数、当前帧和投影帧数据、匹配类型（r、t、b）
+   * @param[in] levelId 层级数。数字越大，图片越大？？？
    */
   void SetEvaluationParams(int levelId);
 
   /**
    * @brief 使用Cholesky求解增量方程，得到△T
-   * 
    * @param[out] delta          △T，即当前帧 与 上一帧的相对变换矩阵
    * @param[in] nabla           nabla算子，维度6*1
    * @param[in] hessian         hessian矩阵，维度6*6
@@ -49,7 +49,7 @@ class ITMDepthTracker : public ITMTracker {
   void ComputeDelta(float *delta, float *nabla, float *hessian, bool shortIteration) const;
   /**
    * @brief 利用delta更新位姿
-   * @details delta前3个数字对应rotation见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface 
+   * @note delta前3个数字对应rotation见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface 
    *          Registration》的公式(6)
    * @param[in] para_old  老位姿
    * @param[in] delta     位姿增量，维度6*1，前3个是旋转向量（SO3？），后3个是平移
@@ -65,14 +65,12 @@ class ITMDepthTracker : public ITMTracker {
 
   /**
    * @brief 准备跟踪的数据：当前帧 和 场景 的 深度图、法向量、位姿、相机内参等
-   * 
    * @param[in] trackingState   
    * @param[in] view            当前帧
    */
   void SetEvaluationData(ITMTrackingState *trackingState, const ITMView *view);
   /**
    * @brief 判别跟踪质量
-   * 
    * @param[in] noValidPoints_old ICP过程中匹配到的像素点个数
    * @param[in] hessian_good      ICP完成后的Hessian矩阵
    * @param[in] f_old             ICP完成后的误差
@@ -107,18 +105,19 @@ protected:
   /**
    * @brief 使用 高斯牛顿法 求解point-to-plane ICP，跟踪相机
    * 
-   * @details 参考资料https://zhuanlan.zhihu.com/p/385414929
+   * @note 参考资料https://zhuanlan.zhihu.com/p/385414929
    * @param trackingState 
    * @param view 
    */
   void TrackCamera(ITMTrackingState *trackingState, const ITMView *view);
-  
+  /**渲染的时候不要彩色图，因为这里是depth tracking*/
   bool requiresColourRendering() const { return false; }
+  /**渲染的时候不要Depth的置信度。但是好像没有地方用到*/
   bool requiresDepthReliability() const { return false; }
+  /**渲染的时候要点云，用于depth tracking*/
   bool requiresPointCloudRendering() const { return true; }
   /**
    * @brief 设置金字塔迭代的参数。下面“小”就是尺寸最小的
-   * 
    * @param[in] numIterCoarse     金字塔最小一层的ICP迭代次数
    * @param[in] numIterFine       金字塔最大一层的ICP迭代次数
    * @param[in] distThreshCoarse  金字塔最小一层的距离误差

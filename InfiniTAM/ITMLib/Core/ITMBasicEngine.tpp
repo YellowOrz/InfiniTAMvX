@@ -15,20 +15,10 @@
 //#define OUTPUT_TRAJECTORY_QUATERNIONS
 
 using namespace ITMLib;
-/**
- * 构建基础SLAM系统
- * @tparam TVoxel
- * @tparam TIndex
- * @param[in] settings
- * @param[in] calib
- * @param[in] imgSize_rgb
- * @param[in] imgSize_d
- */
-template<typename TVoxel, typename TIndex>
-ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
-                                               const ITMRGBDCalib &calib,
-                                               Vector2i imgSize_rgb,
-                                               Vector2i imgSize_d) {
+
+template <typename TVoxel, typename TIndex>
+ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, const ITMRGBDCalib &calib,
+                                               Vector2i imgSize_rgb, Vector2i imgSize_d) {
   // 系统设置
   this->settings = settings;
   // 深度图和彩色图的尺寸
@@ -40,7 +30,7 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
                                              memoryType);
   // 设备类型
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
-  // 最底层的预处理模块
+  // 底层的图像处理模块（拷贝、彩色转灰色等操作）
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
   // 可视化窗口   TODO(xzf)
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
@@ -53,19 +43,14 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
   // TODO(xzf)
   denseMapper = new ITMDenseMapper<TVoxel, TIndex>(settings);
   denseMapper->ResetScene(scene);
-  // IMU预积分器
+  // 初始化IMU预积分器和跟踪器
   imuCalibrator = new ITMIMUCalibrator_iPad();
-  // 跟踪
-  tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb,
-                                               imgSize_d,
-                                               settings,
-                                               lowLevelEngine,
-                                               imuCalibrator,
+  tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb, imgSize_d, settings, lowLevelEngine, imuCalibrator,
                                                scene->sceneParams);
   trackingController = new ITMTrackingController(tracker, settings);
-
+  // 获取图像大小
   Vector2i trackedImageSize = trackingController->GetTrackedImageSize(imgSize_rgb, imgSize_d);
-
+  // 初始哈跟踪状态和位姿
   trackingState = new ITMTrackingState(trackedImageSize, memoryType);
   tracker->UpdateInitialPose(trackingState);
   // 渲染
@@ -77,18 +62,14 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings,
 
   // 重定位
   if (settings->behaviourOnFailure == settings->FAILUREMODE_RELOCALISE)
-    relocaliser = new FernRelocLib::Relocaliser<float>(imgSize_d,
-                                                       Vector2f(settings->sceneParams.viewFrustum_min,
-                                                                settings->sceneParams.viewFrustum_max),
-                                                       0.2f,
-                                                       500,
-                                                       4);
+    relocaliser = new FernRelocLib::Relocaliser<float>(imgSize_d, Vector2f(settings->sceneParams.viewFrustum_min, 
+                                                       settings->sceneParams.viewFrustum_max), 0.2f, 500, 4);
   else relocaliser = NULL;
 
   // 各模块状态
-  trackingActive = true;
-  fusionActive = true;
-  mainProcessingActive = true;
+  trackingActive = true; 
+  fusionActive = true;    
+  mainProcessingActive = true;  // 主线程，包含跟踪、融合？？？
   trackingInitialised = false;
   relocalisationCount = 0;
   framesProcessed = 0;
@@ -161,29 +142,22 @@ void ITMBasicEngine<TVoxel, TIndex>::LoadFromFile() {
 
   this->resetAll();
 
-  try // load relocaliser
-  {
-    FernRelocLib::Relocaliser<float> *relocaliser_temp = new FernRelocLib::Relocaliser<float>(view->depth->noDims,
-                                                                                              Vector2f(settings->sceneParams.viewFrustum_min,
-                                                                                                       settings->sceneParams.viewFrustum_max),
-                                                                                              0.2f,
-                                                                                              500,
-                                                                                              4);
+  try { // load relocaliser
+    FernRelocLib::Relocaliser<float> *relocaliser_temp = new FernRelocLib::Relocaliser<float>(
+        view->depth->noDims, Vector2f(settings->sceneParams.viewFrustum_min, settings->sceneParams.viewFrustum_max),
+        0.2f, 500, 4);
 
     relocaliser_temp->LoadFromDirectory(relocaliserInputDirectory);
 
     delete relocaliser;
     relocaliser = relocaliser_temp;
-  }
-  catch (std::runtime_error &e) {
+  } catch (std::runtime_error &e) {
     throw std::runtime_error("Could not load relocaliser: " + std::string(e.what()));
   }
 
-  try // load scene
-  {
+  try { // load scene
     scene->LoadFromDirectory(sceneInputDirectory);
-  }
-  catch (std::runtime_error &e) {
+  } catch (std::runtime_error &e) {
     denseMapper->ResetScene(scene);
     throw std::runtime_error("Could not load scene:" + std::string(e.what()));
   }
@@ -273,33 +247,41 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
                                                                               ITMShortImage *rawDepthImage,
                                                                               ITMIMUMeasurement *imuMeasurement) {
   // prepare image and turn it into a depth image
-  //! 准备数据
-  if (imuMeasurement == NULL) viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter);
-  else viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter, imuMeasurement);
+  //! 准备数据：对输入数据预处理后，放到view中
+  if (imuMeasurement == NULL)   // 无IMU
+    viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter);
+  else                          // 有IMU
+    viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter, imuMeasurement);
 
-  if (!mainProcessingActive) return ITMTrackingState::TRACKING_FAILED;
+  if (!mainProcessingActive)    // 在移动端可以关闭主线程（包含tracking？？？）
+    return ITMTrackingState::TRACKING_FAILED;
 
   // tracking
   //! 跟踪
-  ORUtils::SE3Pose oldPose(*(trackingState->pose_d));
-  if (trackingActive) trackingController->Track(trackingState, view);
+  ORUtils::SE3Pose oldPose(*(trackingState->pose_d));   // trackingState是成员变量
+  if (trackingActive) 
+    trackingController->Track(trackingState, view);
 
   ITMTrackingState::TrackingResult trackerResult = ITMTrackingState::TRACKING_GOOD;
+  
   //! 跟踪失败后的操作：重定位 or 停止融合
   switch (settings->behaviourOnFailure) {
-    case ITMLibSettings::FAILUREMODE_RELOCALISE: trackerResult = trackingState->trackerResult;
-      break;
-    case ITMLibSettings::FAILUREMODE_STOP_INTEGRATION:
-      if (trackingState->trackerResult != ITMTrackingState::TRACKING_FAILED)
-        trackerResult = trackingState->trackerResult;
-      else trackerResult = ITMTrackingState::TRACKING_POOR;
-      break;
-    default: break;
+  case ITMLibSettings::FAILUREMODE_RELOCALISE: // 重定位
+    trackerResult = trackingState->trackerResult;
+    break;
+  case ITMLibSettings::FAILUREMODE_STOP_INTEGRATION: // 停止融合
+    if (trackingState->trackerResult != ITMTrackingState::TRACKING_FAILED)
+      trackerResult = trackingState->trackerResult;
+    else
+      trackerResult = ITMTrackingState::TRACKING_POOR;
+    break;
+  default:
+    break;
   }
 
   //relocalisation
   //! 如果需要重定位
-  int addKeyframeIdx = -1;
+  int addKeyframeIdx = -1;  // 添加Keyframe的ID？？？
   if (settings->behaviourOnFailure == ITMLibSettings::FAILUREMODE_RELOCALISE) {
     if (trackerResult == ITMTrackingState::TRACKING_GOOD && relocalisationCount > 0) relocalisationCount--;
 
@@ -308,14 +290,9 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
     view->depth->UpdateHostFromDevice();
 
     //find and add keyframe, if necessary
-    bool hasAddedKeyframe = relocaliser->ProcessFrame(view->depth,
-                                                      trackingState->pose_d,
-                                                      0,
-                                                      1,
-                                                      &NN,
-                                                      &distances,
-                                                      trackerResult == ITMTrackingState::TRACKING_GOOD
-                                                          && relocalisationCount == 0);
+    bool hasAddedKeyframe =
+        relocaliser->ProcessFrame(view->depth, trackingState->pose_d, 0, 1, &NN, &distances,
+                                  trackerResult == ITMTrackingState::TRACKING_GOOD && relocalisationCount == 0);
 
     //frame not added and tracking failed -> we need to relocalise
     if (!hasAddedKeyframe && trackerResult == ITMTrackingState::TRACKING_FAILED) {
@@ -336,6 +313,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
   }
   //! 将当前帧融合进三维模型
   bool didFusion = false;
+  // 同时满足条件：① 跟踪good or 不是刚刚初始化；② 开启fusion；③ 没有重定位失败
   if ((trackerResult == ITMTrackingState::TRACKING_GOOD || !trackingInitialised) && (fusionActive)
       && (relocalisationCount == 0)) {
     // fusion
@@ -345,11 +323,13 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
 
     framesProcessed++;
   }
-  //! 更新三维模型在当前帧的投影：使用raycast
+  //! 更新三维模型在当前帧的投影：使用raycast，只要不是TRACING_FAILED
   if (trackerResult == ITMTrackingState::TRACKING_GOOD || trackerResult == ITMTrackingState::TRACKING_POOR) {
+    // 关闭fusion的时候，要更新
     if (!didFusion) denseMapper->UpdateVisibleList(view, trackingState, scene, renderState_live);
 
     // raycast to renderState_live for tracking and free visualisation
+    // raycasting，存在renderState_live，给后面的跟踪和可视化窗口用
     trackingController->Prepare(trackingState, scene, view, visualisationEngine, renderState_live);
 
     if (addKeyframeIdx >= 0) {
@@ -381,102 +361,103 @@ Vector2i ITMBasicEngine<TVoxel, TIndex>::GetImageSize(void) const {
   return renderState_live->raycastImage->noDims;
 }
 
-template<typename TVoxel, typename TIndex>
-void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out,
-                                              GetImageType getImageType,
-                                              ORUtils::SE3Pose *pose,
+template <typename TVoxel, typename TIndex>
+void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType getImageType, ORUtils::SE3Pose *pose,
                                               ITMIntrinsics *intrinsics) {
-  if (view == NULL) return;
+  if (view == NULL)
+    return;
 
   out->Clear();
 
   switch (getImageType) {
-    case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_RGB: out->ChangeDims(view->rgb->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-        out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-      else out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-      break;
-    case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH: out->ChangeDims(view->depth->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA) view->depth->UpdateHostFromDevice();
-      ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
+  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_RGB:
+    out->ChangeDims(view->rgb->noDims);
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+    else
+      out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    break;
+  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH:
+    out->ChangeDims(view->depth->noDims);
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      view->depth->UpdateHostFromDevice();
+    ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
 
+    break;
+  case ITMBasicEngine::InfiniTAM_IMAGE_SCENERAYCAST:
+  case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
+  case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
+  case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
+    // use current raycast or forward projection?
+    IITMVisualisationEngine::RenderRaycastSelection raycastType;
+    if (trackingState->age_pointCloud <= 0)
+      raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
+    else
+      raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
+
+    // what sort of image is it?
+    IITMVisualisationEngine::RenderImageType imageType;
+    switch (getImageType) {
+    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:
+      imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
       break;
-    case ITMBasicEngine::InfiniTAM_IMAGE_SCENERAYCAST:
-    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
     case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
-    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
-      // use current raycast or forward projection?
-      IITMVisualisationEngine::RenderRaycastSelection raycastType;
-      if (trackingState->age_pointCloud <= 0) raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
-      else raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
-
-      // what sort of image is it?
-      IITMVisualisationEngine::RenderImageType imageType;
-      switch (getImageType) {
-        case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:
-          imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
-          break;
-        case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
-          imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
-          break;
-        case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
-          imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
-          break;
-        default: imageType = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS;
-      }
-
-      visualisationEngine->RenderImage(scene,
-                                       trackingState->pose_d,
-                                       &view->calib.intrinsics_d,
-                                       renderState_live,
-                                       renderState_live->raycastImage,
-                                       imageType,
-                                       raycastType);
-
-      ORUtils::Image<Vector4u> *srcImage = NULL;
-      if (relocalisationCount != 0) srcImage = kfRaycast;
-      else srcImage = renderState_live->raycastImage;
-
-      out->ChangeDims(srcImage->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-        out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-      else out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-
+      imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
       break;
-    }
-    case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED:
-    case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME:
-    case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL:
-    case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE: {
-      IITMVisualisationEngine::RenderImageType type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
-      if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
-      else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
-      else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
-
-      if (renderState_freeview == NULL) {
-        renderState_freeview = ITMRenderStateFactory<TIndex>::CreateRenderState(out->noDims,
-                                                                                scene->sceneParams,
-                                                                                settings->GetMemoryType());
-      }
-
-      visualisationEngine->FindVisibleBlocks(scene, pose, intrinsics, renderState_freeview);
-      visualisationEngine->CreateExpectedDepths(scene, pose, intrinsics, renderState_freeview);
-      visualisationEngine->RenderImage(scene,
-                                       pose,
-                                       intrinsics,
-                                       renderState_freeview,
-                                       renderState_freeview->raycastImage,
-                                       type);
-
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-        out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-      else out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
+      imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
       break;
+    default:
+      imageType = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS;
     }
-    case ITMMainEngine::InfiniTAM_IMAGE_UNKNOWN: break;
+
+    visualisationEngine->RenderImage(scene, trackingState->pose_d, &view->calib.intrinsics_d, renderState_live,
+                                     renderState_live->raycastImage, imageType, raycastType);
+
+    ORUtils::Image<Vector4u> *srcImage = NULL;
+    if (relocalisationCount != 0)
+      srcImage = kfRaycast;
+    else
+      srcImage = renderState_live->raycastImage;
+
+    out->ChangeDims(srcImage->noDims);
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+    else
+      out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+
+    break;
+  }
+  case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED:
+  case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME:
+  case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL:
+  case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE: {
+    IITMVisualisationEngine::RenderImageType type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
+    if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
+    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
+    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE)
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
+
+    if (renderState_freeview == NULL) {
+      renderState_freeview =
+          ITMRenderStateFactory<TIndex>::CreateRenderState(out->noDims, scene->sceneParams, settings->GetMemoryType());
+    }
+
+    visualisationEngine->FindVisibleBlocks(scene, pose, intrinsics, renderState_freeview);
+    visualisationEngine->CreateExpectedDepths(scene, pose, intrinsics, renderState_freeview);
+    visualisationEngine->RenderImage(scene, pose, intrinsics, renderState_freeview, renderState_freeview->raycastImage,
+                                     type);
+
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+    else
+      out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    break;
+  }
+  case ITMMainEngine::InfiniTAM_IMAGE_UNKNOWN:
+    break;
   };
 }
 

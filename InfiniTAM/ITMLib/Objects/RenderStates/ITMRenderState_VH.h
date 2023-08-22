@@ -4,38 +4,37 @@
 
 #include <stdlib.h>
 
-#include "ITMRenderState.h"
-#include "../Scene/ITMVoxelBlockHash.h"
 #include "../../../ORUtils/MemoryBlock.h"
+#include "../Scene/ITMVoxelBlockHash.h"
+#include "ITMRenderState.h"
 
 namespace ITMLib {
-/** \brief
+/** 使用voxel hasing的raycasting结果。用于SceneReconstruction和visualisation engines。
     Stores the render state used by the SceneReconstruction
     and visualisation engines, as used by voxel hashing.
 */
 class ITMRenderState_VH : public ITMRenderState {
- private:
+private:
   MemoryDeviceType memoryType;
 
-  /** A list of "visible entries", that are currently
+  /** 可见entries列表（即正被tracker处理的）的id
+   * A list of "visible entries", that are currently
   being processed by the tracker.
   */
   ORUtils::MemoryBlock<int> *visibleEntryIDs;
 
-  /** A list of "visible entries", that are
+  /** 可见entries列表（即正被integration和tracker处理的）的类型
+   * A list of "visible entries", that are
   currently being processed by integration
   and tracker.
   */
   ORUtils::MemoryBlock<uchar> *entriesVisibleType;
 
- public:
+public:
   /** Number of entries in the live list. */
   int noVisibleEntries;
 
-  ITMRenderState_VH(int noTotalEntries,
-                    const Vector2i &imgSize,
-                    float vf_min,
-                    float vf_max,
+  ITMRenderState_VH(int noTotalEntries, const Vector2i &imgSize, float vf_min, float vf_max,
                     MemoryDeviceType memoryType = MEMORYDEVICE_CPU)
       : ITMRenderState(imgSize, vf_min, vf_max, memoryType) {
     this->memoryType = memoryType;
@@ -49,20 +48,22 @@ class ITMRenderState_VH : public ITMRenderState {
     delete visibleEntryIDs;
     delete entriesVisibleType;
   }
-  /** Get the list of "visible entries", that are currently
+  /** 获取可见entries列表（即正被tracker处理的）的id
+   * Get the list of "visible entries", that are currently
   processed by the tracker.
   */
   const int *GetVisibleEntryIDs(void) const { return visibleEntryIDs->GetData(memoryType); }
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
 
-  /** Get the list of "visible entries", that are
+  /** 获取visible entry列表。在integration和tracker用到。
+   * Get the list of "visible entries", that are
   currently processed by integration and tracker.
   */
   uchar *GetEntriesVisibleType(void) { return entriesVisibleType->GetData(memoryType); }
 
 #ifdef COMPILE_WITH_METAL
-  const void* GetVisibleEntryIDs_MB(void) { return visibleEntryIDs->GetMetalBuffer(); }
-  const void* GetEntriesVisibleType_MB(void) { return entriesVisibleType->GetMetalBuffer(); }
+  const void *GetVisibleEntryIDs_MB(void) { return visibleEntryIDs->GetMetalBuffer(); }
+  const void *GetEntriesVisibleType_MB(void) { return entriesVisibleType->GetMetalBuffer(); }
 #endif
 };
-} 
+} // namespace ITMLib
