@@ -13,6 +13,9 @@ This is the central class for the original fixed size volume
 representation. It contains the data needed on the CPU and
 a pointer to the data structure on the GPU.
 */
+/**
+ * KinectFusion那样的voxel表示方式，非哈希，给空间所有voxel分配实际内存？？？
+*/
 class ITMPlainVoxelArray {
  public:
   struct ITMVoxelArrayInfo {

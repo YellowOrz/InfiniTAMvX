@@ -244,6 +244,7 @@ class Matrix4 : public Matrix4_<T> {
     return r;
   }
 
+  // 计算4x4矩阵的逆
   // The inverse matrix for float/double type
   _CPU_AND_GPU_CODE_ inline bool inv(Matrix4 &out) const {
     T tmp[12], src[16], det;
@@ -389,6 +390,7 @@ class Matrix3 : public Matrix3_<T> {
     memcpy(v.v, this->m + 3 * c, sizeof(T) * 3);
     return v;
   }
+  /**转置*/
   _CPU_AND_GPU_CODE_ inline Matrix3 t() { // transpose
     Matrix3 mtrans;
     for (int x = 0; x < 3; x++)

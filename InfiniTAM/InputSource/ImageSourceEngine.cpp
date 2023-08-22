@@ -62,12 +62,10 @@ size_t ImageListPathGenerator::imageCount() const {
   return rgbImagePaths.size();
 }
 
-template<typename PathGenerator>
-ImageFileReader<PathGenerator>::ImageFileReader(const char *calibFilename,
-                                                const PathGenerator &pathGenerator_,
+template <typename PathGenerator>
+ImageFileReader<PathGenerator>::ImageFileReader(const char *calibFilename, const PathGenerator &pathGenerator_,
                                                 size_t initialFrameNo)
-    : BaseImageSourceEngine(calibFilename),
-      pathGenerator(pathGenerator_) {
+    : BaseImageSourceEngine(calibFilename), pathGenerator(pathGenerator_) {
   currentFrameNo = initialFrameNo;
   cachedFrameNo = -1;
 

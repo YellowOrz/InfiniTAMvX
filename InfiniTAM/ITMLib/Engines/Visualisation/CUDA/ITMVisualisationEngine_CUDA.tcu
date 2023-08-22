@@ -348,10 +348,8 @@ static void CreatePointCloud_common(const ITMScene<TVoxel, TIndex> *scene,
                             cudaMemcpyDeviceToHost));
 }
 
-template<class TVoxel, class TIndex>
-void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene,
-                          const ITMView *view,
-                          ITMTrackingState *trackingState,
+template <class TVoxel, class TIndex>
+void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view, ITMTrackingState *trackingState,
                           ITMRenderState *renderState) {
   Vector2i imgSize = renderState->raycastResult->noDims;
   Matrix4f invM = trackingState->pose_d->GetInvM();

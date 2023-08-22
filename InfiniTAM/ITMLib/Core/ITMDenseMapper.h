@@ -27,12 +27,19 @@ class ITMDenseMapper {
                     ITMRenderState *renderState_live,
                     bool resetVisibleList = false);
 
+  
   /// Update the visible list (this can be called to update the visible list when fusion is turned off)
-  void UpdateVisibleList(const ITMView *view,
-                         const ITMTrackingState *trackingState,
-                         ITMScene<TVoxel, TIndex> *scene,
-                         ITMRenderState *renderState,
-                         bool resetVisibleList = false);
+  // 
+  /**
+   * 更新可见列表（用于fusion关闭的时候？？？）
+   * @param[in] view 当前输入图像
+   * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
+   * @param[in] scene voxel的三维模型
+   * @param[out] renderState raycasting的结果
+   * @param resetVisibleList
+   */
+  void UpdateVisibleList(const ITMView *view, const ITMTrackingState *trackingState, ITMScene<TVoxel, TIndex> *scene,
+                         ITMRenderState *renderState, bool resetVisibleList = false);
 
   /** \brief Constructor
       Ommitting a separate image size for the depth images

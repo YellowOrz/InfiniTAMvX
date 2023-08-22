@@ -22,20 +22,26 @@ class Relocaliser {
   ORUtils::Image<ElementType> *processedImage1, *processedImage2;
 
  public:
-  Relocaliser(ORUtils::Vector2<int> imgSize,
-              ORUtils::Vector2<float> range,
-              float harvestingThreshold,
-              int numFerns,
-              int numDecisionsPerFern) {
-    static const int levels = 5;
-    encoding = new FernConservatory(numFerns, imgSize / (1 << levels), range, numDecisionsPerFern);
-    relocDatabase = new RelocDatabase(numFerns, encoding->getNumCodes());
-    poseDatabase = new PoseDatabase();
-    keyframeHarvestingThreshold = harvestingThreshold;
+  /**
+   * @brief Construct a new Relocaliser object
+   * 
+   * @param[in] imgSize 用于重定位的图像大小
+   * @param[in] range ？？？
+   * @param[in] harvestingThreshold 阈值？？？
+   * @param[in] numFerns 随机蕨数量
+   * @param[in] numDecisionsPerFern ？？？ 
+   */
+   Relocaliser(ORUtils::Vector2<int> imgSize, ORUtils::Vector2<float> range, float harvestingThreshold, int numFerns,
+               int numDecisionsPerFern) {
+     static const int levels = 5;
+     encoding = new FernConservatory(numFerns, imgSize / (1 << levels), range, numDecisionsPerFern);
+     relocDatabase = new RelocDatabase(numFerns, encoding->getNumCodes());
+     poseDatabase = new PoseDatabase();
+     keyframeHarvestingThreshold = harvestingThreshold;
 
-    processedImage1 = new ORUtils::Image<ElementType>(imgSize, MEMORYDEVICE_CPU);
-    processedImage2 = new ORUtils::Image<ElementType>(imgSize, MEMORYDEVICE_CPU);
-  }
+     processedImage1 = new ORUtils::Image<ElementType>(imgSize, MEMORYDEVICE_CPU);
+     processedImage2 = new ORUtils::Image<ElementType>(imgSize, MEMORYDEVICE_CPU);
+   }
 
   ~Relocaliser(void) {
     delete encoding;

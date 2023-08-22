@@ -76,7 +76,7 @@ class ITMColorTracker : public ITMTracker {
   void ApplyDelta(const ORUtils::SE3Pose &para_old, const float *delta, ORUtils::SE3Pose &para_new) const;
 
   void TrackCamera(ITMTrackingState *trackingState, const ITMView *view);
-
+  /**渲染的时候要彩色图，因为要用于tracking*/
   bool requiresColourRendering() const { return true; }
   bool requiresDepthReliability() const { return false; }
   bool requiresPointCloudRendering() const { return true; }

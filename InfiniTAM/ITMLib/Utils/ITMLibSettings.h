@@ -38,12 +38,12 @@ class ITMLibSettings {
   /// Select the type of device to use
   DeviceType deviceType;    // 计算设备：CPU or GPU(cuda)
 
-  bool useApproximateRaycast;   // 是否使用近似raycast
+  bool useApproximateRaycast;   // 是否使用增量式的raycasting（这是一种近似）
 
   bool useBilateralFilter;      // 是否使用双边滤波
 
   /// For ITMColorTracker: skip every other point in energy function evaluation.
-  bool skipPoints;    // 在创建点云时，是否跳过某些点   // TODO(xzf):用来减少体积 ？？？
+  bool skipPoints;    // raycasting渲染RGB的点云时，是否要跳过一些点   // TODO(xzf):用来减少体积 ？？？
 
   bool createMeshingEngine;  // 是否创建Mesh模块（包含marching cube和mesh提取），会占用大量内存
 
