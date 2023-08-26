@@ -17,8 +17,10 @@
 
 #define SDF_LOCAL_BLOCK_NUM 0x40000        // Number of locally stored blocks, currently 2^17
 
-#define SDF_BUCKET_NUM 0x100000            // Number of Hash Bucket, should be 2^n and bigger than SDF_LOCAL_BLOCK_NUM, SDF_HASH_MASK = SDF_BUCKET_NUM - 1
-#define SDF_HASH_MASK 0xfffff            // Used for get hashing value of the bucket index,  SDF_HASH_MASK = SDF_BUCKET_NUM - 1
+#define SDF_BUCKET_NUM 0x100000 // hash bucket的数量，必须为2的倍数（为了用位操作替换取余），必须比SDF_LOCAL_BLOCK_NUM大（？？？）
+        // Number of Hash Bucket, should be 2^n and bigger than SDF_LOCAL_BLOCK_NUM, SDF_HASH_MASK = SDF_BUCKET_NUM - 1
+#define SDF_HASH_MASK 0xfffff // 用于从哈希值转bucket id的位操作（等价于取余），=SDF_BUCKET_NUM-1
+                              // Used for get hashing value of the bucket index,  SDF_HASH_MASK = SDF_BUCKET_NUM - 1
 #define SDF_EXCESS_LIST_SIZE 0x20000    // 0x20000 Size of excess list, used to handle collisions. Also max offset (unsigned short) value.
 
 //// for loop closure
@@ -47,7 +49,8 @@ struct ITMHashEntry {   //连续的数组  用于记录映射关系
 };
 
 namespace ITMLib {
-/** \brief
+/** @brief voxel block hash实现的核心类。
+ * @note 它包含 CPU 上所需的所有数据 和 GPU 上指向数据结构的指针。
 This is the central class for the voxel block hash
 implementation. It contains all the data needed on the CPU
 and a pointer to the data structure on the GPU.
@@ -56,9 +59,14 @@ class ITMVoxelBlockHash {
  public:
   typedef ITMHashEntry IndexData;
 
+  /** raycasting中临时存储ray找到的block信息（三维坐标 && hash id）*/
   struct IndexCache {
     Vector3i blockPos;
     int blockPtr;
+    /** 
+     * @brief 坐标初始化成最大，ptr初始化为-1
+     * @note 0x7fffffff(二进制共31个1)是int的最大值（最左边一位是符号位）
+     */
     _CPU_AND_GPU_CODE_ IndexCache(void) : blockPos(0x7fffffff), blockPtr(-1) {}
   };
 

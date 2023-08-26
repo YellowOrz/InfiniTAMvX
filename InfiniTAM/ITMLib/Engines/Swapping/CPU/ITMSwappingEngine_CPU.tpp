@@ -15,7 +15,7 @@ ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CPU(void) {
 }
 
 /**
- * @tparam TVoxel 体素信息
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param scene
  */
 template<class TVoxel>

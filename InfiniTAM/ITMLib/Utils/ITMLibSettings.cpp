@@ -7,7 +7,7 @@ using namespace ITMLib;
 #include <cmath>
 
 ITMLibSettings::ITMLibSettings(void)
-    : sceneParams(0.02f,    //
+    : sceneParams(0.02f,    // TSDF的截断值对应的距离
                   100,      // 最大观测次数
                   0.005f,   // voxel size
                   0.2f,     // 深度最近距离

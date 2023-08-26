@@ -56,6 +56,7 @@ class ITMVisualisationEngine_CPU : public ITMVisualisationEngine<TVoxel, TIndex>
                      ITMRenderState *renderState) const;
 };
 
+/** 上面ITMVisualisationEngine_CPU的偏特化 */
 template<class TVoxel>
 class ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMVisualisationEngine<TVoxel, ITMVoxelBlockHash> {
  public:

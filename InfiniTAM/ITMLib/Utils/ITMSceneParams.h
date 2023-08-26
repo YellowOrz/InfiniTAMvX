@@ -21,8 +21,9 @@ class ITMSceneParams {
   float viewFrustum_min, viewFrustum_max;   // 平截头体中，深度最近和最远距离，单位米
 
   /** \brief
-   *  对voxel中的TSDF对实际存储在卷中的截断有符号距离转换的带宽进行编码。单位为米。体素宽度=mu÷voxelSize?????
-      Encodes the width of the band of the truncated
+   * TSDF的截断值对应的距离。单位为米。TSDF值的变化间隔=mu÷voxelSize。
+   * ITMLibSettings中默认设定为0.2。
+   * Encodes the width of the band of the truncated
       signed distance transform that is actually stored
       in the volume. This is again usually specified in
       meters. The resulting width in voxels is @ref mu

@@ -17,13 +17,13 @@ class ITMRenderState_VH : public ITMRenderState {
 private:
   MemoryDeviceType memoryType;
 
-  /** 可见entries列表（即正被tracker处理的）的id
+  /** 可见entries列表（即正被tracker处理的）的id。
    * A list of "visible entries", that are currently
   being processed by the tracker.
   */
   ORUtils::MemoryBlock<int> *visibleEntryIDs;
 
-  /** 可见entries列表（即正被integration和tracker处理的）的类型
+  /** 可见entries列表（即正被integration和tracker处理的）的类型。
    * A list of "visible entries", that are
   currently being processed by integration
   and tracker.

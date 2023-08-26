@@ -56,10 +56,9 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   return eta;
 }
 
-template<class TVoxel>
 /**
- *
- * @tparam TVoxel
+ * Integration 融合 将新的深度图融合到三维模型里面
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param voxel 体素块？
  * @param pt_model
  * @param M_d 当前深度图像位姿
@@ -71,7 +70,7 @@ template<class TVoxel>
  * @param imgSize  当前图像的大小 像素
  * @return
  */
- // Integration 融合 将新的深度图融合到三维模型里面
+template<class TVoxel>
 _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &voxel,
                                                              const THREADPTR(Vector4f) &pt_model,
                                                              const CONSTPTR(Matrix4f) &M_d,

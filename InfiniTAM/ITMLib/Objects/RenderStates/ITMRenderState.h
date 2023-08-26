@@ -31,7 +31,7 @@ class ITMRenderState {
   */
   ORUtils::Image<Vector2f> *renderingRangeImage;  // TODO:可以设置成private吗？
 
-  /** raycasting的结果。每个像素记录对应ray跟三维模型的交点坐标。
+  /** raycasting的结果。每个像素记录对应ray跟三维模型的交点（使用voxel坐标）。
    * 那为啥是4f？？？
    * 英文注释说是raycasting的“by-product”，那raycasting的真正输出是什么？？？
   Float rendering output of the scene, containing the 3D
@@ -53,7 +53,7 @@ class ITMRenderState {
    * @param imgSize raycasting的图像大小
    * @param vf_min 视锥的最近距离
    * @param vf_max 视锥的最远距离
-   * @param memoryType 内存类型：
+   * @param memoryType 内存类型：GPU or CPU
    */
   ITMRenderState(const Vector2i &imgSize, float vf_min, float vf_max, MemoryDeviceType memoryType) {
     renderingRangeImage = new ORUtils::Image<Vector2f>(imgSize, memoryType);
@@ -72,8 +72,8 @@ class ITMRenderState {
 #ifndef COMPILE_WITHOUT_CUDA
       renderingRangeImage->SetFrom(buffImage, ORUtils::MemoryBlock<Vector2f>::CPU_TO_CUDA);
 #endif
-    } else renderingRangeImage->SetFrom(buffImage, ORUtils::MemoryBlock<Vector2f>::CPU_TO_CPU); 
-    //TODO： CPU直接给renderingRangeImage赋值就好，不用加个中间商buffImage
+    } else  //TODO： CPU直接给renderingRangeImage赋值就好，不用加个中间商buffImage
+      renderingRangeImage->SetFrom(buffImage, ORUtils::MemoryBlock<Vector2f>::CPU_TO_CPU); 
 
     delete buffImage;
 

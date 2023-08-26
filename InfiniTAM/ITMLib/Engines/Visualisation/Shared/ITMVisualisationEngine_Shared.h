@@ -146,22 +146,22 @@ _CPU_AND_GPU_CODE_ inline void CreateRenderingBlocks(DEVICEPTR(RenderingBlock) *
 
 #endif
 /**
- * @
- * @tparam TVoxel
- * @tparam TIndex
- * @tparam modifyVisibleEntries
- * @param pt_out 要计算的ray的交点
- * @param entriesVisibleType  visible entry列表。updateVisibleList为false的话，=NULL
+ * @brief 计算单个ray的投射结果
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam modifyVisibleEntries 是否要顺带修改visile entry列表。为啥弄成模板参数、不弄成函数参数？？？
+ * @param[out] pt_out 要计算的ray的交点。最后一位是权重
+ * @param[out] entriesVisibleType  visible entry列表。如果modifyVisibleEntries为true，则顺带更新
  * @param[in] x raycasting得到的图像上的像素坐标
  * @param[in] y raycasting得到的图像上的像素坐标
- * @param[in] voxelData voxel block array？？？
- * @param[in] voxelIndex hash table？？？
+ * @param[in] voxelData voxel block array
+ * @param[in] voxelIndex hash table
  * @param[in] invM 当前视角的相机 到 世界坐标系 的变换矩阵？？？
  * @param[in] invProjParams 相机内参的逆。fx、fy取倒数，cx、cy取负
  * @param[in] oneOverVoxelSize voxel size的倒数
- * @param[in] mu ???搞清楚！！！
+ * @param[in] mu TSDF的截断值对应的距离
  * @param[in] viewFrustum_minmax ray的最大最小深度
- * @return 
+ * @return
  */
 template <class TVoxel, class TIndex, bool modifyVisibleEntries>
 _CPU_AND_GPU_CODE_ inline bool
@@ -169,61 +169,62 @@ castRay(DEVICEPTR(Vector4f) & pt_out, DEVICEPTR(uchar) * entriesVisibleType, int
         const CONSTPTR(TVoxel) * voxelData, const CONSTPTR(typename TIndex::IndexData) * voxelIndex, Matrix4f invM,
         Vector4f invProjParams, float oneOverVoxelSize, float mu, const CONSTPTR(Vector2f) & viewFrustum_minmax) {
 
-  float stepScale = mu * oneOverVoxelSize;
-  //! 根据视锥来确定ray的起点、终点、单位方向
-  Vector4f pt_camera_f; 
+  float stepScale = mu * oneOverVoxelSize;  // TSDF截断值对应的voxel数量
+  //! 使用depth的最大最小值 && 相机内参的反投影 来确定三维空间中ray的起点、终点、单位方向
+  Vector4f pt_camera_f;   // ray的三维齐次坐标
   pt_camera_f.z = viewFrustum_minmax.x;
-  pt_camera_f.x = pt_camera_f.z * ((float(x) + invProjParams.z) * invProjParams.x);
-  pt_camera_f.y = pt_camera_f.z * ((float(y) + invProjParams.w) * invProjParams.y);
+  pt_camera_f.x = pt_camera_f.z * ((float(x) + invProjParams.z) * invProjParams.x); // X = Z_min * (u - cx) / fx
+  pt_camera_f.y = pt_camera_f.z * ((float(y) + invProjParams.w) * invProjParams.y); // Y = Z_min * (v - cy) / fy
   pt_camera_f.w = 1.0f;
-  float totalLength = length(TO_VECTOR3(pt_camera_f)) * oneOverVoxelSize;     //ray的最小长度
-  Vector3f pt_block_s = TO_VECTOR3(invM * pt_camera_f) * oneOverVoxelSize;    // 起点
+  float totalLength = length(TO_VECTOR3(pt_camera_f)) * oneOverVoxelSize;     // ray的最小长度，作为后面的初始长度
+  Vector3f pt_block_s = TO_VECTOR3(invM * pt_camera_f) * oneOverVoxelSize;    // ray的起点，为voxel坐标
 
   pt_camera_f.z = viewFrustum_minmax.y;
   pt_camera_f.x = pt_camera_f.z * ((float(x) + invProjParams.z) * invProjParams.x);
   pt_camera_f.y = pt_camera_f.z * ((float(y) + invProjParams.w) * invProjParams.y);
   pt_camera_f.w = 1.0f;
-  float totalLengthMax = length(TO_VECTOR3(pt_camera_f)) * oneOverVoxelSize;  // ray的最大长度
-  Vector3f pt_block_e = TO_VECTOR3(invM * pt_camera_f) * oneOverVoxelSize;    // 终点
+  float totalLengthMax = length(TO_VECTOR3(pt_camera_f)) * oneOverVoxelSize;  // ray的最大长度。用来限定ray的距离
+  Vector3f pt_block_e = TO_VECTOR3(invM * pt_camera_f) * oneOverVoxelSize;    // ray的终点
 
   Vector3f rayDirection = pt_block_e - pt_block_s;
   float direction_norm =
       1.0f / sqrt(rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z);
-  rayDirection *= direction_norm;                                             // 单位方向
+  rayDirection *= direction_norm;                                             // ray的单位方向
 
+  //! 从起点开始 增加ray的长度 直到找到第一个SDF为负的voxel
   Vector3f pt_result = pt_block_s;
-
   typename TIndex::IndexCache cache;
-  float stepLength, sdfValue = 1.0f, confidence;
-  bool pt_found;
-  int vmIndex;
+  float stepLength, sdfValue = 1.0f;
+  int vmIndex;  // ray所在block的hash id。表示是否找到了非空的block，若找不到=0
   while (totalLength < totalLengthMax) {
+    // 读取tsdf
     sdfValue = readFromSDF_float_uninterpolated(voxelData, voxelIndex, pt_result, vmIndex, cache);
-
+    // 找到了block，顺带更新可见性（如果需要的话）
     if (modifyVisibleEntries) { // entry的可见性在这儿更新
       if (vmIndex)
-        entriesVisibleType[vmIndex - 1] = 1;
+        entriesVisibleType[vmIndex - 1] = 1;  // 减1是因为读取TSDF中vmIndex=hash_id+1（∵hash_id从0开始）
     }
-
-    if (!vmIndex) {
+    // 更新步长
+    if (!vmIndex) {   // 还没找到有效block，使用大步长（=block size）
       stepLength = SDF_BLOCK_SIZE;
-    } else {
-      if ((sdfValue <= 0.1f) && (sdfValue >= -0.5f)) {
+    } else {          // 找到有效block，使用小步长（在block内部搜索）
+      if ((sdfValue <= 0.1f) && (sdfValue >= -0.5f))  // 距离等值面很近了，插值读取TSDF(第一次三线性插值)
         sdfValue = readFromSDF_float_interpolated(voxelData, voxelIndex, pt_result, vmIndex, cache);
-      }
-      if (sdfValue <= 0.0f)
-        break;
-      stepLength = MAX(sdfValue * stepScale, 1.0f);
+      if (sdfValue <= 0.0f) break;                    //! 找到第一个SDF值为负的voxel停止 
+      stepLength = MAX(sdfValue * stepScale, 1.0f);   // 计算当前位置到等值面有多少个voxel，作为步长
     }
-
+    // ray前进
     pt_result += stepLength * rayDirection;
     totalLength += stepLength;
   }
-
+  //! 找到后往回退就可以找到等值面 
+  bool pt_found;
+  float confidence;
   if (sdfValue <= 0.0f) {
+    // 步子回退
     stepLength = sdfValue * stepScale;
     pt_result += stepLength * rayDirection;
-
+    // 读取TSDF和confidence，然后再次更新步长。因为是拿等值面附近的voxel再次插值，所以更准确
     sdfValue =
         readWithConfidenceFromSDF_float_interpolated(confidence, voxelData, voxelIndex, pt_result, vmIndex, cache);
 
@@ -234,7 +235,7 @@ castRay(DEVICEPTR(Vector4f) & pt_out, DEVICEPTR(uchar) * entriesVisibleType, int
   } else
     pt_found = false;
 
-  pt_out.x = pt_result.x;
+  pt_out.x = pt_result.x;   // TODO: 为啥不放到if (pt_found)里面？？？难道pt_found=false也要用到？？？
   pt_out.y = pt_result.y;
   pt_out.z = pt_result.z;
   if (pt_found)
@@ -279,7 +280,20 @@ _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoin
   if (!(angle > 0.0))
     foundPoint = false;
 }
-
+/**
+ * 计算有序点云中单个点法向量和夹角，使用有限差分法
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[in, out] foundPoint 该点是否有效。在图像边缘被强制设为无效（因为没法算法向量）
+ * @param[in] x 像素坐标
+ * @param[in] y 像素坐标
+ * @param[in] pointsRay 有序点云（voxel坐标）。第四个维度是权重
+ * @param[in] lightSource 当前视角的相机 到 世界坐标系 的变换矩阵 的平移，用来判断法向量朝向
+ * @param[in] voxelSize
+ * @param[in] imgSize 有序点云对应的图像大小（x+y）
+ * @param[out] outNormal 该点的法向量
+ * @param[out] angle 该点的法向量与lightSource的夹角
+ */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
 computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, const THREADPTR(int) & y,
@@ -288,11 +302,10 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
                       THREADPTR(Vector3f) & outNormal, THREADPTR(float) & angle) {
   if (!foundPoint)
     return;
-
+  //! 取相邻像素
   Vector4f xp1_y, xm1_y, x_yp1, x_ym1;
-
-  if (useSmoothing) {
-    if (y <= 2 || y >= imgSize.y - 3 || x <= 2 || x >= imgSize.x - 3) {
+  if (useSmoothing) {   // 如果要平滑，则用更大的
+    if (y <= 2 || y >= imgSize.y - 3 || x <= 2 || x >= imgSize.x - 3) {   // 图像边缘的不算
       foundPoint = false;
       return;
     }
@@ -308,11 +321,10 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
     xp1_y = pointsRay[(x + 1) + y * imgSize.x], x_yp1 = pointsRay[x + (y + 1) * imgSize.x];
     xm1_y = pointsRay[(x - 1) + y * imgSize.x], x_ym1 = pointsRay[x + (y - 1) * imgSize.x];
   }
-
+  //! 计算差分
   Vector4f diff_x(0.0f, 0.0f, 0.0f, 0.0f), diff_y(0.0f, 0.0f, 0.0f, 0.0f);
-
-  bool doPlus1 = false;
-  if (xp1_y.w <= 0 || x_yp1.w <= 0 || xm1_y.w <= 0 || x_ym1.w <= 0)
+  bool doPlus1 = false;   // 是否重新计算
+  if (xp1_y.w <= 0 || x_yp1.w <= 0 || xm1_y.w <= 0 || x_ym1.w <= 0) // 只要相邻点有一个无效，就重算
     doPlus1 = true;
   else {
     diff_x = xp1_y - xm1_y, diff_y = x_yp1 - x_ym1;
@@ -320,12 +332,12 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
     float length_diff = MAX(diff_x.x * diff_x.x + diff_x.y * diff_x.y + diff_x.z * diff_x.z,
                             diff_y.x * diff_y.x + diff_y.y * diff_y.y + diff_y.z * diff_y.z);
 
-    if (length_diff * voxelSize * voxelSize > (0.15f * 0.15f))
+    if (length_diff * voxelSize * voxelSize > (0.15f * 0.15f))      // 差分的模长>0.15米 就重算（可能是物体边缘）
       doPlus1 = true;
   }
 
-  if (doPlus1) {
-    if (useSmoothing) {
+  if (doPlus1) {  
+    if (useSmoothing) {   // 只有前面用更大范围计算的时候才要重算
       xp1_y = pointsRay[(x + 1) + y * imgSize.x];
       x_yp1 = pointsRay[x + (y + 1) * imgSize.x];
       xm1_y = pointsRay[(x - 1) + y * imgSize.x];
@@ -339,7 +351,7 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
       return;
     }
   }
-
+  //! 叉乘得到法向量 && 归一化
   outNormal.x = -(diff_x.y * diff_y.z - diff_x.z * diff_y.y);
   outNormal.y = -(diff_x.z * diff_y.x - diff_x.x * diff_y.z);
   outNormal.z = -(diff_x.x * diff_y.y - diff_x.y * diff_y.x);
@@ -349,7 +361,7 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
 
   float normScale = 1.0f / sqrt(outNormal.x * outNormal.x + outNormal.y * outNormal.y + outNormal.z * outNormal.z);
   outNormal *= normScale;
-
+  //! 计算夹角
   angle = outNormal.x * lightSource.x + outNormal.y * lightSource.y + outNormal.z * lightSource.z;
   if (!(angle > 0.0))
     foundPoint = false;
@@ -447,26 +459,39 @@ _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, 
     normalsMap = out4;
   }
 }
-
+/**
+ * 计算有序点云中 单个像素的真实坐标 && 法向量
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[out] pointsMap 最终点云（真实坐标）
+ * @param[out] normalsMap 点云对应的法向量
+ * @param[in] pointsRay 有序点云（voxel坐标）。第四个维度是权重
+ * @param[in] imgSize 有序点云对应的图像大小（x+y）
+ * @param[in] x 像素坐标
+ * @param[in] y 像素坐标
+ * @param[in] voxelSize 
+ * @param[in] lightSource 当前视角的相机 到 世界坐标系 的变换矩阵 的平移，用来判断法向量朝向
+ * @note 好像是raycasting专用的
+ */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
 processPixelICP(DEVICEPTR(Vector4f) * pointsMap, DEVICEPTR(Vector4f) * normalsMap, const CONSTPTR(Vector4f) * pointsRay,
                 const THREADPTR(Vector2i) & imgSize, const THREADPTR(int) & x, const THREADPTR(int) & y,
                 float voxelSize, const THREADPTR(Vector3f) & lightSource) {
+  //! 计算 normal && angle
   Vector3f outNormal;
-  float angle;
+  float angle;  // TODO: 没有用到???
 
   int locId = x + y * imgSize.x;
   Vector4f point = pointsRay[locId];
-
   bool foundPoint = point.w > 0.0f;
 
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-
+  //! 记录：图像边缘的没有法向量
   if (foundPoint) {
     Vector4f outPoint4;
-    outPoint4.x = point.x * voxelSize;
+    outPoint4.x = point.x * voxelSize;    // 真实坐标
     outPoint4.y = point.y * voxelSize;
     outPoint4.z = point.z * voxelSize;
     outPoint4.w = point.w; // outPoint4.w = 1.0f;
