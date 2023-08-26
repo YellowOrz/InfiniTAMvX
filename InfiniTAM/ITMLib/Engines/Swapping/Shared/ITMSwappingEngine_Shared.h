@@ -4,7 +4,7 @@
 
 #include "../../../Utils/ITMMath.h"
 /**
- * @tparam Tvoxel 体素信息
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param [in]src 上一帧体素信息
  * @param [in]dst 当前帧体素信息 ; 设备上新一帧的体素信息
  * @param [in]maxW 最大深度内的点的个数
@@ -31,7 +31,7 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxe
 }
 
 /**
- * @tparam Tvoxel 体素信息
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param [in]src 上一帧体素信息
  * @param [in]dst 当前帧体素信息 设备上新一帧的体素信息
  * @param [in]maxW

@@ -75,7 +75,6 @@ class ITMTrackingController {
     //! render for tracking
     bool requiresColourRendering = tracker->requiresColourRendering();  // depth tracking为false，rgb tracking为true
     bool requiresFullRendering = trackingState->TrackerFarFromPointCloud() || !settings->useApproximateRaycast;
-    printf("requiresColourRendering=%d, requiresFullRendering=%d\n",requiresColourRendering,requiresFullRendering);
     if (requiresColourRendering) {
       // 计算rgb图的坐标系下的位姿 = T_d2r * T_w2d  ？？？这里反了吧？？？应该是T_w2d * T_d2r
       ORUtils::SE3Pose pose_rgb(view->calib.trafo_rgb_to_depth.calib_inv * trackingState->pose_d->GetM());
@@ -93,7 +92,7 @@ class ITMTrackingController {
         trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
         if (trackingState->age_pointCloud == -1) trackingState->age_pointCloud = -2;
         else trackingState->age_pointCloud = 0;
-      } else {                      // 增量式的raycasting
+    } else {                      // 增量式的raycasting // TODO
         visualisationEngine->ForwardRender(scene, view, trackingState, renderState);
         trackingState->age_pointCloud++;
       }

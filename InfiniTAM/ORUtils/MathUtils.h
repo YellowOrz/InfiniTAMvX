@@ -19,7 +19,7 @@
 #endif
 
 #ifndef ROUND
-#define ROUND(x) ((x < 0) ? (x - 0.5f) : (x + 0.5f))
+#define ROUND(x) ((x < 0) ? (x - 0.5f) : (x + 0.5f))  // 背向零取整
 #endif
 
 #ifndef PI

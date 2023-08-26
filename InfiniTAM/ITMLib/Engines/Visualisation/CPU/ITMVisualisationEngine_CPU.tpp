@@ -153,8 +153,6 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     // 分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)=(16,16)。ceilf是向上取整。为啥要分块渲染？？？
     Vector2i requiredRenderingBlocks((int)ceilf((float)(lowerRight.x - upperLeft.x + 1) / (float)renderingBlockSizeX),
                                      (int)ceilf((float)(lowerRight.y - upperLeft.y + 1) / (float)renderingBlockSizeY));
-    printf("=========(renderingBlockSizeX,renderingBlockSizeY)=(%d,%d)\n", renderingBlockSizeX, renderingBlockSizeY);
-    printf("=========(requiredRenderingBlocks.x,requiredRenderingBlocks.y)=(%d,%d)\n", requiredRenderingBlocks.x, requiredRenderingBlocks.y);
     int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 分块数量
 
     if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS)
@@ -185,13 +183,13 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
 
 /**
  * @brief 
- * @tparam TVoxel
- * @tparam TIndex
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[in] scene 三维场景信息
  * @param[in] imgSize raycasting得到的图像大小（x+y）
  * @param[in] invM 当前视角的相机 到 世界坐标系 的变换矩阵？？？
  * @param[in] projParams 相机内参，即fx、fy、cx(px)、cy(py)
- * @param[in, out] renderState 
+ * @param[in, out] renderState 里面的renderingRangeImage给定ray的范围，raycastResult是结果点云（voxel坐标下）
  * @param updateVisibleList 在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
  */
 template <class TVoxel, class TIndex>
@@ -201,9 +199,9 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
   const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 之前计算好的渲染小块
   float mu = scene->sceneParams->mu;                                              // voxel size=0.005的话，=0.02？？？
   float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;                  // voxel size的倒数
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // voxel block array？？？
-  const typename ITMVoxelBlockHash::IndexData *voxelIndex = scene->index.getIndexData();  // hash table？？？
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点（voxel坐标）
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // voxel block array
+  const typename ITMVoxelBlockHash::IndexData *voxelIndex = scene->index.getIndexData();  // hash table
   uchar *entriesVisibleType = NULL;
   if (updateVisibleList && (dynamic_cast<const ITMRenderState_VH *>(renderState) != NULL)) {  // TODO:为啥用dynamic_cast？？？
     entriesVisibleType = ((ITMRenderState_VH *)renderState)->GetEntriesVisibleType();   // visible entry列表
@@ -320,8 +318,8 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
 
 /**
  *
- * @tparam TVoxel
- * @tparam TIndex
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param scene
  * @param view
  * @param trackingState
@@ -360,16 +358,17 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   Vector2i imgSize = renderState->raycastResult->noDims; // 要raycast的图片大小（x+y）
   Matrix4f invM = trackingState->pose_d->GetInvM();      // 当前视角的相机 到 世界坐标系 的变换矩阵？？？
 
-  //! 计算raycast得到的点云 && 记录位姿
+  //! 计算raycast得到的点云（voxel坐标） && 记录位姿
   // this one is generally done for the ICP tracker, so yes, update
   // the list of visible blocks if possible
   GenericRaycast(scene, imgSize, invM, view->calib.intrinsics_d.projectionParamsSimple.all, renderState, true);
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
 
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));    // 取平移
-  Vector4f *normalsMap = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CPU);
-  Vector4f *pointsMap = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU);
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
+  //! 计算点云的真实坐标 && 法向量
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));    // 取平移，用来判断法向量朝向
+  Vector4f *pointsMap = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU);  // 最终的点云
+  Vector4f *normalsMap = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CPU);   // 最终点云的法向量
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 上面raycast的点云
   float voxelSize = scene->sceneParams->voxelSize;
 
 #ifdef WITH_OPENMP
@@ -377,9 +376,9 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
 #endif
   for (int y = 0; y < imgSize.y; y++)
     for (int x = 0; x < imgSize.x; x++) {
-      if (view->calib.intrinsics_d.FocalLengthSignsDiffer()) {
+      if (view->calib.intrinsics_d.FocalLengthSignsDiffer()) {  
         processPixelICP<true, true>(pointsMap, normalsMap, pointsRay, imgSize, x, y, voxelSize, lightSource);
-      } else {
+      } else {  // 特殊的数据集，计算出来的法向量要翻转
         processPixelICP<true, false>(pointsMap, normalsMap, pointsRay, imgSize, x, y, voxelSize, lightSource);
       }
     }

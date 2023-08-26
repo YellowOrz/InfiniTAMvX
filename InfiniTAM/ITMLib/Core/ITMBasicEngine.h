@@ -16,7 +16,6 @@
 namespace ITMLib {
 /**
  * @brief 最基础的SLAM系统
- * 
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  */
@@ -109,8 +108,8 @@ class ITMBasicEngine : public ITMMainEngine {
   */
   /**
    * 构建base SLAM系统：使用Voxel & 无回环
-   * @tparam TVoxel
-   * @tparam TIndex 
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+   * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
    * @param[in] settings  相关设置
    * @param[in] calib 相机参数
    * @param[in] imgSize_rgb 彩色图大小
