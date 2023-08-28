@@ -27,10 +27,12 @@ template<typename T>
 class MemoryBlock {
  protected:
   bool isAllocated_CPU, isAllocated_CUDA, isMetalCompatible;
-  /** Pointer to memory on CPU host. */
+  /** 存在内存上的数据。
+   * Pointer to memory on CPU host. */
   DEVICEPTR(T) *data_cpu;
 
-  /** Pointer to memory on GPU, if available. */
+  /** 存在显存上的数据。
+   * Pointer to memory on GPU, if available. */
   DEVICEPTR(T) *data_cuda;
 
 #ifdef COMPILE_WITH_METAL
@@ -74,7 +76,8 @@ class MemoryBlock {
     this->isAllocated_CUDA = false;
     this->isMetalCompatible = false;
 
-#ifndef NDEBUG // When building in debug mode always allocate both on the CPU and the GPU
+#ifndef NDEBUG // Debug模式，即使指定GPU了也要在CPU上存一份，方便调试
+               // When building in debug mode always allocate both on the CPU and the GPU
     if (allocate_CUDA) allocate_CPU = true;
 #endif
 

@@ -6,17 +6,17 @@
 #include "../../../ORUtils/MemoryBlockPersister.h"
 
 namespace ITMLib {
-/** \brief
+/** @brief 
 Stores the actual voxel content that is referred to by a
 ITMLib::ITMHashTable.
 */
 template<class TVoxel>
 class ITMLocalVBA {
  private:
-  ORUtils::MemoryBlock<TVoxel> *voxelBlocks;
-  ORUtils::MemoryBlock<int> *allocationList;
+  ORUtils::MemoryBlock<TVoxel> *voxelBlocks;  // voxel block array 
+  ORUtils::MemoryBlock<int> *allocationList;  // ???
 
-  MemoryDeviceType memoryType;
+  MemoryDeviceType memoryType;                // 存储类型：CPU or GPU
 
  public:
   inline TVoxel *GetVoxelBlocks(void) { return voxelBlocks->GetData(memoryType); }
@@ -31,6 +31,7 @@ class ITMLocalVBA {
 
   int allocatedSize;
 
+  /** 将所有数据保存到硬盘上 */
   void SaveToDirectory(const std::string &outputDirectory) const {
     std::string VBFileName = outputDirectory + "voxel.dat";
     std::string ALFileName = outputDirectory + "alloc.dat";
@@ -45,6 +46,7 @@ class ITMLocalVBA {
     ofs << lastFreeBlockId << ' ' << allocatedSize;
   }
 
+  /** 从硬盘读取数据 */
   void LoadFromDirectory(const std::string &inputDirectory) {
     std::string VBFileName = inputDirectory + "voxel.dat";
     std::string ALFileName = inputDirectory + "alloc.dat";
@@ -59,6 +61,12 @@ class ITMLocalVBA {
     ifs >> lastFreeBlockId >> allocatedSize;
   }
 
+  /**
+   * @brief Construct a new ITMLocalVBA object
+   * @param memoryType 
+   * @param noBlocks 
+   * @param blockSize 
+   */
   ITMLocalVBA(MemoryDeviceType memoryType, int noBlocks, int blockSize) {
     this->memoryType = memoryType;
 

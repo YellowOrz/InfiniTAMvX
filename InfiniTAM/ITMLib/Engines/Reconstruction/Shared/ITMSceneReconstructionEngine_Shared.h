@@ -253,100 +253,89 @@ struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
   }
 };
 
-_CPU_AND_GPU_CODE_ inline void buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) *entriesAllocType,
-                                                              DEVICEPTR(uchar) *entriesVisibleType,
-                                                              int x,
-                                                              int y,
-                                                              DEVICEPTR(Vector4s) *blockCoords,
-                                                              const CONSTPTR(float) *depth,
-                                                              Matrix4f invM_d,
-                                                              Vector4f projParams_d,
-                                                              float mu,
-                                                              Vector2i imgSize,
-                                                              float oneOverVoxelSize,
-                                                              const CONSTPTR(ITMHashEntry) *hashTable,
-                                                              float viewFrustum_min,
-                                                              float viewFrustum_max) {
-  float depth_measure;
-  unsigned int hashIdx;
-  int noSteps;
-  Vector4f pt_camera_f;
-  Vector3f point_e, point, direction;
-  Vector3s blockPos;
-
-  depth_measure = depth[x + y * imgSize.x];
+/**
+ * 
+ * @param entriesAllocType
+ * @param entriesVisibleType
+ * @param[in] x 像素坐标
+ * @param[in] y 像素坐标
+ * @param blockCoords
+ * @param[in] depth 深度图
+ * @param[in] invM_d 深度图位姿的逆（local to world？？？）
+ * @param[in] projParams_d 深度图相机内参的反投影
+ * @param[in] mu TSDF的截断值对应的距离
+ * @param[in] imgSize 图像分辨率（x*y)
+ * @param[in] oneOverVoxelSize block实际边长的倒数。不应该叫VoxelSize
+ * @param hashTable
+ * @param[in] viewFrustum_min 视锥中最小深度
+ * @param[in] viewFrustum_max 视锥中最大深度
+ */
+_CPU_AND_GPU_CODE_ inline void
+buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uchar) * entriesVisibleType, int x, int y,
+                               DEVICEPTR(Vector4s) * blockCoords, const CONSTPTR(float) * depth, Matrix4f invM_d,
+                               Vector4f projParams_d, float mu, Vector2i imgSize, float oneOverVoxelSize,
+                               const CONSTPTR(ITMHashEntry) * hashTable, float viewFrustum_min, float viewFrustum_max) {
+  //! 深度图中的像素 反投影 成三维点
+  float depth_measure = depth[x + y * imgSize.x];
   if (depth_measure <= 0 || (depth_measure - mu) < 0 || (depth_measure - mu) < viewFrustum_min
-      || (depth_measure + mu) > viewFrustum_max)
+      || (depth_measure + mu) > viewFrustum_max)  // TODO: viewFrustum_min肯定比0大吧？？？
     return;
 
-  //图像坐标中的深度
+  Vector4f pt_camera_f;
   pt_camera_f.z = depth_measure;
   pt_camera_f.x = pt_camera_f.z * ((float(x) - projParams_d.z) * projParams_d.x);
   pt_camera_f.y = pt_camera_f.z * ((float(y) - projParams_d.w) * projParams_d.y);
-
+  //! 找到三维点前后距离mu的block（朝向光心是前面）
   float norm = sqrt(pt_camera_f.x * pt_camera_f.x + pt_camera_f.y * pt_camera_f.y + pt_camera_f.z * pt_camera_f.z);
 
-  Vector4f pt_buff;
-
-  pt_buff = pt_camera_f * (1.0f - mu / norm);
+  Vector4f pt_buff = pt_camera_f * (1.0f - mu / norm);
   pt_buff.w = 1.0f;
-  point = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize;
-
+  Vector3f point = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize;   // 前面的block坐标。先转到世界坐标系下，然后转成block坐标
   pt_buff = pt_camera_f * (1.0f + mu / norm);
   pt_buff.w = 1.0f;
-  point_e = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize;
+  Vector3f point_e = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize; // 后面的block坐标
+  Vector3f direction = point_e - point;
+  norm = sqrt(direction.x * direction.x + direction.y * direction.y + 
+              direction.z * direction.z);   // 若mu=4*voxel_size（即默认设置），则direction长度为一个block（即norm=1）
+  int noSteps = (int) ceil(2.0f * norm);    // ？？？步长为半个mu？？？那为啥下面要减1？
+  direction /= (float) (noSteps - 1);                                 // 单位方向向量
 
-  direction = point_e - point;
-  norm = sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
-  noSteps = (int) ceil(2.0f * norm);
-
-  direction /= (float) (noSteps - 1);
-
-  //add neighbouring blocks
+  //! 寻找前后范围mu之内的所有block // add neighbouring blocks
+  unsigned int hashIdx;
+  Vector3s blockPos;
   for (int i = 0; i < noSteps; i++) {
-    blockPos = TO_SHORT_FLOOR3(point);//在此线段上获取voxel对应的voxel block坐标
-
-    //compute index in hash table
-    hashIdx = hashIndex(blockPos);
-
-    //check if hash table contains entry
-    bool isFound = false;
-
+    // 获取当前block的hash id和entry
+    blockPos = TO_SHORT_FLOOR3(point);
+    hashIdx = hashIndex(blockPos);  //compute index in hash table
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
-    //检查该voxel block是否已经allocation
-    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
+    //当前block是否已经allocation   //check if hash table contains entry
+    bool isFound = false;
+    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {  // 判断IS_EQUAL3是因为存在哈希冲突
       //entry has been streamed out but is visible or in memory and visible
-      entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;
-
+      entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;  // ???
       isFound = true;
     }
 
-    if (!isFound) {
+    if (!isFound) {   // 上面没找到可能是因为哈希冲突，继续遍历entry对应的bucket
       bool isExcess = false;
-      if (hashEntry.ptr >= -1) //seach excess list only if there is no room in ordered part
-      {
+      if (hashEntry.ptr >= -1) { //seach excess list only if there is no room in ordered part
         while (hashEntry.offset >= 1) {
           hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;
           hashEntry = hashTable[hashIdx];
-
           if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
             //entry has been streamed out but is visible or in memory and visible
             entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;
-
             isFound = true;
             break;
           }
         }
-
-        isExcess = true;
+        isExcess = true;    // TODO:下次从这儿开始。isExcess没机会是false吧？？？
       }
 
-      if (!isFound) //still not found
-      {
+      if (!isFound) { // 遍历完bucket后还是没找到，说明这个block就没有被allocation，
         entriesAllocType[hashIdx] = isExcess ? 2 : 1; //needs allocation
         if (!isExcess) entriesVisibleType[hashIdx] = 1; //new entry is visible
-
         //没有allocation，在哈希表上进行标记，之后遍历哈希表进行更新
         blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1);
       }

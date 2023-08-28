@@ -312,7 +312,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
     }
   }
   //! 将当前帧融合进三维模型
-  bool didFusion = false;
+  bool didFusion = false;   // 是否融合成功
   // 同时满足条件：① 跟踪good or 不是刚刚初始化；② 开启fusion；③ 没有重定位失败
   if ((trackerResult == ITMTrackingState::TRACKING_GOOD || !trackingInitialised) && (fusionActive)
       && (relocalisationCount == 0)) {

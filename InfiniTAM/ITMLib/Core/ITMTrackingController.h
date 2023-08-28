@@ -56,8 +56,7 @@ class ITMTrackingController {
     }
   }
   /**
-   * @brief 均匀划分的voxel场景的raycast
-   *
+   * @brief voxel场景的raycast
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
    * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
@@ -75,7 +74,7 @@ class ITMTrackingController {
     //! render for tracking
     bool requiresColourRendering = tracker->requiresColourRendering();  // depth tracking为false，rgb tracking为true
     bool requiresFullRendering = trackingState->TrackerFarFromPointCloud() || !settings->useApproximateRaycast;
-    if (requiresColourRendering) {
+    if (requiresColourRendering) {  //! 带彩色图的raycasting
       // 计算rgb图的坐标系下的位姿 = T_d2r * T_w2d  ？？？这里反了吧？？？应该是T_w2d * T_d2r
       ORUtils::SE3Pose pose_rgb(view->calib.trafo_rgb_to_depth.calib_inv * trackingState->pose_d->GetM());
       // 估计raycasting的深度范围
@@ -83,7 +82,7 @@ class ITMTrackingController {
       // raycasting
       visualisationEngine->CreatePointCloud(scene, view, trackingState, renderState, settings->skipPoints);
       trackingState->age_pointCloud = 0;
-    } else {
+    } else {                        //! 不带彩色图的raycasting
       // 估计raycasting的深度范围
       visualisationEngine->CreateExpectedDepths(scene, trackingState->pose_d, &(view->calib.intrinsics_d), renderState);
       // raycasting

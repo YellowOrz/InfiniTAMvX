@@ -182,7 +182,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
 }
 
 /**
- * @brief 
+ * @brief raycasting的核心部分
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[in] scene 三维场景信息
@@ -190,7 +190,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
  * @param[in] invM 当前视角的相机 到 世界坐标系 的变换矩阵？？？
  * @param[in] projParams 相机内参，即fx、fy、cx(px)、cy(py)
  * @param[in, out] renderState 里面的renderingRangeImage给定ray的范围，raycastResult是结果点云（voxel坐标下）
- * @param updateVisibleList 在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
+ * @param[in] updateVisibleList 在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
  */
 template <class TVoxel, class TIndex>
 static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i &imgSize, const Matrix4f &invM,

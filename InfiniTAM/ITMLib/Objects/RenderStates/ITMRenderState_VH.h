@@ -55,7 +55,7 @@ public:
   const int *GetVisibleEntryIDs(void) const { return visibleEntryIDs->GetData(memoryType); }
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
 
-  /** 获取visible entry列表。在integration和tracker用到。
+  /** 获取visible entry列表。在integration和tracker用到。？？？还是类型？？？
    * Get the list of "visible entries", that are
   currently processed by integration and tracker.
   */

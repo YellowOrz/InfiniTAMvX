@@ -22,40 +22,40 @@ class ITMLibSettings {
     FAILUREMODE_IGNORE,           /**< 忽略，继续重建 */
     FAILUREMODE_STOP_INTEGRATION  /**< 停止重建 */
   } FailureMode;
-  /** 内存交换策略 */
+  /** CPU和GPU的数据交换策略 */
   typedef enum {
-    SWAPPINGMODE_DISABLED,  /**< 关闭 */
-    SWAPPINGMODE_ENABLED,   /**< 开启 */
+    SWAPPINGMODE_DISABLED,  /**< 关闭交换 */
+    SWAPPINGMODE_ENABLED,   /**< 开启交换 */
     SWAPPINGMODE_DELETE     /**< 删除不可见的（闭环检测模式下不支持）*/
   } SwappingMode;
   /** SLAM系统模式 */
   typedef enum {
     LIBMODE_BASIC,          /**< 使用voxel的基础模式 */ // TODO(xzf)：不确定
     LIBMODE_BASIC_SURFELS,  /**< 使用surfel的基础模式 */
-    LIBMODE_LOOPCLOSURE     /**< 回环检测模式 */
+    LIBMODE_LOOPCLOSURE     /**< 使用voxel的回环检测模式 */
   } LibMode;
 
   /// Select the type of device to use
-  DeviceType deviceType;    // 计算设备：CPU or GPU(cuda)
+  DeviceType deviceType;                  // 计算设备：CPU or GPU(cuda)
 
-  bool useApproximateRaycast;   // 是否使用增量式的raycasting（这是一种近似）
+  bool useApproximateRaycast;             // 是否使用增量式的raycasting（这是一种近似）
 
-  bool useBilateralFilter;      // 是否使用双边滤波
+  bool useBilateralFilter;                // 是否使用双边滤波
 
   /// For ITMColorTracker: skip every other point in energy function evaluation.
-  bool skipPoints;    // raycasting渲染RGB的点云时，是否要跳过一些点   // TODO(xzf):用来减少体积 ？？？
+  bool skipPoints;                        // raycasting渲染RGB的点云时，是否要跳过一些点   // TODO(xzf):用来减少体积 ？？？
 
-  bool createMeshingEngine;  // 是否创建Mesh模块（包含marching cube和mesh提取），会占用大量内存
+  bool createMeshingEngine;               // 是否创建Mesh模块（包含marching cube和mesh提取），会占用大量内存
 
-  FailureMode behaviourOnFailure;   // 重建失败的操作
-  SwappingMode swappingMode;  // 内存交换策略
-  LibMode libMode;    // SLAM系统模式
+  FailureMode behaviourOnFailure;         // 重建失败的操作
+  SwappingMode swappingMode;              // CPU和GPU的数据交换策略
+  LibMode libMode;                        // SLAM系统模式
 
-  const char *trackerConfig;  // 跟踪配置
+  const char *trackerConfig;              // tracking的参数
 
   /// Further, scene specific parameters such as voxel size
-  ITMSceneParams sceneParams;
-  ITMSurfelSceneParams surfelSceneParams;
+  ITMSceneParams sceneParams;             // 三维模型的参数（voxel）
+  ITMSurfelSceneParams surfelSceneParams; // 三维模型的参数（surfel）
 
   ITMLibSettings(void);
   virtual ~ITMLibSettings(void) {}
