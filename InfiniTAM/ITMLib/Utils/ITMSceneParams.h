@@ -18,7 +18,7 @@ class ITMSceneParams {
       actual depth range should be determined
       automatically by a ITMLib::Engine::ITMVisualisationEngine.
   */
-  float viewFrustum_min, viewFrustum_max;   // 平截头体中，深度最近和最远距离，单位米
+  float viewFrustum_min, viewFrustum_max;   // 视锥中，深度最近和最远距离，单位米
 
   /** \brief
    * TSDF的截断值对应的距离。单位为米。TSDF值的变化间隔=mu÷voxelSize。

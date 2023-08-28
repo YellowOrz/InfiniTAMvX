@@ -44,19 +44,17 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(ITM
 
 /**
  * ITM场景重建引擎
- * @tparam [in]TVoxel 将3D世界模型表示为小体素块的散列
+ * @tparam TVoxel 将3D世界模型表示为小体素块的散列
  * @param [in]scene 这是体素块哈希实现的中心类。它包含CPU上所需的所有数据和GPU上数据结构的指针。
  * @param [in]view 表示单个“视图”，即RGB和深度图像以及所有固有和相对校准信息
  * @param [in]trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
  * @param [in]renderState 存储场景重建和可视化引擎使用的渲染状态。
  */
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(ITMScene<TVoxel,
-                                                                                              ITMVoxelBlockHash> *scene,//ITM体素块哈希表
-                                                                                     const ITMView *view,//
-                                                                                     const ITMTrackingState *trackingState,//ITM跟踪状态
-                                                                                     const ITMRenderState *renderState) {//ITM渲染状态Vector2i rgbImgSize = view->rgb->noDims;//RGB图像大小
-  //！ 变量初始化
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState) { // ITM渲染状态Vector2i rgbImgSize = view->rgb->noDims;//RGB图像大小
+  // ！ 变量初始化
   Vector2i rgbImgSize = view->rgb->noDims;  // 本帧彩色图
   Vector2i depthImgSize = view->depth->noDims;//深度图大小 //获得当前帧的彩色图像 大小 以像素为单位 // 本帧深度图
   float voxelSize = scene->sceneParams->voxelSize;//体素大小 //获得当前帧的深度图像 大小 以像素为单位 // 单个voxel大小 单位通常是米
@@ -156,81 +154,65 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   }
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneFromDepth(ITMScene<TVoxel,
-                                                                                                  ITMVoxelBlockHash> *scene,
-                                                                                         const ITMView *view,
-                                                                                         const ITMTrackingState *trackingState,
-                                                                                         const ITMRenderState *renderState,
-                                                                                         bool onlyUpdateVisibleList,
-                                                                                         bool resetVisibleList) {
-  Vector2i depthImgSize = view->depth->noDims;   //图像的大小 像素为单位
-  float voxelSize = scene->sceneParams->voxelSize;  //单位米
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneFromDepth(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState, bool onlyUpdateVisibleList, bool resetVisibleList) {
+  //! 准备
+  Vector2i depthImgSize = view->depth->noDims;   // 深度图分辨率
+  float voxelSize = scene->sceneParams->voxelSize; 
 
-  Matrix4f M_d, invM_d;
   Vector4f projParams_d, invProjParams_d;
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  //存储场景重建和可视化引擎使用的渲染状态。
-  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;  //实时列表的条目数
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
+  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;             // 需要的话，visitle list置为零
 
-  M_d = trackingState->pose_d->GetM();  //  深度相机的当前位姿 用4*4的矩阵
-  M_d.inv(invM_d);  //逆矩阵 invM_d 为M_d的逆矩阵
+  Matrix4f M_d, invM_d;   // 深度图的位姿 和 它的逆
+  M_d = trackingState->pose_d->GetM();  
+  M_d.inv(invM_d); 
 
-  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all; //深度相机的内在参数   校准参数的4*1矩阵
-  invProjParams_d = projParams_d;
-  invProjParams_d.x = 1.0f / invProjParams_d.x;  //x y z w
-  invProjParams_d.y = 1.0f / invProjParams_d.y;
+  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all; // 深度图的相机内参
+  invProjParams_d = projParams_d;                                     // 相机内参的反投影，方便后面计算
+  invProjParams_d.x = 1.0f / invProjParams_d.x;                       // =1/fx
+  invProjParams_d.y = 1.0f / invProjParams_d.y;                       // =1/fy
 
-  float mu = scene->sceneParams->mu;
-    //获取一系列的指针
-  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);  //获得浮点值深度图像的指针
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();
-  int *excessAllocationList = scene->index.GetExcessAllocationList();  //获得溢出的列表的ID？
-  ITMHashEntry *hashTable = scene->index.GetEntries(); //获得哈希表里的数据的指针
-  ITMHashSwapState *swapStates = scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();  //获得可见entrys的ID
-  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType();  //
+  float mu = scene->sceneParams->mu;                                  // TSDF的截断值对应的距离
+
+  float *depth = view->depth->GetData(MEMORYDEVICE_CPU);              // 深度图
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();     // ???
+  int *excessAllocationList = scene->index.GetExcessAllocationList(); // ???获得溢出的列表的ID？
+  ITMHashEntry *hashTable = scene->index.GetEntries();                // hash table
+  ITMHashSwapState *swapStates =                                      // 数据传输状态（内存和显存之间）
+      scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 可见entrys的ID
+  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entrys的类型？？？
+  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // 上一帧可见的？？？
+    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
   uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);
-  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU);  //获得块坐标？
   int noTotalEntries = scene->index.noTotalEntries;
+  memset(entriesAllocType, 0, noTotalEntries);
+  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 获得块坐标？
 
-  bool useSwapping = scene->globalCache != NULL;
+  bool useSwapping = scene->globalCache != NULL;                        // 是否支持内存-显存之间的数据交换
 
-  float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE);
+  float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE);         // block实际边长的倒数，方便后面计算 
+                                                                        //TODO：不应该叫voxelsize
 
-  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;
+  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // 正在用的的block中还未被占用的？？？
   int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();
 
   int noVisibleEntries = 0;
 
-  memset(entriesAllocType, 0, noTotalEntries);
-  //将 entriesAllocType 中 长度为noTotalEntries 内存块填充数字0 内存清零
-
-  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)
-    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed 在前一帧可见且未流式传输
-
-
-  //build hashVisibility 创建
+  //! build hashVisibility
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
   for (int locId = 0; locId < depthImgSize.x * depthImgSize.y; locId++) {
     int y = locId / depthImgSize.x;
     int x = locId - y * depthImgSize.x;
-    buildHashAllocAndVisibleTypePP(entriesAllocType,
-                                   entriesVisibleType,
-                                   x,
-                                   y,
-                                   blockCoords,
-                                   depth,
-                                   invM_d,
-                                   invProjParams_d,
-                                   mu,
-                                   depthImgSize,
-                                   oneOverVoxelSize,
-                                   hashTable,
-                                   scene->sceneParams->viewFrustum_min,
-                                   scene->sceneParams->viewFrustum_max);
+    buildHashAllocAndVisibleTypePP(entriesAllocType, entriesVisibleType, x, y, blockCoords, depth, invM_d,
+                                   invProjParams_d, mu, depthImgSize, oneOverVoxelSize, hashTable,
+                                   scene->sceneParams->viewFrustum_min, scene->sceneParams->viewFrustum_max);
   }
    //TODO 构建哈希分配以及可见类型pp？
   if (onlyUpdateVisibleList) useSwapping = false;

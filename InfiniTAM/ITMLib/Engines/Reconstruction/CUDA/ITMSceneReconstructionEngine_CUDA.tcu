@@ -129,14 +129,10 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::ResetScene(IT
   scene->index.SetLastFreeExcessListId(SDF_EXCESS_LIST_SIZE - 1);
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateSceneFromDepth(ITMScene<TVoxel,
-                                                                                                   ITMVoxelBlockHash> *scene,
-                                                                                          const ITMView *view,
-                                                                                          const ITMTrackingState *trackingState,
-                                                                                          const ITMRenderState *renderState,
-                                                                                          bool onlyUpdateVisibleList,
-                                                                                          bool resetVisibleList) {
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateSceneFromDepth(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState, bool onlyUpdateVisibleList, bool resetVisibleList) {
   Vector2i depthImgSize = view->depth->noDims;
   float voxelSize = scene->sceneParams->voxelSize;
 

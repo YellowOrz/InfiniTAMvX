@@ -30,11 +30,9 @@ void ITMDenseMapper<TVoxel, TIndex>::ResetScene(ITMScene<TVoxel, TIndex> *scene)
   sceneRecoEngine->ResetScene(scene);
 }
 
-template<class TVoxel, class TIndex>
-void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view,
-                                                  const ITMTrackingState *trackingState,
-                                                  ITMScene<TVoxel, TIndex> *scene,
-                                                  ITMRenderState *renderState,
+template <class TVoxel, class TIndex>
+void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view, const ITMTrackingState *trackingState,
+                                                  ITMScene<TVoxel, TIndex> *scene, ITMRenderState *renderState,
                                                   bool resetVisibleList) {
   // 配置（给定一个具有新深度图像的视图，计算可见块，分配它们并更新哈希表，以便可以集成新的图像数据。）
   sceneRecoEngine->AllocateSceneFromDepth(scene, view, trackingState, renderState, false, resetVisibleList);

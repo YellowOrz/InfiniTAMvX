@@ -24,7 +24,8 @@ class ITMBasicEngine : public ITMMainEngine {
  private:
   const ITMLibSettings *settings;
 
-  bool trackingActive, fusionActive, mainProcessingActive, trackingInitialised;
+  bool trackingActive, fusionActive, mainProcessingActive, 
+       trackingInitialised; // 是否初始化成功。融合帧数>50就成功
   int framesProcessed, relocalisationCount;
 
   ITMLowLevelEngine *lowLevelEngine;
@@ -33,7 +34,7 @@ class ITMBasicEngine : public ITMMainEngine {
   ITMMeshingEngine<TVoxel, TIndex> *meshingEngine;
 
   ITMViewBuilder *viewBuilder;    
-  ITMDenseMapper<TVoxel, TIndex> *denseMapper;  // 用来更新三维模型：包含融合、raycast TODO(xzf):?
+  ITMDenseMapper<TVoxel, TIndex> *denseMapper;  // 用来更新三维模型：包含融合、更新可见列表
   ITMTrackingController *trackingController;
 
   ITMScene<TVoxel, TIndex> *scene;    
