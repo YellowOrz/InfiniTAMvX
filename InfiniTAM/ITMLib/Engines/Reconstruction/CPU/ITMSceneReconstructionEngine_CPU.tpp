@@ -179,7 +179,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   float mu = scene->sceneParams->mu;                                  // TSDF的截断值对应的距离
 
   float *depth = view->depth->GetData(MEMORYDEVICE_CPU);              // 深度图
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();     // ???
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();     // voxel block array
   int *excessAllocationList = scene->index.GetExcessAllocationList(); // ???获得溢出的列表的ID？
   ITMHashEntry *hashTable = scene->index.GetEntries();                // hash table
   ITMHashSwapState *swapStates =                                      // 数据传输状态（内存和显存之间）
@@ -188,7 +188,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entrys的类型？？？
   for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // 上一帧可见的？？？
     entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
-  uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);
+  uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);  // 数据存放位置。ordered entry或excess list
   int noTotalEntries = scene->index.noTotalEntries;
   memset(entriesAllocType, 0, noTotalEntries);
   Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 获得块坐标？
@@ -203,7 +203,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 
   int noVisibleEntries = 0;
 
-  //! build hashVisibility
+  //! 查看每个像素对应三维点附近所有block的alloction和可见情况。build hashVisibility
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -214,82 +214,83 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
                                    invProjParams_d, mu, depthImgSize, oneOverVoxelSize, hashTable,
                                    scene->sceneParams->viewFrustum_min, scene->sceneParams->viewFrustum_max);
   }
-   //TODO 构建哈希分配以及可见类型pp？
-  if (onlyUpdateVisibleList) useSwapping = false;
-  if (!onlyUpdateVisibleList) {
-    //allocate 分配
-    for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
+  //! 对于上面找到的需要分配的block进行分配
+  if (onlyUpdateVisibleList)
+    useSwapping = false;
+  if (!onlyUpdateVisibleList) {  // TODO: 下次从这儿开始
+    // allocate 分配
+    for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {  // 遍历每一个entry
       int vbaIdx, exlIdx;
       unsigned char hashChangeType = entriesAllocType[targetIdx];
 
       switch (hashChangeType) {
-        case 1: //needs allocation, fits in the ordered list 需要分配，适合有序列表
-          vbaIdx = lastFreeVoxelBlockId;
-          lastFreeVoxelBlockId--;//voxel block array剩余空位
+      case 1: // 需要分配到ordered list。needs allocation, fits in the ordered list
+        vbaIdx = lastFreeVoxelBlockId;
+        lastFreeVoxelBlockId--; // voxel block array中剩余空位
 
-          if (vbaIdx >= 0) //there is room in the voxel block array 体素块阵列中有空间
-          {
-            Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标
+        if (vbaIdx >= 0) {  // 剩余空间充足。there is room in the voxel block array
+          Vector4s pt_block_all = blockCoords[targetIdx]; // 取出block坐标
 
-            ITMHashEntry hashEntry;
-            hashEntry.pos.x = pt_block_all.x;
-            hashEntry.pos.y = pt_block_all.y;
-            hashEntry.pos.z = pt_block_all.z;
-            hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
-            hashEntry.offset = 0;
+          ITMHashEntry hashEntry;
+          hashEntry.pos.x = pt_block_all.x;
+          hashEntry.pos.y = pt_block_all.y;
+          hashEntry.pos.z = pt_block_all.z;
+          hashEntry.ptr = voxelAllocationList[vbaIdx]; // 核心：将entry的ptr指向？？？
+          hashEntry.offset = 0;
 
-            //目标块三维世界坐标和体素块数组地址填充哈希表
-            hashTable[targetIdx] = hashEntry;
-          } else {
-            // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its state.
-            entriesVisibleType[targetIdx] = 0;
+          // 目标块三维世界坐标和体素块数组地址填充哈希表
+          hashTable[targetIdx] = hashEntry;
+        } else {
+          // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its
+          // state.
+          entriesVisibleType[targetIdx] = 0;
 
-            // Restore previous value to avoid leaks.
-            lastFreeVoxelBlockId++;
-          }
+          // Restore previous value to avoid leaks.
+          lastFreeVoxelBlockId++;
+        }
 
-          break;
-        case 2: //needs allocation in the excess list
-          vbaIdx = lastFreeVoxelBlockId;
-          lastFreeVoxelBlockId--;
-          exlIdx = lastFreeExcessListId;
-          lastFreeExcessListId--;
+        break;
+      case 2: // 需要分配到excess list。needs allocation in the excess list
+        vbaIdx = lastFreeVoxelBlockId;
+        lastFreeVoxelBlockId--;
+        exlIdx = lastFreeExcessListId;
+        lastFreeExcessListId--;
 
-          if (vbaIdx >= 0 && exlIdx >= 0) //there is room in the voxel block array and excess list
-          {
-            Vector4s pt_block_all = blockCoords[targetIdx];//目标块三维世界坐标位置
+        if (vbaIdx >= 0 && exlIdx >= 0) // there is room in the voxel block array and excess list
+        {
+          Vector4s pt_block_all = blockCoords[targetIdx]; // 目标块三维世界坐标位置
 
-            ITMHashEntry hashEntry;
-            hashEntry.pos.x = pt_block_all.x;
-            hashEntry.pos.y = pt_block_all.y;
-            hashEntry.pos.z = pt_block_all.z;
-            hashEntry.ptr = voxelAllocationList[vbaIdx];//体素块数组地址
-            hashEntry.offset = 0;//偏移量，用于定位每个特定体素块的体素数据
+          ITMHashEntry hashEntry;
+          hashEntry.pos.x = pt_block_all.x;
+          hashEntry.pos.y = pt_block_all.y;
+          hashEntry.pos.z = pt_block_all.z;
+          hashEntry.ptr = voxelAllocationList[vbaIdx]; // 体素块数组地址
+          hashEntry.offset = 0;                        // 偏移量，用于定位每个特定体素块的体素数据
 
-            //将链接列表的枚举将移动到超额分配列表
-            int exlOffset = excessAllocationList[exlIdx];
+          // 将链接列表的枚举将移动到超额分配列表
+          int exlOffset = excessAllocationList[exlIdx];
 
-            //更改链接列表中最后找到的条目指向新填充的条目
-            hashTable[targetIdx].offset = exlOffset + 1; //connect to child
+          // 更改链接列表中最后找到的条目指向新填充的条目
+          hashTable[targetIdx].offset = exlOffset + 1; // connect to child
 
-            //目标块三维世界坐标和体素块数组地址填充哈希表
-            hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; //add child to the excess list
+          // 目标块三维世界坐标和体素块数组地址填充哈希表
+          hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; // add child to the excess list
 
-            //条目标记类型为可见
-            entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; //make child visible and in memory
-          } else {
-            // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
-            // Restore previous value to avoid leaks.
-            lastFreeVoxelBlockId++;
-            lastFreeExcessListId++;
-          }
+          // 条目标记类型为可见
+          entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // make child visible and in memory
+        } else {
+          // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
+          // Restore previous value to avoid leaks.
+          lastFreeVoxelBlockId++;
+          lastFreeExcessListId++;
+        }
 
-          break;
+        break;
       }
     }
   }
 
-  //build visible list
+  // build visible list
   for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
     unsigned char hashVisibleType = entriesVisibleType[targetIdx];
     const ITMHashEntry &hashEntry = hashTable[targetIdx];
@@ -298,29 +299,23 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
       bool isVisibleEnlarged, isVisible;
 
       if (useSwapping) {
-        checkBlockVisibility<true>(isVisible,
-                                   isVisibleEnlarged,
-                                   hashEntry.pos,
-                                   M_d,
-                                   projParams_d,
-                                   voxelSize,
+        checkBlockVisibility<true>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                    depthImgSize);
-        if (!isVisibleEnlarged) hashVisibleType = 0;
+        if (!isVisibleEnlarged)
+          hashVisibleType = 0;
       } else {
-        checkBlockVisibility<false>(isVisible,
-                                    isVisibleEnlarged,
-                                    hashEntry.pos,
-                                    M_d,
-                                    projParams_d,
-                                    voxelSize,
+        checkBlockVisibility<false>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                     depthImgSize);
-        if (!isVisible) { hashVisibleType = 0; }
+        if (!isVisible) {
+          hashVisibleType = 0;
+        }
       }
       entriesVisibleType[targetIdx] = hashVisibleType;
     }
 
     if (useSwapping) {
-      if (hashVisibleType > 0 && swapStates[targetIdx].state != 2) swapStates[targetIdx].state = 1;
+      if (hashVisibleType > 0 && swapStates[targetIdx].state != 2)
+        swapStates[targetIdx].state = 1;
     }
 
     if (hashVisibleType > 0) {
@@ -338,7 +333,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 #endif
   }
 
-  //reallocate deleted ones from previous swap operation
+  // reallocate deleted ones from previous swap operation
   if (useSwapping) {
     for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
       int vbaIdx;
@@ -347,8 +342,10 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
       if (entriesVisibleType[targetIdx] > 0 && hashEntry.ptr == -1) {
         vbaIdx = lastFreeVoxelBlockId;
         lastFreeVoxelBlockId--;
-        if (vbaIdx >= 0) hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx];
-        else lastFreeVoxelBlockId++; // Avoid leaks
+        if (vbaIdx >= 0)
+          hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx];
+        else
+          lastFreeVoxelBlockId++; // Avoid leaks
       }
     }
   }

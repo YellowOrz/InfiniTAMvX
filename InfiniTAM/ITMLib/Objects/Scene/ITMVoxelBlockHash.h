@@ -38,14 +38,18 @@
 struct ITMHashEntry {   //连续的数组  用于记录映射关系
   /** Position of the corner of the 8x8x8 volume, that identifies the entry. */
   Vector3s pos;  //x, y, z,
-  /** Offset in the excess list. */
+  /** 在unordered entries中的偏移量。存在哈希冲突的时候用。Offset in the excess list. */
   int offset;
-  /** Pointer to the voxel block array.
+  /** 记录在数组（voxel block array）中的位置。
+   * - ≥0，为voxel block array中的下标；
+   * - =-1，说明被删除了（或者叫swap out）；
+   * - <-1，说明还未分配空间。
+   * Pointer to the voxel block array.
       - >= 0 identifies an actual allocated entry in the voxel block array
       - -1 identifies an entry that has been removed (swapped out)
       - <-1 identifies an unallocated block
   */
-  int ptr; //记录在其数组中的位置
+  int ptr; 
 };
 
 namespace ITMLib {

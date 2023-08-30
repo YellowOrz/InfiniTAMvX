@@ -14,7 +14,7 @@ template<class TVoxel>
 class ITMLocalVBA {
  private:
   ORUtils::MemoryBlock<TVoxel> *voxelBlocks;  // voxel block array 
-  ORUtils::MemoryBlock<int> *allocationList;  // ???
+  ORUtils::MemoryBlock<int> *allocationList;  // ??? baAllocationList_ptr[i] = i
 
   MemoryDeviceType memoryType;                // 存储类型：CPU or GPU
 
