@@ -23,7 +23,7 @@ private:
   */
   ORUtils::MemoryBlock<int> *visibleEntryIDs;
 
-  /** 可见entries列表（即正被integration和tracker处理的）的类型。
+  /** entry的可见情况。=1是正常可见，=2是应该可见但是被删除了（swapped out）
    * A list of "visible entries", that are
   currently being processed by integration
   and tracker.
@@ -55,7 +55,8 @@ public:
   const int *GetVisibleEntryIDs(void) const { return visibleEntryIDs->GetData(memoryType); }
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
 
-  /** 获取visible entry列表。在integration和tracker用到。？？？还是类型？？？
+  /** 获取entry的可见情况。
+   * @note =1是正常可见，=2是应该可见但是被删除了（swapped out）。在integration和tracker用到。
    * Get the list of "visible entries", that are
   currently processed by integration and tracker.
   */

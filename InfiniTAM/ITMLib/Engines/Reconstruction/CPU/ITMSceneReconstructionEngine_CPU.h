@@ -15,6 +15,7 @@ template <class TVoxel>
 class ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>
     : public ITMSceneReconstructionEngine<TVoxel, ITMVoxelBlockHash> {
 protected:
+  /** 要分配的空间类型（其实是位置）。=1存放于orderneeds allocation，=2存放于excess list*/
   ORUtils::MemoryBlock<unsigned char> *entriesAllocType;
   ORUtils::MemoryBlock<Vector4s> *blockCoords;
 

@@ -254,21 +254,23 @@ struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
 };
 
 /**
- * 
- * @param entriesAllocType
- * @param entriesVisibleType
+ * 寻找单个像素对应三维点附近所有block，查看alloction和可见情况
+ * @param[out] entriesAllocType 没有分配的entry会记录存放位置。
+ *                              =1为orderneeds allocation，=2为excess list
+ * @param[out] entriesVisibleType 所有entry的可见情况。=1是正常可见，=2是应该可见但是被删除了（swapped out）
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
- * @param blockCoords
+ * @param[out] blockCoords 没有分配的entry会记录block坐标（short类型）
  * @param[in] depth 深度图
  * @param[in] invM_d 深度图位姿的逆（local to world？？？）
  * @param[in] projParams_d 深度图相机内参的反投影
  * @param[in] mu TSDF的截断值对应的距离
  * @param[in] imgSize 图像分辨率（x*y)
  * @param[in] oneOverVoxelSize block实际边长的倒数。不应该叫VoxelSize
- * @param hashTable
+ * @param[in] hashTable
  * @param[in] viewFrustum_min 视锥中最小深度
  * @param[in] viewFrustum_max 视锥中最大深度
+ * @note 单帧内出现哈希冲突咋办？？？
  */
 _CPU_AND_GPU_CODE_ inline void
 buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uchar) * entriesVisibleType, int x, int y,
@@ -300,58 +302,57 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
   int noSteps = (int) ceil(2.0f * norm);    // ？？？步长为半个mu？？？那为啥下面要减1？
   direction /= (float) (noSteps - 1);                                 // 单位方向向量
 
-  //! 寻找前后范围mu之内的所有block // add neighbouring blocks
+  //! 寻找前后范围mu之内的所有block，查看alloction和可见情况 // add neighbouring blocks
   unsigned int hashIdx;
   Vector3s blockPos;
   for (int i = 0; i < noSteps; i++) {
     // 获取当前block的hash id和entry
     blockPos = TO_SHORT_FLOOR3(point);
-    hashIdx = hashIndex(blockPos);  //compute index in hash table
+    hashIdx = hashIndex(blockPos);  //compute index in hash table 
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
     //当前block是否已经allocation   //check if hash table contains entry
     bool isFound = false;
     if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {  // 判断IS_EQUAL3是因为存在哈希冲突
+      // 记录entry的可见情况，=1是正常可见，=2是应该可见但是被删除了（swapped out）
       //entry has been streamed out but is visible or in memory and visible
       entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;  // ???
       isFound = true;
     }
-
-    if (!isFound) {   // 上面没找到可能是因为哈希冲突，继续遍历entry对应的bucket
-      bool isExcess = false;
-      if (hashEntry.ptr >= -1) { //seach excess list only if there is no room in ordered part
-        while (hashEntry.offset >= 1) {
+    // 上面没找到可能是因为哈希冲突，继续遍历entry对应的bucket（其实InfiniTAM的bucket size=1）
+    if (!isFound) {   
+      bool isExcess = false;  // 是否存在于excess list（也叫unordered entries）
+      if (hashEntry.ptr >= -1) { // >= -1说明已经被分配空间了。seach excess list only if there is no room in ordered part
+        while (hashEntry.offset >= 1) { // >= 1说明存在哈希冲突
           hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;
           hashEntry = hashTable[hashIdx];
           if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
+            // 记录entry的可见情况，=1是正常可见，=2是应该可见但是被删除了（swapped out）
             //entry has been streamed out but is visible or in memory and visible
-            entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;
-            isFound = true;
+            entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;  // hashEntry.ptr == -1表示被swapped out
+            isFound = true;   // TODO: 单帧内出现哈希冲突咋办？？？ 后面来的hashIdx会把前面的覆盖掉的
             break;
           }
         }
-        isExcess = true;    // TODO:下次从这儿开始。isExcess没机会是false吧？？？
+        isExcess = true;
       }
-
-      if (!isFound) { // 遍历完bucket后还是没找到，说明这个block就没有被allocation，
-        entriesAllocType[hashIdx] = isExcess ? 2 : 1; //needs allocation
-        if (!isExcess) entriesVisibleType[hashIdx] = 1; //new entry is visible
-        //没有allocation，在哈希表上进行标记，之后遍历哈希表进行更新
-        blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1);
+      // 遍历完bucket后还是没找到，说明这个block就没有被allocate，需要被allocate
+      if (!isFound) {   
+        entriesAllocType[hashIdx] = isExcess ? 2 : 1;   // 记录存放位置。=1存放于orderneeds allocation，=2存放于excess list
+        if (!isExcess) entriesVisibleType[hashIdx] = 1; // 虽然没分配空间，但是正常可见。new entry is visible
+        blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1); // 记录block位置
       }
     }
 
-    point += direction;
+    point += direction; // 下一个
   }
 }
 
-template<bool useSwapping>//TODO:这里不太明白useSwapping的true或false对下面的函数起什么作用
-_CPU_AND_GPU_CODE_ inline void checkPointVisibility(THREADPTR(bool) &isVisible,
-                                                    THREADPTR(bool) &isVisibleEnlarged,
-                                                    const THREADPTR(Vector4f) &pt_image,
-                                                    const CONSTPTR(Matrix4f) &M_d,
-                                                    const CONSTPTR(Vector4f) &projParams_d,
-                                                    const CONSTPTR(Vector2i) &imgSize) {
+template <bool useSwapping> // TODO:这里不太明白useSwapping的true或false对下面的函数起什么作用
+_CPU_AND_GPU_CODE_ inline void
+checkPointVisibility(THREADPTR(bool) & isVisible, THREADPTR(bool) & isVisibleEnlarged,
+                     const THREADPTR(Vector4f) & pt_image, const CONSTPTR(Matrix4f) & M_d,
+                     const CONSTPTR(Vector4f) & projParams_d, const CONSTPTR(Vector2i) & imgSize) {
   Vector4f pt_buff;
 
   pt_buff = M_d * pt_image;
