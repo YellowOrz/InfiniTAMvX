@@ -22,14 +22,14 @@ protected:
 public:
   void ResetScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene);
   /**
-   * 根据深度图 计算visible list、分配内存 && 更新hash table
+   * 根据深度图 计算visible list、分配内存 && 更新hash table  ？？？？？？？？？？？？？？？？？？？？？
    * @tparam TVoxel
-   * @param scene
-   * @param view
-   * @param trackingState
-   * @param renderState
-   * @param onlyUpdateVisibleList
-   * @param[in] resetVisibleList 重置visible list。默认为false
+   * @param[in,out] scene 更新
+   * @param[in] view 当前输入图像
+   * @param[in] trackingState 主要用到track得到的位姿
+   * @param[out] renderState 获取其中 可见entry的id数组和数量
+   * @param[in] onlyUpdateVisibleList 是否只更新可见列表。=true的话，关闭swap
+   * @param[in] resetVisibleList 是否需要重新检查可见性？？？。默认为false
    */
   void AllocateSceneFromDepth(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
                               const ITMTrackingState *trackingState, const ITMRenderState *renderState,

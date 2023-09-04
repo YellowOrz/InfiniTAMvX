@@ -16,9 +16,9 @@
 #define SDF_BLOCK_SIZE3 512                // SDF_BLOCK_SIZE3 = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE
 
 #define SDF_LOCAL_BLOCK_NUM 0x40000        // Number of locally stored blocks, currently 2^17
-
-#define SDF_BUCKET_NUM 0x100000 // hash bucket的数量，必须为2的倍数（为了用位操作替换取余），必须比SDF_LOCAL_BLOCK_NUM大（？？？）
-        // Number of Hash Bucket, should be 2^n and bigger than SDF_LOCAL_BLOCK_NUM, SDF_HASH_MASK = SDF_BUCKET_NUM - 1
+// hash bucket（即ordered entry）的数量，须为2的倍数（∵用位操作替换取余），须>SDF_LOCAL_BLOCK_NUM？？？
+// Number of Hash Bucket, should be 2^n and bigger than SDF_LOCAL_BLOCK_NUM, SDF_HASH_MASK = SDF_BUCKET_NUM - 1
+#define SDF_BUCKET_NUM 0x100000 
 #define SDF_HASH_MASK 0xfffff // 用于从哈希值转bucket id的位操作（等价于取余），=SDF_BUCKET_NUM-1
                               // Used for get hashing value of the bucket index,  SDF_HASH_MASK = SDF_BUCKET_NUM - 1
 #define SDF_EXCESS_LIST_SIZE 0x20000    // 0x20000 Size of excess list, used to handle collisions. Also max offset (unsigned short) value.
@@ -82,15 +82,16 @@ class ITMVoxelBlockHash {
  private:
   int lastFreeExcessListId;
 
-  /** The actual data in the hash table. */
+  /** 包含order和unorder的entry？？？。The actual data in the hash table. */
   ORUtils::MemoryBlock<ITMHashEntry> *hashEntries;
 
-  /** Identifies which entries of the overflow
+  /** 标识overflow list中哪些entry被allocated。在"太多的哈希冲突导致存储桶溢出"时使用？？？
+   * Identifies which entries of the overflow
   list are allocated. This is used if too
   many hash collisions caused the buckets to
   overflow.
   */
-  ORUtils::MemoryBlock<int> *excessAllocationList;
+  // ORUtils::MemoryBlock<int> *excessAllocationList;    // ？？？场景重置的时候allocationList[i] = i
 
   MemoryDeviceType memoryType;
 
@@ -129,7 +130,7 @@ class ITMVoxelBlockHash {
   const void* getIndexData_MB(void) const { return hashEntries->GetMetalBuffer(); }
 #endif
 
-  /** Maximum number of total entries. */
+  /** block的最大数量。包含orderd entry和unordered entry。Maximum number of total entries. */
   int getNumAllocatedVoxelBlocks(void) { return SDF_LOCAL_BLOCK_NUM; }
   int getVoxelBlockSize(void) { return SDF_BLOCK_SIZE3; }
 

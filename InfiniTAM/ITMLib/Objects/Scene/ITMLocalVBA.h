@@ -13,8 +13,8 @@ ITMLib::ITMHashTable.
 template<class TVoxel>
 class ITMLocalVBA {
  private:
-  ORUtils::MemoryBlock<TVoxel> *voxelBlocks;  // voxel block array 
-  ORUtils::MemoryBlock<int> *allocationList;  // ??? baAllocationList_ptr[i] = i
+  ORUtils::MemoryBlock<TVoxel> *voxelBlocks;  // voxel block array。数据是从后往前存的
+  ORUtils::MemoryBlock<int> *allocationList;  // 记录VBA中所有被allocate的下标??? 场景重置的时候allocationList[i] = i
 
   MemoryDeviceType memoryType;                // 存储类型：CPU or GPU
 
@@ -27,9 +27,9 @@ class ITMLocalVBA {
   const void* GetVoxelBlocks_MB() const { return voxelBlocks->GetMetalBuffer(); }
   const void* GetAllocationList_MB(void) const { return allocationList->GetMetalBuffer(); }
 #endif
-  int lastFreeBlockId;
+  int lastFreeBlockId;  // VBA中可用剩余空位的id。因为VBA中数据从后往前存，因此该ID是逐渐变小的
 
-  int allocatedSize;
+  int allocatedSize;  
 
   /** 将所有数据保存到硬盘上 */
   void SaveToDirectory(const std::string &outputDirectory) const {

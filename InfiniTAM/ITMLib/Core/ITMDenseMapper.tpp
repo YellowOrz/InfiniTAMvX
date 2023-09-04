@@ -48,20 +48,18 @@ void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view, const ITM
 
     // swapping: GPU -> CPU
     switch (swappingMode) { //判断交换模式
-      case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);    // 进行交换
+      case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);   // 进行交换
         break;
-      case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);       // 删除不可见的
+      case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);      // 删除不可见的
         break;
-      case ITMLibSettings::SWAPPINGMODE_DISABLED: break;                                                    // 不进行交换
+      case ITMLibSettings::SWAPPINGMODE_DISABLED: break;                                                   // 不进行交换
     }
   }
 }
 
-template<class TVoxel, class TIndex>
-void ITMDenseMapper<TVoxel, TIndex>::UpdateVisibleList(const ITMView *view,
-                                                       const ITMTrackingState *trackingState,
-                                                       ITMScene<TVoxel, TIndex> *scene,
-                                                       ITMRenderState *renderState,
+template <class TVoxel, class TIndex>
+void ITMDenseMapper<TVoxel, TIndex>::UpdateVisibleList(const ITMView *view, const ITMTrackingState *trackingState,
+                                                       ITMScene<TVoxel, TIndex> *scene, ITMRenderState *renderState,
                                                        bool resetVisibleList) {
   sceneRecoEngine->AllocateSceneFromDepth(scene, view, trackingState, renderState, true, resetVisibleList);
 }
