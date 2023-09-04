@@ -27,7 +27,7 @@ class ITMSceneReconstructionEngine {
   virtual void ResetScene(ITMScene<TVoxel, TIndex> *scene) = 0;
 
   /**
-   * @brief 给定一帧新的输入（包含深度图），计算可见块，分配内存 并 更新hash table，以便可以集成新的图像数据。
+   * @brief 给定一帧新的输入（包含深度图），计算可见块，分配内存 并 更新hash table，方便后续 将当前帧融合进场景。
    * Given a view with a new depth image, compute the
       visible blocks, allocate them and update the hash
       table so that the new image data can be integrated.

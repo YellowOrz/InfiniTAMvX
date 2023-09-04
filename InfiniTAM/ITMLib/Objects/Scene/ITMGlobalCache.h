@@ -9,7 +9,7 @@
 #include "../../../ORUtils/CUDADefines.h"
 
 namespace ITMLib {
-struct ITMHashSwapState {
+struct ITMHashSwapState {   // 为啥不弄成一个枚举类型？？？
   ///  0 - 最近的数据在内存上，不在显存中
   ///  1 - 数据同时在内存和显存上，尚未合并
   ///  2 - 大多数最近的数据都在显存中，应该在某个时候传到内存中
@@ -27,7 +27,7 @@ class ITMGlobalCache {
  private:
   bool *hasStoredData;
   TVoxel *storedVoxelBlocks;
-  ITMHashSwapState *swapStates_host, *swapStates_device;
+  ITMHashSwapState *swapStates_host, *swapStates_device;  // 传输状态。具体意义见ITMHashSwapState::state
 
   bool *hasSyncedData_host, *hasSyncedData_device;
   TVoxel *syncedVoxelBlocks_host, *syncedVoxelBlocks_device;

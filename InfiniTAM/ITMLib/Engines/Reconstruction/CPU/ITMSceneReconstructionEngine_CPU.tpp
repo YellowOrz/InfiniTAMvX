@@ -19,9 +19,9 @@ ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSceneReconstruc
   delete blockCoords;
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(ITMScene<TVoxel,
-                                                                                      ITMVoxelBlockHash> *scene) {
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
   int numBlocks = scene->index.getNumAllocatedVoxelBlocks();
   int blockSize = scene->index.getVoxelBlockSize();
 
@@ -43,12 +43,12 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(ITM
 }
 
 /**
- * ITM场景重建引擎
+ * ITM场景重建引擎    //TODO: 下次从这儿开始
  * @tparam TVoxel 将3D世界模型表示为小体素块的散列
- * @param [in]scene 这是体素块哈希实现的中心类。它包含CPU上所需的所有数据和GPU上数据结构的指针。
- * @param [in]view 表示单个“视图”，即RGB和深度图像以及所有固有和相对校准信息
- * @param [in]trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
- * @param [in]renderState 存储场景重建和可视化引擎使用的渲染状态。
+ * @param[in] scene 这是体素块哈希实现的中心类。它包含CPU上所需的所有数据和GPU上数据结构的指针。
+ * @param[in] view 表示单个“视图”，即RGB和深度图像以及所有固有和相对校准信息
+ * @param[in] trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
+ * @param[in] renderState 存储场景重建和可视化引擎使用的渲染状态。
  */
 template <class TVoxel>
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
@@ -184,24 +184,22 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   ITMHashEntry *hashTable = scene->index.GetEntries();                // hash table
   ITMHashSwapState *swapStates =                                      // 数据传输状态（内存和显存之间）
       scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 可见entrys的ID
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 当前视角下可见entrys的ID数组
   uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entrys的类型？？？
   for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // 上一帧可见的？？？
     entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
-  uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);  // 数据存放位置。ordered entry或excess list
+  uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);  // 数据存放位置。order entry或excess list
   int noTotalEntries = scene->index.noTotalEntries;
   memset(entriesAllocType, 0, noTotalEntries);
-  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 获得块坐标？
+  Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 每个entry对应的block坐标
 
   bool useSwapping = scene->globalCache != NULL;                        // 是否支持内存-显存之间的数据交换
 
   float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE);         // block实际边长的倒数，方便后面计算 
                                                                         //TODO：不应该叫voxelsize
 
-  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // 正在用的的block中还未被占用的？？？
-  int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();
-
-  int noVisibleEntries = 0;
+  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // VBA中最前面一个空位的id（∵从后往前存）
+  int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();    // excess list中最前面一个空位的id（∵从后往前存）
 
   //! 查看每个像素对应三维点附近所有block的alloction和可见情况。build hashVisibility
 #ifdef WITH_OPENMP
@@ -214,19 +212,19 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
                                    invProjParams_d, mu, depthImgSize, oneOverVoxelSize, hashTable,
                                    scene->sceneParams->viewFrustum_min, scene->sceneParams->viewFrustum_max);
   }
-  //! 对于上面找到的需要分配的block进行分配
-  if (onlyUpdateVisibleList)
+  if (onlyUpdateVisibleList)  // ???为啥只更新可见列表的话，关闭swap？？？
     useSwapping = false;
-  if (!onlyUpdateVisibleList) {  // TODO: 下次从这儿开始
+  //! 对于所有的entry，对于上面找到的需要分配的block进行分配
+  if (!onlyUpdateVisibleList) {  
     // allocate 分配
     for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {  // 遍历每一个entry
       int vbaIdx, exlIdx;
       unsigned char hashChangeType = entriesAllocType[targetIdx];
 
       switch (hashChangeType) {
-      case 1: // 需要分配到ordered list。needs allocation, fits in the ordered list
+      case 1:         //! 需要分配到ordered list。needs allocation, fits in the ordered list
         vbaIdx = lastFreeVoxelBlockId;
-        lastFreeVoxelBlockId--; // voxel block array中剩余空位
+        lastFreeVoxelBlockId--;           // --是因为VBA是从后往前存的
 
         if (vbaIdx >= 0) {  // 剩余空间充足。there is room in the voxel block array
           Vector4s pt_block_all = blockCoords[targetIdx]; // 取出block坐标
@@ -235,12 +233,11 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           hashEntry.pos.x = pt_block_all.x;
           hashEntry.pos.y = pt_block_all.y;
           hashEntry.pos.z = pt_block_all.z;
-          hashEntry.ptr = voxelAllocationList[vbaIdx]; // 核心：将entry的ptr指向？？？
+          hashEntry.ptr = voxelAllocationList[vbaIdx];  //! 分配的核心：将entry的ptr指向VBA中可用的空余空间的ID
           hashEntry.offset = 0;
 
-          // 目标块三维世界坐标和体素块数组地址填充哈希表
-          hashTable[targetIdx] = hashEntry;
-        } else {
+          hashTable[targetIdx] = hashEntry;             // hash table中记录entry信息
+        } else {            // 剩余空间不足，无法allocate，需要设置visible=false
           // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its
           // state.
           entriesVisibleType[targetIdx] = 0;
@@ -248,37 +245,32 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           // Restore previous value to avoid leaks.
           lastFreeVoxelBlockId++;
         }
-
         break;
-      case 2: // 需要分配到excess list。needs allocation in the excess list
+      case 2:         //! 需要分配到excess list（即unordered entry）。needs allocation in the excess list
         vbaIdx = lastFreeVoxelBlockId;
         lastFreeVoxelBlockId--;
         exlIdx = lastFreeExcessListId;
         lastFreeExcessListId--;
 
-        if (vbaIdx >= 0 && exlIdx >= 0) // there is room in the voxel block array and excess list
-        {
-          Vector4s pt_block_all = blockCoords[targetIdx]; // 目标块三维世界坐标位置
+        if (vbaIdx >= 0 && exlIdx >= 0) { // VBA和excess list中都有空位。
+                                          // there is room in the voxel block array and excess list
+          Vector4s pt_block_all = blockCoords[targetIdx]; // 取出block坐标
 
           ITMHashEntry hashEntry;
           hashEntry.pos.x = pt_block_all.x;
           hashEntry.pos.y = pt_block_all.y;
           hashEntry.pos.z = pt_block_all.z;
-          hashEntry.ptr = voxelAllocationList[vbaIdx]; // 体素块数组地址
-          hashEntry.offset = 0;                        // 偏移量，用于定位每个特定体素块的体素数据
+          hashEntry.ptr = voxelAllocationList[vbaIdx]; //! 分配的核心：将entry的ptr指向VBA中可用的空余空间的ID
+          hashEntry.offset = 0;                        
+          // excess list中首先找到可以用的entry的id
+          int exlOffset = excessAllocationList[exlIdx];   //???
 
-          // 将链接列表的枚举将移动到超额分配列表
-          int exlOffset = excessAllocationList[exlIdx];
-
-          // 更改链接列表中最后找到的条目指向新填充的条目
-          hashTable[targetIdx].offset = exlOffset + 1; // connect to child
-
-          // 目标块三维世界坐标和体素块数组地址填充哈希表
-          hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; // add child to the excess list
-
-          // 条目标记类型为可见
-          entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // make child visible and in memory
-        } else {
+          hashTable[targetIdx].offset = exlOffset + 1;  // 记录到excess list都是确定有哈希冲突的，所以offset是往后挪一位
+                                                        // connect to child
+          hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry;  // add child to the excess list
+          entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // ∵buildHashAllocAndVisibleTypePP没对unorder entry标记可见
+          //TODO：这里是不是有bug？lastFreeExcessListId应该指向一个空的位置，但是exlOffset + 1，导致每次添加会有一个空位？？？
+        } else {                          // VBA和excess list有一个没空位了
           // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
           // Restore previous value to avoid leaks.
           lastFreeVoxelBlockId++;
@@ -290,20 +282,20 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
     }
   }
 
-  // build visible list
+  //! 找到所有entry中可见的 build visible list
+  int noVisibleEntries = 0;
   for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
     unsigned char hashVisibleType = entriesVisibleType[targetIdx];
     const ITMHashEntry &hashEntry = hashTable[targetIdx];
-
-    if (hashVisibleType == 3) {
+    // hashVisibleType == 3的再检查一下可见性？？
+    if (hashVisibleType == 3) {   // =3说明没有被重置（即resetVisibleList=false）
       bool isVisibleEnlarged, isVisible;
-
-      if (useSwapping) {
+      if (useSwapping) {  // 有swap的会用更大的imagesize查看可见性。 why？？？
         checkBlockVisibility<true>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                    depthImgSize);
         if (!isVisibleEnlarged)
           hashVisibleType = 0;
-      } else {
+      } else {            // 没有swap用正常的imagesize查看可见性
         checkBlockVisibility<false>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                     depthImgSize);
         if (!isVisible) {
@@ -312,12 +304,12 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
       }
       entriesVisibleType[targetIdx] = hashVisibleType;
     }
-
+    // 开启swap，可见 但 不止在显存上，标记一下需要合并
     if (useSwapping) {
       if (hashVisibleType > 0 && swapStates[targetIdx].state != 2)
-        swapStates[targetIdx].state = 1;
+        swapStates[targetIdx].state = 1;  // =1说明数据同时在内存和显存上，尚未合并
     }
-
+    // 最终记录可见的
     if (hashVisibleType > 0) {
       visibleEntryIDs[noVisibleEntries] = targetIdx;
       noVisibleEntries++;
@@ -325,24 +317,24 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 
 #if 0
     // "active list", currently disabled
-    if (hashVisibleType == 1)
-    {
+    if (hashVisibleType == 1) {
         activeEntryIDs[noActiveEntries] = targetIdx;
         noActiveEntries++;
     }
 #endif
   }
 
+  //! 开启swap，将所有entry中可见但是没有分配空间的分配一下 TODO：之前buildHashAllocAndVisibleTypePP不是都分配过了吗？？？？
   // reallocate deleted ones from previous swap operation
   if (useSwapping) {
     for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
       int vbaIdx;
       ITMHashEntry hashEntry = hashTable[targetIdx];
 
-      if (entriesVisibleType[targetIdx] > 0 && hashEntry.ptr == -1) {
+      if (entriesVisibleType[targetIdx] > 0 && hashEntry.ptr == -1) { // 可见但是没有分配空间???
         vbaIdx = lastFreeVoxelBlockId;
         lastFreeVoxelBlockId--;
-        if (vbaIdx >= 0)
+        if (vbaIdx >= 0)    // 还有剩余空间
           hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx];
         else
           lastFreeVoxelBlockId++; // Avoid leaks
@@ -362,9 +354,9 @@ ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::ITMSceneReconstruc
 template<class TVoxel>
 ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::~ITMSceneReconstructionEngine_CPU(void) {}
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::ResetScene(ITMScene<TVoxel,
-                                                                                       ITMPlainVoxelArray> *scene) {
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::ResetScene(
+    ITMScene<TVoxel, ITMPlainVoxelArray> *scene) {
   int numBlocks = scene->index.getNumAllocatedVoxelBlocks();
   int blockSize = scene->index.getVoxelBlockSize();
 
@@ -375,21 +367,15 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::ResetScene(IT
   scene->localVBA.lastFreeBlockId = numBlocks - 1;
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::AllocateSceneFromDepth(ITMScene<TVoxel,
-                                                                                                   ITMPlainVoxelArray> *scene,
-                                                                                          const ITMView *view,
-                                                                                          const ITMTrackingState *trackingState,
-                                                                                          const ITMRenderState *renderState,
-                                                                                          bool onlyUpdateVisibleList,
-                                                                                          bool resetVisibleList) {}
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::AllocateSceneFromDepth(
+    ITMScene<TVoxel, ITMPlainVoxelArray> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState, bool onlyUpdateVisibleList, bool resetVisibleList) {}
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::IntegrateIntoScene(ITMScene<TVoxel,
-                                                                                               ITMPlainVoxelArray> *scene,
-                                                                                      const ITMView *view,
-                                                                                      const ITMTrackingState *trackingState,
-                                                                                      const ITMRenderState *renderState) {
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CPU<TVoxel, ITMPlainVoxelArray>::IntegrateIntoScene(
+    ITMScene<TVoxel, ITMPlainVoxelArray> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState) {
   Vector2i rgbImgSize = view->rgb->noDims;
   Vector2i depthImgSize = view->depth->noDims;
   float voxelSize = scene->sceneParams->voxelSize;

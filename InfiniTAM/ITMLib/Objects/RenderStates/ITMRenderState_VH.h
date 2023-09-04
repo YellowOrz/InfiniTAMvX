@@ -56,7 +56,11 @@ public:
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
 
   /** 获取entry的可见情况。
-   * @note =1是正常可见，=2是应该可见但是被删除了（swapped out）。在integration和tracker用到。
+   * @note 在integration和tracker用到。
+   *  =0???
+   *  =1是正常可见。
+   *  =2是应该可见但是被删除了（swapped out）。
+   *  =3？？？
    * Get the list of "visible entries", that are
   currently processed by integration and tracker.
   */
