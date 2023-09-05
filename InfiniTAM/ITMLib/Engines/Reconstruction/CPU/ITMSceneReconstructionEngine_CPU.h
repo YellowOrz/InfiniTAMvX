@@ -24,10 +24,10 @@ public:
   /**
    * 根据深度图 计算visible list、分配内存 && 更新hash table  ？？？？？？？？？？？？？？？？？？？？？
    * @tparam TVoxel
-   * @param[in,out] scene 更新
+   * @param[in,out] scene 更新其中 allocation list、???
    * @param[in] view 当前输入图像
-   * @param[in] trackingState 主要用到track得到的位姿
-   * @param[out] renderState 获取其中 可见entry的id数组和数量
+   * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
+   * @param[out] renderState 更新其中 可见entry的id数组和数量
    * @param[in] onlyUpdateVisibleList 是否只更新可见列表。=true的话，关闭swap
    * @param[in] resetVisibleList 是否需要重新检查可见性？？？。默认为false
    */

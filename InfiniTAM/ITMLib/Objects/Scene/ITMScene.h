@@ -22,7 +22,8 @@ class ITMScene {
   TIndex index;
 
   /** 正在用的的block（默认是8*8*8大小的voxel）。
-   * @note 若用了CUDA，存在显存；若只用了CPU，存在内存
+   * @note 存储的最小元素是voxel，即将单个block中的voxel拉成一维的存入其中。
+   *       若用了CUDA，存在显存；若只用了CPU，存在内存
    * Current local content of the 8x8x8 voxel blocks -- stored host or device */
   ITMLocalVBA<TVoxel> localVBA;
 
