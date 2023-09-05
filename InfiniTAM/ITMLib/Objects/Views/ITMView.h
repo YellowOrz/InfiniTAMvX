@@ -24,15 +24,13 @@ class ITMView {
   /// Float valued depth image, if available according to @ref inputImageType.
   ITMFloatImage *depth;
 
-  /// surface normal of depth image
-  // allocated when needed
-  ITMFloat4Image *depthNormal;
+  /// surface normal of depth image allocated when needed
+  ITMFloat4Image *depthNormal;      // 深度图的法向量
 
-  /// uncertainty (std) in each pixel of depth value based on sensor noise model
-  /// allocated when needed
-  ITMFloatImage *depthUncertainty;
+  /// uncertainty (std) in each pixel of depth value based on sensor noise model allocated when needed
+  ITMFloatImage *depthUncertainty;  // 深度图的不确定度（根据相机模型确定） TODO: 怎么确定的？？？
 
-  // confidence based on distance from center
+  // 深度图的置信度（根据到相机的距离计算）confidence based on distance from center
   ITMFloatImage *depthConfidence;
 
   ITMView(const ITMRGBDCalib &calibration, Vector2i imgSize_rgb, Vector2i imgSize_d, bool useGPU)
