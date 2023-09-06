@@ -5,44 +5,52 @@
 #include "../../../Objects/Scene/ITMRepresentationAccess.h"
 #include "../../../Utils/ITMPixelUtils.h"
 
-template<class TVoxel>
-_CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &voxel,
-                                                             const THREADPTR(Vector4f) &pt_model,
-                                                             const CONSTPTR(Matrix4f) &M_d,
-                                                             const CONSTPTR(Vector4f) &projParams_d,
-                                                             float mu,
-                                                             int maxW,
-                                                             const CONSTPTR(float) *depth,
-                                                             const CONSTPTR(Vector2i) &imgSize) {
-  Vector4f pt_camera;
-  Vector2f pt_image;
+/**
+ * 根据深度图，更新单个voxel的depth   // TODO: 下次从这儿开始
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in, out] voxel 要更新的voxel
+ * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+ * @param[in] M_d  当前帧中深度图的位姿（word to local）
+ * @param[in] projParams_d 深度图的相机内参
+ * @param[in] mu TSDF的截断值对应的距离，单位米
+ * @param[in] maxW voxel的最大观测次数
+ * @param[in] depth 深度图
+ * @param[in] imgSize 当前帧深度图的分辨率
+ * @return 
+ */
+template <class TVoxel>
+_CPU_AND_GPU_CODE_ inline float
+computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                             const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d, float mu,
+                             int maxW, const CONSTPTR(float) * depth, const CONSTPTR(Vector2i) & imgSize) {
+  pt_camera;
   float depth_measure, eta, oldF, newF;
   int oldW, newW;
   // 类似于kinectfusion
   // project point into image
-  pt_camera = M_d * pt_model; //（4*4）*（4*1）=4*1
+  Vector4f pt_camera = M_d * pt_model; //（4*4）*（4*1）=4*1
   if (pt_camera.z <= 0) return -1; //pt_camera 相机的位姿
   // 投影  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
+  Vector2f pt_image;
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z; //TODO（h）：数学公式的意义
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
 
-
   // get measured depth from image
-  depth_measure = depth[(int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x];
+  float depth_measure = depth[(int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x];
   if (depth_measure <= 0.0f) return -1;  //判断深度信息是否正确 否则退出函数
 
   // check whether voxel needs updating
   //如果体素靠近或在观测表面的前面，则将相应的观测值加到累积和中
-  eta = depth_measure - pt_camera.z;
+  float eta = depth_measure - pt_camera.z;
   if (eta < -mu) return eta;
 
   // compute updated SDF value and reliability
-  oldF = TVoxel::valueToFloat(voxel.sdf);//上一帧体素块的sdf值
-  oldW = voxel.w_depth;//上一帧体素块的权重
+  float oldF = TVoxel::valueToFloat(voxel.sdf);//上一帧体素块的sdf值
+  int oldW = voxel.w_depth;//上一帧体素块的权重
 
-  newF = MIN(1.0f, eta / mu);//当前帧体素块的sdf值
-  newW = 1;//当前帧体素块的权重
+  float newF = MIN(1.0f, eta / mu);//当前帧体素块的sdf值
+  int newW = 1;//当前帧体素块的权重
 
   newF = oldW * oldF + newW * newF;
   newW = oldW + newW;
@@ -57,57 +65,49 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
 }
 
 /**
- * Integration 融合 将新的深度图融合到三维模型里面
+ * 根据深度图和置信度图，更新单个voxel的depth和置信度 // TODO: 下次从这儿开始
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param voxel 体素块？
- * @param pt_model
- * @param M_d 当前深度图像位姿
- * @param projParams_d 深度相机的内在参数中的  校准矩阵 4*1
- * @param mu
- * @param maxW  voxel的最大观测次数，用来融合
- * @param depth  深度图像
- * @param confidence 当前图像置信度
- * @param imgSize  当前图像的大小 像素
- * @return
+ * @param[in, out] voxel 要更新的voxel
+ * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+ * @param[in] M_d  当前帧中深度图的位姿（word to local）
+ * @param[in] projParams_d 深度图的相机内参
+ * @param[in] mu TSDF的截断值对应的距离，单位米
+ * @param[in] maxW voxel的最大观测次数
+ * @param[in] depth 深度图
+ * @param[in] confidence 深度图的置信度（根据距离计算）
+ * @param[in] imgSize 当前帧深度图的分辨率
+ * @return 
  */
-template<class TVoxel>
-_CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &voxel,
-                                                             const THREADPTR(Vector4f) &pt_model,
-                                                             const CONSTPTR(Matrix4f) &M_d,
-                                                             const CONSTPTR(Vector4f) &projParams_d,
-                                                             float mu,
-                                                             int maxW,
-                                                             const CONSTPTR(float) *depth,
-                                                             const CONSTPTR(float) *confidence,
-                                                             const CONSTPTR(Vector2i) &imgSize) {
-  Vector4f pt_camera;
-  Vector2f pt_image;
-  float depth_measure, eta, oldF, newF;
-  int oldW, newW, locId;
-
+template <class TVoxel>
+_CPU_AND_GPU_CODE_ inline float
+computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                             const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d, float mu,
+                             int maxW, const CONSTPTR(float) * depth, const CONSTPTR(float) * confidence,
+                             const CONSTPTR(Vector2i) & imgSize) {
   // project point into image 投影点成图像
-  pt_camera = M_d * pt_model;
+  Vector4f pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
   //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
+  Vector2f pt_image;
   pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
   if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
 
-  locId = (int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x;
+  int locId = (int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x;
   // get measured depth from image  获得深度信息
-  depth_measure = depth[locId];
+  float depth_measure = depth[locId];
   if (depth_measure <= 0.0) return -1;
 
   // check whether voxel needs updating   在表面背后的voxel不需要更新 或者不在视野里的
-  eta = depth_measure - pt_camera.z;
+  float eta = depth_measure - pt_camera.z;
   if (eta < -mu) return eta;
 
   // compute updated SDF value and reliability   进行数据更新
-  oldF = TVoxel::valueToFloat(voxel.sdf);
-  oldW = voxel.w_depth;
-  newF = MIN(1.0f, eta / mu);
-  newW = 1;
+  float oldF = TVoxel::valueToFloat(voxel.sdf);
+  int oldW = voxel.w_depth;
+  float newF = MIN(1.0f, eta / mu);
+  int newW = 1;
 
   newF = oldW * oldF + newW * newF;
   newW = oldW + newW;
@@ -122,16 +122,12 @@ _CPU_AND_GPU_CODE_ inline float computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) &
   return eta;
 }
 
-template<class TVoxel>
-_CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &voxel,
-                                                            const THREADPTR(Vector4f) &pt_model,
-                                                            const CONSTPTR(Matrix4f) &M_rgb,
-                                                            const CONSTPTR(Vector4f) &projParams_rgb,
-                                                            float mu,
-                                                            uchar maxW,
-                                                            float eta,
-                                                            const CONSTPTR(Vector4u) *rgb,
-                                                            const CONSTPTR(Vector2i) &imgSize) {
+template <class TVoxel>
+_CPU_AND_GPU_CODE_ inline void  // TODO: 下次从这儿开始
+computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                             const CONSTPTR(Matrix4f) & M_rgb, const CONSTPTR(Vector4f) & projParams_rgb, float mu,
+                             uchar maxW, float eta, const CONSTPTR(Vector4u) * rgb,
+                             const CONSTPTR(Vector2i) & imgSize) {
   Vector4f pt_camera;
   Vector2f pt_image;
   Vector3f rgb_measure, oldC, newC;
@@ -170,85 +166,127 @@ _CPU_AND_GPU_CODE_ inline void computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) &v
 
 //根据体素是否存储颜色信息或置信信息，分四种情况对体素进行更新
 template<bool hasColor, bool hasConfidence, class TVoxel>
-struct ComputeUpdatedVoxelInfo;
+struct ComputeUpdatedVoxelInfo;   // TODO: 为啥专门搞个结构体，在调用的地方判断一下if else不就好了吗？？？？
 
-template<class TVoxel>
-struct ComputeUpdatedVoxelInfo<false, false, TVoxel> {
-  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) &voxel,
-                                         const THREADPTR(Vector4f) &pt_model,
-                                         const CONSTPTR(Matrix4f) &M_d,
-                                         const CONSTPTR(Vector4f) &projParams_d,
-                                         const CONSTPTR(Matrix4f) &M_rgb,
-                                         const CONSTPTR(Vector4f) &projParams_rgb,
-                                         float mu,
-                                         int maxW,
-                                         const CONSTPTR(float) *depth,
-                                         const CONSTPTR(float) *confidence,
-                                         const CONSTPTR(Vector2i) &imgSize_d,
-                                         const CONSTPTR(Vector4u) *rgb,
-                                         const CONSTPTR(Vector2i) &imgSize_rgb) {
+// 上面ComputeUpdatedVoxelInfo的偏特化，无 RGB和置信度 信息
+template <class TVoxel> 
+struct ComputeUpdatedVoxelInfo<false, false, TVoxel> { 
+  /**
+   * 根据当前输入，更新单个voxel的depth
+   * @param[in, out] voxel 要更新的voxel
+   * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+   * @param[in] M_d  当前帧中深度图的位姿（word to local）
+   * @param[in] projParams_d 深度图的相机内参
+   * @param M_rgb 【没用到】 当前帧中RGB图的位姿（word to local）
+   * @param projParams_rgb 【没用到】 RGB图的相机内参
+   * @param[in] mu TSDF的截断值对应的距离，单位米
+   * @param[in] maxW voxel的最大观测次数
+   * @param[in] depth 深度图
+   * @param confidence 【没用到】深度图的置信度（根据距离计算）
+   * @param[in] imgSize_d 当前帧深度图的分辨率
+   * @param rgb 【没用到】彩色图
+   * @param imgSize_rgb 【没用到】当前帧RGB图的分辨率
+   */
+  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                                         const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d,
+                                         const CONSTPTR(Matrix4f) & M_rgb, const CONSTPTR(Vector4f) & projParams_rgb,
+                                         float mu, int maxW, const CONSTPTR(float) * depth,
+                                         const CONSTPTR(float) * confidence, const CONSTPTR(Vector2i) & imgSize_d,
+                                         const CONSTPTR(Vector4u) * rgb, const CONSTPTR(Vector2i) & imgSize_rgb) {
     computeUpdatedVoxelDepthInfo(voxel, pt_model, M_d, projParams_d, mu, maxW, depth, imgSize_d);
   }
 };
 
-template<class TVoxel>
-struct ComputeUpdatedVoxelInfo<true, false, TVoxel> {
-  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) &voxel,
-                                         const THREADPTR(Vector4f) &pt_model,
-                                         const THREADPTR(Matrix4f) &M_d,
-                                         const THREADPTR(Vector4f) &projParams_d,
-                                         const THREADPTR(Matrix4f) &M_rgb,
-                                         const THREADPTR(Vector4f) &projParams_rgb,
-                                         float mu,
-                                         int maxW,
-                                         const CONSTPTR(float) *depth,
-                                         const CONSTPTR(float) *confidence,
-                                         const CONSTPTR(Vector2i) &imgSize_d,
-                                         const CONSTPTR(Vector4u) *rgb,
-                                         const THREADPTR(Vector2i) &imgSize_rgb) {
+// 上面ComputeUpdatedVoxelInfo的偏特化，有RGB信息、无置信度信息
+template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, false, TVoxel> {
+  /**
+   * 根据当前输入，更新单个voxel的depth和RGB
+   * @param[in, out] voxel 要更新的voxel
+   * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+   * @param[in] M_d  当前帧中深度图的位姿（word to local）
+   * @param[in] projParams_d 深度图的相机内参
+   * @param[in] M_rgb 当前帧中RGB图的位姿（word to local）
+   * @param[in] projParams_rgb RGB图的相机内参
+   * @param[in] mu TSDF的截断值对应的距离，单位米
+   * @param[in] maxW voxel的最大观测次数
+   * @param[in] depth 深度图
+   * @param confidence 【没用到】深度图的置信度（根据距离计算）
+   * @param[in] imgSize_d 当前帧深度图的分辨率
+   * @param[in] rgb 彩色图
+   * @param[in] imgSize_rgb 当前帧RGB图的分辨率
+   */
+  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                                         const THREADPTR(Matrix4f) & M_d, const THREADPTR(Vector4f) & projParams_d,
+                                         const THREADPTR(Matrix4f) & M_rgb, const THREADPTR(Vector4f) & projParams_rgb,
+                                         float mu, int maxW, const CONSTPTR(float) * depth,
+                                         const CONSTPTR(float) * confidence, const CONSTPTR(Vector2i) & imgSize_d,
+                                         const CONSTPTR(Vector4u) * rgb, const THREADPTR(Vector2i) & imgSize_rgb) {
+    // 更新depth
     float eta = computeUpdatedVoxelDepthInfo(voxel, pt_model, M_d, projParams_d, mu, maxW, depth, imgSize_d);
     if ((eta > mu) || (fabs(eta / mu) > 0.25f)) return;
+    // 更新RGB
     computeUpdatedVoxelColorInfo(voxel, pt_model, M_rgb, projParams_rgb, mu, maxW, eta, rgb, imgSize_rgb);
   }
 };
 
+// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度信息、无RGB信息
 template<class TVoxel>
 struct ComputeUpdatedVoxelInfo<false, true, TVoxel> {
-  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) &voxel,
-                                         const THREADPTR(Vector4f) &pt_model,
-                                         const CONSTPTR(Matrix4f) &M_d,
-                                         const CONSTPTR(Vector4f) &projParams_d,
-                                         const CONSTPTR(Matrix4f) &M_rgb,
-                                         const CONSTPTR(Vector4f) &projParams_rgb,
-                                         float mu,
-                                         int maxW,
-                                         const CONSTPTR(float) *depth,
-                                         const CONSTPTR(float) *confidence,
-                                         const CONSTPTR(Vector2i) &imgSize_d,
-                                         const CONSTPTR(Vector4u) *rgb,
-                                         const CONSTPTR(Vector2i) &imgSize_rgb) {
+  /**
+   * 根据当前输入，更新单个voxel的depth和置信度
+   * @param[in, out] voxel 要更新的voxel
+   * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+   * @param[in] M_d  当前帧中深度图的位姿（word to local）
+   * @param[in] projParams_d 深度图的相机内参
+   * @param M_rgb 【没用到】 当前帧中RGB图的位姿（word to local）
+   * @param projParams_rgb 【没用到】 RGB图的相机内参
+   * @param[in] mu TSDF的截断值对应的距离，单位米
+   * @param[in] maxW voxel的最大观测次数
+   * @param[in] depth 深度图
+   * @param[in] confidence 深度图的置信度（根据距离计算）
+   * @param[in] imgSize_d 当前帧深度图的分辨率
+   * @param rgb 【没用到】彩色图
+   * @param imgSize_rgb 【没用到】当前帧RGB图的分辨率
+   */
+  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                                         const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d,
+                                         const CONSTPTR(Matrix4f) & M_rgb, const CONSTPTR(Vector4f) & projParams_rgb,
+                                         float mu, int maxW, const CONSTPTR(float) * depth,
+                                         const CONSTPTR(float) * confidence, const CONSTPTR(Vector2i) & imgSize_d,
+                                         const CONSTPTR(Vector4u) * rgb, const CONSTPTR(Vector2i) & imgSize_rgb) {
     computeUpdatedVoxelDepthInfo(voxel, pt_model, M_d, projParams_d, mu, maxW, depth, confidence, imgSize_d);
   }
 };
 
-template<class TVoxel>
-struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
-  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) &voxel,
-                                         const THREADPTR(Vector4f) &pt_model,
-                                         const THREADPTR(Matrix4f) &M_d,
-                                         const THREADPTR(Vector4f) &projParams_d,
-                                         const THREADPTR(Matrix4f) &M_rgb,
-                                         const THREADPTR(Vector4f) &projParams_rgb,
-                                         float mu,
-                                         int maxW,
-                                         const CONSTPTR(float) *depth,
-                                         const CONSTPTR(float) *confidence,
-                                         const CONSTPTR(Vector2i) &imgSize_d,
-                                         const CONSTPTR(Vector4u) *rgb,
-                                         const THREADPTR(Vector2i) &imgSize_rgb) {
-    float
-        eta = computeUpdatedVoxelDepthInfo(voxel, pt_model, M_d, projParams_d, mu, maxW, depth, confidence, imgSize_d);
+// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度和RGB信息
+template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
+  /**
+   * 根据当前输入，更新单个voxel的depth、RGB和置信度  // TODO: 下次从这儿开始
+   * @param[in, out] voxel 要更新的voxel
+   * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+   * @param[in] M_d  当前帧中深度图的位姿（word to local）
+   * @param[in] projParams_d 深度图的相机内参
+   * @param[in] M_rgb 当前帧中RGB图的位姿（word to local）
+   * @param[in] projParams_rgb RGB图的相机内参
+   * @param[in] mu TSDF的截断值对应的距离，单位米
+   * @param[in] maxW voxel的最大观测次数
+   * @param[in] depth 深度图
+   * @param[in] confidence 深度图的置信度（根据距离计算）
+   * @param[in] imgSize_d 当前帧深度图的分辨率
+   * @param[in] rgb 彩色图
+   * @param[in] imgSize_rgb 当前帧RGB图的分辨率
+   */
+  _CPU_AND_GPU_CODE_ static void compute(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
+                                         const THREADPTR(Matrix4f) & M_d, const THREADPTR(Vector4f) & projParams_d,
+                                         const THREADPTR(Matrix4f) & M_rgb, const THREADPTR(Vector4f) & projParams_rgb,
+                                         float mu, int maxW, const CONSTPTR(float) * depth,
+                                         const CONSTPTR(float) * confidence, const CONSTPTR(Vector2i) & imgSize_d,
+                                         const CONSTPTR(Vector4u) * rgb, const THREADPTR(Vector2i) & imgSize_rgb) {
+    // 更新depth和置信度
+    float eta =
+        computeUpdatedVoxelDepthInfo(voxel, pt_model, M_d, projParams_d, mu, maxW, depth, confidence, imgSize_d);
     if ((eta > mu) || (fabs(eta / mu) > 0.25f)) return;
+    // 更新RGB
     computeUpdatedVoxelColorInfo(voxel, pt_model, M_rgb, projParams_rgb, mu, maxW, eta, rgb, imgSize_rgb);
   }
 };
