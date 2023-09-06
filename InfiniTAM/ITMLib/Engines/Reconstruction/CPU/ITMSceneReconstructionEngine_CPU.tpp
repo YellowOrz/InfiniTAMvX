@@ -43,26 +43,26 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(
 }
 
 /**
- * 根据可见列表，将当前输入的单帧融入场景中    //TODO: 下次从这儿开始
+ * 根据可见列表，将当前输入的单帧融入场景中
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param[in,out] scene 三维场景
  * @param[in] view 当前输入图像
  * @param[in] trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
- * @param[in] renderState 主要用到其中的可见entry列表
+ * @param[in] renderState 渲染相关数据。主要用到其中的可见entry列表
  */
 template <class TVoxel>
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
     const ITMRenderState *renderState) {
   //! 准备
-  Vector2i rgbImgSize = view->rgb->noDims;          // rgb图分辨率
-  Vector2i depthImgSize = view->depth->noDims;      // 深度图分辨率
+  Vector2i rgbImgSize = view->rgb->noDims;          // 当前帧RGB图的分辨率
+  Vector2i depthImgSize = view->depth->noDims;      // 当前帧深度图的分辨率
   float voxelSize = scene->sceneParams->voxelSize;
 
-  Matrix4f M_d = trackingState->pose_d->GetM();     // 深度相机的全局位姿（word to local）
+  Matrix4f M_d = trackingState->pose_d->GetM();             // 当前帧中深度图的位姿（word to local）
   Matrix4f M_rgb;
   if (TVoxel::hasColorInformation)
-    M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d; // RGB相机的全局位姿（word to local）
+    M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d; // 当前帧中RGB图的位姿（word to local）
 
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
 
@@ -111,7 +111,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
     globalPos.z = currentHashEntry.pos.z;
     globalPos *= SDF_BLOCK_SIZE;            // voxel坐标
 
-    // 遍历当前block中的每一个voxel
+    // 遍历当前block中的每一个voxel，更新（融合）数据
     TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * (SDF_BLOCK_SIZE3)]);  // block中第1个voxel的指针
     for (int z = 0; z < SDF_BLOCK_SIZE; z++)
       for (int y = 0; y < SDF_BLOCK_SIZE; y++)
@@ -129,7 +129,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           pt_model.z = (float) (globalPos.z + z) * voxelSize;
           pt_model.w = 1.0f;        // 为了后续使用齐次坐标???
 
-          // 更新当前voxel  TODO: 下次从这儿开始
+          // 更新当前voxel
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence,
               depthImgSize, rgb,
