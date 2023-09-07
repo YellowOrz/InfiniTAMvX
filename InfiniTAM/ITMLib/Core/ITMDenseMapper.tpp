@@ -39,7 +39,7 @@ void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view, const ITM
 
   // 集成（通过整合来自给定视图的深度和可能的颜色信息来更新体素块。）
   sceneRecoEngine->IntegrateIntoScene(scene, view, trackingState, renderState);
-  // CPU与GPU之间的内存交换
+  // CPU与GPU之间的内存交换   // TODO： 下次从这儿开始看
   if (swappingEngine != NULL) { // 判断交换引擎接口地址是否为空
     // swapping: CPU -> GPU
     if (swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED)   // 判断交换模式
