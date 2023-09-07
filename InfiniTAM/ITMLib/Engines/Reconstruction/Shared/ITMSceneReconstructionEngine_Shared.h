@@ -6,77 +6,72 @@
 #include "../../../Utils/ITMPixelUtils.h"
 
 /**
- * 根据深度图，更新单个voxel的depth   // TODO: 下次从这儿开始
+ * 更新单个voxel的depth
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param[in, out] voxel 要更新的voxel
  * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
  * @param[in] M_d  当前帧中深度图的位姿（word to local）
- * @param[in] projParams_d 深度图的相机内参
+ * @param[in] projParams_d 深度图的相机内参，fx fy cx cy
  * @param[in] mu TSDF的截断值对应的距离，单位米
  * @param[in] maxW voxel的最大观测次数
  * @param[in] depth 深度图
  * @param[in] imgSize 当前帧深度图的分辨率
- * @return 
+ * @return depth图中对应的深度值 与 voxel深度 的差。>0 说明voxel在depth图前面，<0 在后面（即voxel被depth图遮挡）
  */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline float
 computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
                              const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d, float mu,
                              int maxW, const CONSTPTR(float) * depth, const CONSTPTR(Vector2i) & imgSize) {
-  pt_camera;
-  float depth_measure, eta, oldF, newF;
-  int oldW, newW;
-  // 类似于kinectfusion
-  // project point into image
-  Vector4f pt_camera = M_d * pt_model; //（4*4）*（4*1）=4*1
-  if (pt_camera.z <= 0) return -1; //pt_camera 相机的位姿
-  // 投影  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
-  Vector2f pt_image;
-  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z; //TODO（h）：数学公式的意义
+  //! 将voxel投影到成像平面 project point into image
+  Vector4f pt_camera = M_d * pt_model;
+  if (pt_camera.z <= 0) return -1;
+
+  Vector2f pt_image;  // 成像平面上的二维坐标
+  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;   // 相机投影公式
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
-  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
+  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || 
+      (pt_image.y < 1) || (pt_image.y > imgSize.y - 2))       // 超出图像边缘的不要
+    return -1;
 
-  // get measured depth from image
-  float depth_measure = depth[(int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x];
-  if (depth_measure <= 0.0f) return -1;  //判断深度信息是否正确 否则退出函数
+  //! 根据深度差 判断是否要更新voxel。check whether voxel needs updating  
+  float depth_measure = depth[(int) (pt_image.x + 0.5f) +   // 获取深度图对应的深度值。先转一维坐标。+0.5是为了四舍五入
+                              (int) (pt_image.y + 0.5f) * imgSize.x];   // get measured depth from image
+  if (depth_measure <= 0.0f) return -1;     // 无效退出
 
-  // check whether voxel needs updating
-  //如果体素靠近或在观测表面的前面，则将相应的观测值加到累积和中
   float eta = depth_measure - pt_camera.z;
-  if (eta < -mu) return eta;
+  if (eta < -mu) return eta;              // <，说明voxel被depth遮挡  // TODO: 为啥不是> 或者取绝对值？？？？
 
-  // compute updated SDF value and reliability
-  float oldF = TVoxel::valueToFloat(voxel.sdf);//上一帧体素块的sdf值
-  int oldW = voxel.w_depth;//上一帧体素块的权重
-
-  float newF = MIN(1.0f, eta / mu);//当前帧体素块的sdf值
-  int newW = 1;//当前帧体素块的权重
-
-  newF = oldW * oldF + newW * newF;
+  //! 更新 compute updated SDF value and reliability 
+  float oldF = TVoxel::valueToFloat(voxel.sdf);   // 取出voxel的sdf和权重（即观测次数）
+  int oldW = voxel.w_depth;
+  float newF = MIN(1.0f, eta / mu);               // 计算深度图中depth值的sdf（上限为1），权重置为1
+  int newW = 1;
+  // 加权取平均
+  newF = oldW * oldF + newW * newF;               
   newW = oldW + newW;
   newF /= newW;
   newW = MIN(newW, maxW);
-
-  // write back
-  voxel.sdf = TVoxel::floatToValue(newF);//计算坐标理论值和实际测量值的差值，若大于mu，则更新
-  voxel.w_depth = newW;//更新体素块的权重
+  // 记录到voxel里。write back
+  voxel.sdf = TVoxel::floatToValue(newF);         
+  voxel.w_depth = newW;
 
   return eta;
 }
 
 /**
- * 根据深度图和置信度图，更新单个voxel的depth和置信度 // TODO: 下次从这儿开始
+ * 更新单个voxel的depth和置信度
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param[in, out] voxel 要更新的voxel
- * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+ * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）  // TODO：是voxel的中心坐标吗？
  * @param[in] M_d  当前帧中深度图的位姿（word to local）
- * @param[in] projParams_d 深度图的相机内参
+ * @param[in] projParams_d 深度图的相机内参，fx fy cx cy
  * @param[in] mu TSDF的截断值对应的距离，单位米
  * @param[in] maxW voxel的最大观测次数
  * @param[in] depth 深度图
  * @param[in] confidence 深度图的置信度（根据距离计算）
  * @param[in] imgSize 当前帧深度图的分辨率
- * @return 
+ * @return depth图中对应的深度值 与 voxel深度 的差。>0 说明voxel在depth图前面，<0 在后面（即voxel被depth图遮挡）
  */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline float
@@ -84,91 +79,101 @@ computeUpdatedVoxelDepthInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f
                              const CONSTPTR(Matrix4f) & M_d, const CONSTPTR(Vector4f) & projParams_d, float mu,
                              int maxW, const CONSTPTR(float) * depth, const CONSTPTR(float) * confidence,
                              const CONSTPTR(Vector2i) & imgSize) {
-  // project point into image 投影点成图像
+  //! 将voxel投影到成像平面 project point into image
   Vector4f pt_camera = M_d * pt_model;
   if (pt_camera.z <= 0) return -1;
 
-  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标,若体素块不可见则退出
-  Vector2f pt_image;
-  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;
+  Vector2f pt_image;    // 成像平面上的二维坐标
+  pt_image.x = projParams_d.x * pt_camera.x / pt_camera.z + projParams_d.z;   // 相机投影公式
   pt_image.y = projParams_d.y * pt_camera.y / pt_camera.z + projParams_d.w;
-  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return -1;
-
-  int locId = (int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x;
-  // get measured depth from image  获得深度信息
-  float depth_measure = depth[locId];
-  if (depth_measure <= 0.0) return -1;
-
-  // check whether voxel needs updating   在表面背后的voxel不需要更新 或者不在视野里的
+  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || 
+      (pt_image.y < 1) || (pt_image.y > imgSize.y - 2))     // 超出图像边缘的不要
+    return -1;
+  
+  //! 根据深度差 判断是否要更新voxel。  check whether voxel needs updating
+  int locId = (int) (pt_image.x + 0.5f) + (int) (pt_image.y + 0.5f) * imgSize.x;  // 转一维坐标。+0.5是为了四舍五入
+  float depth_measure = depth[locId];     // 获取输入图像对应位置的深度值
+  if (depth_measure <= 0.0) return -1;    // 无效退出
+   
   float eta = depth_measure - pt_camera.z;
-  if (eta < -mu) return eta;
+  if (eta < -mu) return eta;              // <，说明voxel被depth遮挡  // TODO: 为啥不是> 或者取绝对值？？？？
 
-  // compute updated SDF value and reliability   进行数据更新
-  float oldF = TVoxel::valueToFloat(voxel.sdf);
+  //! 更新 compute updated SDF value and reliability 
+  float oldF = TVoxel::valueToFloat(voxel.sdf);   // 取出voxel的sdf和权重（即观测次数）
   int oldW = voxel.w_depth;
-  float newF = MIN(1.0f, eta / mu);
+  float newF = MIN(1.0f, eta / mu);               // 计算深度图中depth值的sdf（上限为1），权重置为1
   int newW = 1;
-
-  newF = oldW * oldF + newW * newF;
+  // 加权取平均
+  newF = oldW * oldF + newW * newF;               
   newW = oldW + newW;
   newF /= newW;
   newW = MIN(newW, maxW);
-
-  // write back^
-  voxel.sdf = TVoxel::floatToValue(newF);
+  // 记录到voxel里。write back
+  voxel.sdf = TVoxel::floatToValue(newF);         
   voxel.w_depth = newW;
-  voxel.confidence += TVoxel::floatToValue(confidence[locId]);//更新体素块的置信度
+  voxel.confidence += TVoxel::floatToValue(confidence[locId]);  // TODO：置信度跟权重有啥区别？？？
 
   return eta;
 }
 
+/**
+ * 更新单个voxel的RGB
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in, out] voxel 要更新的voxel
+ * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
+ * @param[in] M_rgb 当前帧中RGB图的位姿（word to local）
+ * @param[in] projParams_rgb RGB图的相机内参，fx fy cx cy
+ * @param[in] mu TSDF的截断值对应的距离，单位米
+ * @param[in] maxW voxel的最大观测次数
+ * @param eta 【没用到】depth图中对应的深度值 与 voxel深度 的差
+ * @param[in] rgb RGB图
+ * @param[in] imgSize 当前帧深度图的分辨率
+ */
 template <class TVoxel>
-_CPU_AND_GPU_CODE_ inline void  // TODO: 下次从这儿开始
+_CPU_AND_GPU_CODE_ inline void
 computeUpdatedVoxelColorInfo(DEVICEPTR(TVoxel) & voxel, const THREADPTR(Vector4f) & pt_model,
                              const CONSTPTR(Matrix4f) & M_rgb, const CONSTPTR(Vector4f) & projParams_rgb, float mu,
                              uchar maxW, float eta, const CONSTPTR(Vector4u) * rgb,
                              const CONSTPTR(Vector2i) & imgSize) {
-  Vector4f pt_camera;
-  Vector2f pt_image;
-  Vector3f rgb_measure, oldC, newC;
-  Vector3u buffV3u;
-  float newW, oldW;
+  //! 将voxel投影到成像平面
+  Vector4f pt_camera = M_rgb * pt_model;  // 不判断z<=0 ????
 
-  buffV3u = voxel.clr;
-  oldW = (float) voxel.w_color;//上一帧体素块的权重
-
-  oldC = TO_FLOAT3(buffV3u) / 255.0f;//上一帧体素块的权重
-  newC = oldC;
-
-  //将点投影到图像中
-  pt_camera = M_rgb * pt_model;
-
-  //使用已知的旋转矩阵和平移向量将voxel坐标转化为深度相机坐标系的坐标
-  pt_image.x = projParams_rgb.x * pt_camera.x / pt_camera.z + projParams_rgb.z;
+  Vector2f pt_image;    // 成像平面上的二维坐标
+  pt_image.x = projParams_rgb.x * pt_camera.x / pt_camera.z + projParams_rgb.z;   // 相机投影公式
   pt_image.y = projParams_rgb.y * pt_camera.y / pt_camera.z + projParams_rgb.w;
+  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || 
+      (pt_image.y < 1) || (pt_image.y > imgSize.y - 2))       // 超出图像边缘的不要
+    return;
 
-  //剔除不在图像范围内的点
-  if ((pt_image.x < 1) || (pt_image.x > imgSize.x - 2) || (pt_image.y < 1) || (pt_image.y > imgSize.y - 2)) return;
+  //! 更新
+  Vector3u buffV3u = voxel.clr;                   // TODO: 不要这个中间变量
+  Vector3f oldC = TO_FLOAT3(buffV3u) / 255.0f;    // 取出voxel的RGB和权重（即观测次数）
+  float oldW = (float) voxel.w_color;   
 
-  rgb_measure = TO_VECTOR3(interpolateBilinear(rgb, pt_image, imgSize)) / 255.0f;
+  Vector3f rgb_measure = TO_VECTOR3(interpolateBilinear(rgb, pt_image, imgSize)) / 255.0f;  // 对RGB图插值，权重置为1
   //rgb_measure = rgb[(int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x].toVector3().toFloat() / 255.0f;
-  newW = 1;
-
-  newC = oldC * oldW + rgb_measure * newW;//当前帧体素块的rgb信息
-  newW = oldW + newW;//当前帧体素块的权重
+  float newW = 1;
+  // 加权取平均
+  Vector3f newC = oldC * oldW + rgb_measure * newW;   // TODO：将rgb_measure换成newC，节省一个中间变量!
+  newW = oldW + newW;
   newC /= newW;
   newW = MIN(newW, maxW);
-
-  //更新体素块的rgb信息和权重
+  // 记录到voxel里
   voxel.clr = TO_UCHAR3(newC * 255.0f);
   voxel.w_color = (uchar) newW;
 }
 
-//根据体素是否存储颜色信息或置信信息，分四种情况对体素进行更新
+/**
+ * @brief 根据voxel是否存储RGB或置信度（四种情况），对voxel进行更新
+ * 
+ * @tparam hasColor 是否存储RGB。是C++的非类型模板参数
+ * @tparam hasConfidence 是否存储置信度。是C++的非类型模板参数
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ */
 template<bool hasColor, bool hasConfidence, class TVoxel>
-struct ComputeUpdatedVoxelInfo;   // TODO: 为啥专门搞个结构体，在调用的地方判断一下if else不就好了吗？？？？
+struct ComputeUpdatedVoxelInfo; 
 
-// 上面ComputeUpdatedVoxelInfo的偏特化，无 RGB和置信度 信息
+// 上面ComputeUpdatedVoxelInfo的偏特化，无 RGB和置信度 信息 // TODO: 这里叫偏特化吗？
 template <class TVoxel> 
 struct ComputeUpdatedVoxelInfo<false, false, TVoxel> { 
   /**
@@ -197,7 +202,7 @@ struct ComputeUpdatedVoxelInfo<false, false, TVoxel> {
   }
 };
 
-// 上面ComputeUpdatedVoxelInfo的偏特化，有RGB信息、无置信度信息
+// 上面ComputeUpdatedVoxelInfo的偏特化，有RGB信息、无置信度信息   // TODO: 这里叫偏特化吗？
 template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, false, TVoxel> {
   /**
    * 根据当前输入，更新单个voxel的depth和RGB
@@ -229,7 +234,7 @@ template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, false, TVoxel> {
   }
 };
 
-// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度信息、无RGB信息
+// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度信息、无RGB信息   // TODO: 这里叫偏特化吗？
 template<class TVoxel>
 struct ComputeUpdatedVoxelInfo<false, true, TVoxel> {
   /**
@@ -258,10 +263,10 @@ struct ComputeUpdatedVoxelInfo<false, true, TVoxel> {
   }
 };
 
-// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度和RGB信息
+// 上面ComputeUpdatedVoxelInfo的偏特化，有置信度和RGB信息   // TODO: 这里叫偏特化吗？
 template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
   /**
-   * 根据当前输入，更新单个voxel的depth、RGB和置信度  // TODO: 下次从这儿开始
+   * 根据当前输入，更新单个voxel的depth、RGB和置信度
    * @param[in, out] voxel 要更新的voxel
    * @param[in] pt_model 当前voxel在全局下的真实坐标（单位米）
    * @param[in] M_d  当前帧中深度图的位姿（word to local）
@@ -383,7 +388,7 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
       }
     }
 
-    point += direction; // 下一个
+    point += direction;   // 前进四！！！
   }
 }
 
@@ -414,7 +419,7 @@ checkPointVisibility(THREADPTR(bool) & isVisible, THREADPTR(bool) & isVisibleEnl
       pt_buff.y >= 0 && pt_buff.y < imgSize.y) {  // 投影在图像范围之内是否可见
     isVisible = true;
     isVisibleEnlarged = true;
-  } else if (useSwapping) {                       // 不可见 && swap了，就看更大的图像范围（扩大1/8倍）之内是否可见 why???
+  } else if (useSwapping) {                       // 不可见 && swap了，就看更大的图像范围（扩大1/8倍）是否可见 // TODO：why???
     Vector4i lims;
     lims.x = -imgSize.x / 8;    // 范围扩大1/8倍
     lims.y = imgSize.x + imgSize.x / 8;

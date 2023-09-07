@@ -34,7 +34,14 @@ public:
   void AllocateSceneFromDepth(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
                               const ITMTrackingState *trackingState, const ITMRenderState *renderState,
                               bool onlyUpdateVisibleList = false, bool resetVisibleList = false);
-
+  /**
+   * 根据可见列表，将当前输入的单帧融入场景中
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+   * @param[in,out] scene 三维场景
+   * @param[in] view 当前输入图像
+   * @param[in] trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
+   * @param[in] renderState 渲染相关数据。主要用到其中的可见entry列表
+   */
   void IntegrateIntoScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
                           const ITMTrackingState *trackingState, const ITMRenderState *renderState);
 

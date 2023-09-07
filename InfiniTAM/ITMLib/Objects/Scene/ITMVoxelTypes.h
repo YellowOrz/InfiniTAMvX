@@ -5,7 +5,7 @@
 #include "../../Utils/ITMMath.h"
 
 /** \brief
-    Stores the information of a single voxel in the volume
+    存储单个voxel的信息，使用float类型 && 有RGB。Stores the information of a single voxel in the volume
 */
 struct ITMVoxel_f_rgb {
   _CPU_AND_GPU_CODE_ static float SDF_initialValue() { return 1.0f; }
@@ -19,7 +19,7 @@ struct ITMVoxel_f_rgb {
   /** Value of the truncated signed distance transformation. */
   float sdf;
   /** Number of fused observations that make up @p sdf. */
-  uchar w_depth;
+  uchar w_depth;  // sdf的观测次数，作为权重
   /** RGB colour information stored for this voxel. */
   Vector3u clr;
   /** Number of observations that made up @p clr. */
@@ -34,7 +34,8 @@ struct ITMVoxel_f_rgb {
 };
 
 /** \brief
-    Stores the information of a single voxel in the volume
+    存储单个voxel的信息，使用short类型 && 有RGB。Stores the information of a single voxel in the volume
+    @note 取值范围为0 ~ 2^15-1  // TODO: 为啥不用unsigned short？？？
 */
 struct ITMVoxel_s_rgb {
   _CPU_AND_GPU_CODE_ static short SDF_initialValue() { return 32767; }
@@ -48,7 +49,7 @@ struct ITMVoxel_s_rgb {
   /** Value of the truncated signed distance transformation. */
   short sdf;
   /** Number of fused observations that make up @p sdf. */
-  uchar w_depth;
+  uchar w_depth;  // sdf的观测次数，作为权重
   /** Padding that may or may not improve performance on certain GPUs */
   //uchar pad;
   /** RGB colour information stored for this voxel. */
@@ -64,6 +65,7 @@ struct ITMVoxel_s_rgb {
   }
 };
 
+/** 存储单个voxel的信息，使用short类型 && 无RGB。 */
 struct ITMVoxel_s {
   _CPU_AND_GPU_CODE_ static short SDF_initialValue() { return 32767; }
   _CPU_AND_GPU_CODE_ static float valueToFloat(float x) { return (float) (x) / 32767.0f; }
@@ -74,9 +76,9 @@ struct ITMVoxel_s {
   static const CONSTPTR(bool) hasSemanticInformation = false;
 
   /** Value of the truncated signed distance transformation. */
-  short sdf;
+  short sdf;  
   /** Number of fused observations that make up @p sdf. */
-  uchar w_depth;
+  uchar w_depth;  // sdf的观测次数，作为权重
   /** Padding that may or may not improve performance on certain GPUs */
   //uchar pad;
 
@@ -86,6 +88,7 @@ struct ITMVoxel_s {
   }
 };
 
+/** 存储单个voxel的信息，使用float类型 && 无RGB。 */
 struct ITMVoxel_f {
   _CPU_AND_GPU_CODE_ static float SDF_initialValue() { return 1.0f; }
   _CPU_AND_GPU_CODE_ static float valueToFloat(float x) { return x; }
@@ -98,7 +101,7 @@ struct ITMVoxel_f {
   /** Value of the truncated signed distance transformation. */
   float sdf;
   /** Number of fused observations that make up @p sdf. */
-  uchar w_depth;
+  uchar w_depth;  // sdf的观测次数，作为权重
   /** Padding that may or may not improve performance on certain GPUs */
   //uchar pad;
 
@@ -108,6 +111,7 @@ struct ITMVoxel_f {
   }
 };
 
+/** 存储单个voxel的信息，使用float类型 && 无RGB && 有置信度。 */
 struct ITMVoxel_f_conf {
   _CPU_AND_GPU_CODE_ static float SDF_initialValue() { return 1.0f; }
   _CPU_AND_GPU_CODE_ static float valueToFloat(float x) { return x; }
@@ -120,10 +124,10 @@ struct ITMVoxel_f_conf {
   /** Value of the truncated signed distance transformation. */
   float sdf;
   /** Number of fused observations that make up @p sdf. */
-  uchar w_depth;
+  uchar w_depth;  // sdf的观测次数，作为权重
   /** Padding that may or may not improve performance on certain GPUs */
   //uchar pad;
-  float confidence;
+  float confidence; // sdf的置信度 // TODO: 跟权重有啥区别？？？
 
   _CPU_AND_GPU_CODE_ ITMVoxel_f_conf() {
     sdf = SDF_initialValue();

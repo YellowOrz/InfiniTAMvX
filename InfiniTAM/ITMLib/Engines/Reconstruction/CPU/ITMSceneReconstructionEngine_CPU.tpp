@@ -42,14 +42,6 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(
   scene->index.SetLastFreeExcessListId(SDF_EXCESS_LIST_SIZE - 1);
 }
 
-/**
- * 根据可见列表，将当前输入的单帧融入场景中
- * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param[in,out] scene 三维场景
- * @param[in] view 当前输入图像
- * @param[in] trackingState 存储一些关于当前跟踪状态的内部变量，最重要的是相机姿势
- * @param[in] renderState 渲染相关数据。主要用到其中的可见entry列表
- */
 template <class TVoxel>
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
@@ -87,17 +79,6 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
 #ifdef WITH_OPENMP
 #pragma omp parallel for // 告诉openmp中展开循环
 #endif
-   //！开始处理
-
-/*
-   1 所有的block存储在连续的内存之中 即称VBA
-   2 voxel block 由8*8*8个voxel组成。voxel 存储 sdf，color 和 weight 信息
-   3 hash table 连续的数组  其记录的映射关系（对应）关系   其中ptr储存该block在array 中的位置
-   4 哈希函数 输入一个block的ID坐标（pos） 返回一个独一无二的 index（即ptr GTR(）
-
-    哈希冲突即为 不同的pos计算出相同的ptr
-    解决方法为将映射相同ptr的block的全部存储下来，offset初始化为-1 如有冲突offset为两个相同ptr的entry的距离 查找时，遍历直至offset<=-1
-*/
   //! 遍历可见entry列表
   for (int entryId = 0; entryId < noVisibleEntries; entryId++) {
     // 获取entry
@@ -132,9 +113,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
           // 更新当前voxel
           ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
               localVoxelBlock[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence,
-              depthImgSize, rgb,
-              rgbImgSize); // 更新体素保存的一些信息    根据hasColorInformation  hasConfidenceInformation
-                           // 的bool值来选择函数
+              depthImgSize, rgb, rgbImgSize); 
         }
   }
 }
