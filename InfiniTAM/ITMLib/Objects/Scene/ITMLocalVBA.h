@@ -31,7 +31,7 @@ class ITMLocalVBA {
 
   int allocatedSize;  
 
-  /** 将所有数据保存到硬盘上 */
+  /** 将所有数据（VBA+allocationList+lastFreeBlockId）保存到硬盘上 */
   void SaveToDirectory(const std::string &outputDirectory) const {
     std::string VBFileName = outputDirectory + "voxel.dat";
     std::string ALFileName = outputDirectory + "alloc.dat";
@@ -46,7 +46,7 @@ class ITMLocalVBA {
     ofs << lastFreeBlockId << ' ' << allocatedSize;
   }
 
-  /** 从硬盘读取数据 */
+  /** 从硬盘读取数据（VBA+allocationList+lastFreeBlockId） */
   void LoadFromDirectory(const std::string &inputDirectory) {
     std::string VBFileName = inputDirectory + "voxel.dat";
     std::string ALFileName = inputDirectory + "alloc.dat";

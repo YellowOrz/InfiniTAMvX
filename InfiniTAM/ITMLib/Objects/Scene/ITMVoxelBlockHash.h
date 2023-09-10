@@ -91,7 +91,7 @@ class ITMVoxelBlockHash {
   many hash collisions caused the buckets to
   overflow.
   */
-  // ORUtils::MemoryBlock<int> *excessAllocationList;    // ？？？场景重置的时候allocationList[i] = i
+  ORUtils::MemoryBlock<int> *excessAllocationList;    // ？？？场景重置的时候allocationList[i] = i
 
   MemoryDeviceType memoryType;
 

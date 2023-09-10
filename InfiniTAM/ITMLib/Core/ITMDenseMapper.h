@@ -12,10 +12,10 @@ namespace ITMLib {
 template<class TVoxel, class TIndex>
 class ITMDenseMapper {
  private:
-  ITMSceneReconstructionEngine<TVoxel, TIndex> *sceneRecoEngine;  // 用于三维模型融合，是一个父类指针
-  ITMSwappingEngine<TVoxel, TIndex> *swappingEngine;              // 用于CPU和GPU之间的数据交换，是一个父类指针。前提是开启swap
+  ITMSceneReconstructionEngine<TVoxel, TIndex> *sceneRecoEngine;  // 用于三维模型融合
+  ITMSwappingEngine<TVoxel, TIndex> *swappingEngine;              // 用于CPU和GPU之间的数据交换
 
-  ITMLibSettings::SwappingMode swappingMode;
+  ITMLibSettings::SwappingMode swappingMode;                      // swap默认关闭。在TIMLibSetting中开启
 
  public:
   void ResetScene(ITMScene<TVoxel, TIndex> *scene) const;

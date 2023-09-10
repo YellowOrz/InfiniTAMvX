@@ -47,7 +47,7 @@ ITMLibSettings::ITMLibSettings(void)
   //deviceType = DEVICE_CPU;
 
   /// how swapping works: disabled, fully enabled (still with dragons) and delete what's not visible - not supported in loop closure version
-  swappingMode = SWAPPINGMODE_DISABLED;
+  swappingMode = SWAPPINGMODE_ENABLED;
 
   /// enables or disables approximate raycast
   useApproximateRaycast = false;

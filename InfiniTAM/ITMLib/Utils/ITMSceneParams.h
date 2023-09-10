@@ -35,7 +35,7 @@ class ITMSceneParams {
       Up to @ref maxW observations per voxel are averaged.
       Beyond that a sliding average is computed.
   */
-  int maxW;   // voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
+  int maxW; // voxel的最大观测次数，用来限制voxel的权重（因为权重=观测次数） // TODO：并没有用到滑窗呀
 
   /** Stop integration once maxW has been reached. */
   bool stopIntegratingAtMaxW;   // 到达最大观测次数后是否继续融合

@@ -34,20 +34,19 @@ template <class TVoxel, class TIndex>
 void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view, const ITMTrackingState *trackingState,
                                                   ITMScene<TVoxel, TIndex> *scene, ITMRenderState *renderState,
                                                   bool resetVisibleList) {
-  // 配置（给定一个具有新深度图像的视图，计算可见块，分配它们并更新哈希表，以便可以集成新的图像数据。）
+  // 根据深度图 计算visible list、分配内存 && 更新hash table
   sceneRecoEngine->AllocateSceneFromDepth(scene, view, trackingState, renderState, false, resetVisibleList);
 
-  // 集成（通过整合来自给定视图的深度和可能的颜色信息来更新体素块。）
+  // 根据可见列表，将当前输入的单帧融入场景中
   sceneRecoEngine->IntegrateIntoScene(scene, view, trackingState, renderState);
-  // CPU与GPU之间的内存交换   // TODO： 下次从这儿开始看
-  if (swappingEngine != NULL) { // 判断交换引擎接口地址是否为空
+  // CPU与GPU之间的数据交换
+  if (swappingEngine != NULL) {
     // swapping: CPU -> GPU
-    if (swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED)   // 判断交换模式
-      swappingEngine->IntegrateGlobalIntoLocal(scene,
-                                               renderState);    // 进行交换
-
+    if (swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED)
+      swappingEngine->IntegrateGlobalIntoLocal(scene, renderState);
+      // TODO：这里跟论文好像不太一样。论文Fig.4说的顺序是swap in、raycasting、swap out，这里swap in后面紧跟swap out
     // swapping: GPU -> CPU
-    switch (swappingMode) { //判断交换模式
+    switch (swappingMode) {
       case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);   // 进行交换
         break;
       case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);      // 删除不可见的

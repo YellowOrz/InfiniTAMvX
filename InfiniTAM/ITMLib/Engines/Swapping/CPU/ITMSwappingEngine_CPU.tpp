@@ -14,95 +14,82 @@ template<class TVoxel>
 ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CPU(void) {
 }
 
-/**
- * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param scene
- */
 template<class TVoxel>
 int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;//全局缓存指针 // 初始化场景全局缓存的指针
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);//交换状态指针 // 初始化交换状态指针为否
-
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);//是否需要缓存的本地ID   // 初始化交换状态指针为否
-
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  //初始化已同步体素的状态指针
-  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 初始化已经同步合并的数据状态指针为否
-  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);   // 初始化需要存入的全局ID的状态指针为否
-
-  int noTotalEntries = globalCache->noTotalEntries;                     // 总条目
-  // 统计信息还没有合并的需要存入的条目数量并记录其ID
-  // state = 0 最近的数据在主机上，数据目前不在活动内存中
-  // state = 1 主机上的数据和活动内存中的数据，信息还没有合并
-  // state = 2 最近的数据在活动内存中，应该在某个时候将这些数据保存回主机
-  int noNeededEntries = 0;  // 初始化需要存入的条目数为0
+  //! 准备
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;             // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);     // 数据传输状态
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);    // 需要从global memory中读取的entry id ？？？
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // 读取出来的voxel
+  bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 记录是否读取成功
+  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);   // TODO: 跟neededEntryIDs_local重复了
+  int noTotalEntries = globalCache->noTotalEntries;                     // 整个场景中的entry总数
+  //! 找出所有要合并的entry id
+  int noNeededEntries = 0;  
   for (int entryId = 0; entryId < noTotalEntries; entryId++) {
-    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;   // SDF_TRANSFER_BLOCK_NUM 在一次交换操作中传输的最大块数，大小为0x1000
-    if (swapStates[entryId].state == 1) {
+    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;   // 一次性传输大小有限制，默认为0x1000 // TODO: 超过的咋办？？？
+    if (swapStates[entryId].state == 1) {   // =1表示数据同时在内存和显存上，尚未合并
       neededEntryIDs_local[noNeededEntries] = entryId;
       noNeededEntries++;
     }
   }
 
-  // would copy neededEntryIDs_local into neededEntryIDs_global here
-
-  if (noNeededEntries > 0) {
+  //! 将所有要合并的entry对应的block数据读取出来。would copy neededEntryIDs_local into neededEntryIDs_global here
+  if (noNeededEntries > 0) {   // 用两个for循环是为了能一次性初始化完整
+    // 初始化
     memset(syncedVoxelBlocks_global, 0, noNeededEntries * SDF_BLOCK_SIZE3 * sizeof(TVoxel));
     memset(hasSyncedData_global, 0, noNeededEntries * sizeof(bool));
+    // 拷贝每一个block
     for (int i = 0; i < noNeededEntries; i++) {
       int entryId = neededEntryIDs_global[i];
 
-      if (globalCache->HasStoredData(entryId)) {
+      if (globalCache->HasStoredData(entryId)) {    // 已经存在Host上的才读取出来。没有读个屁！
         hasSyncedData_global[i] = true;
-        memcpy(syncedVoxelBlocks_global + i * SDF_BLOCK_SIZE3,
-               globalCache->GetStoredVoxelBlock(entryId),
+        memcpy(syncedVoxelBlocks_global + i * SDF_BLOCK_SIZE3, globalCache->GetStoredVoxelBlock(entryId),
                SDF_BLOCK_SIZE3 * sizeof(TVoxel));
       }
     }
   }
 
   // would copy syncedVoxelBlocks_global and hasSyncedData_global and syncedVoxelBlocks_local and hasSyncedData_local here
-
+  // TODO: 上面这句注释是要说啥？？？
   return noNeededEntries;
 }
 
-template<class TVoxel>
-void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(ITMScene<TVoxel,
-                                                                                         ITMVoxelBlockHash> *scene,
-                                                                                ITMRenderState *renderState) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
-
-  ITMHashEntry *hashTable = scene->index.GetEntries();
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);
-
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(false);
-  bool *hasSyncedData_local = globalCache->GetHasSyncedData(false);
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);
-
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-
+template <class TVoxel>
+void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(  // TODO：下次从这儿开始
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState) {
+  //! 从host端读取swapstate=1的block数据
   int noNeededEntries = this->LoadFromGlobalMemory(scene);
+  //! 取出融合所需数据
+  ITMHashEntry *hashTable = scene->index.GetEntries();        // hash table
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();        // device端voxel block array
+  int maxW = scene->sceneParams->maxW;                        // voxel的最大观测次数
 
-  int maxW = scene->sceneParams->maxW;
-
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;   // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);   // 每个entry的传输状态。=1在CPU和GPU，需要合并
+  /** @note 以下三个数组的长度都为一次性传输block的最大数量 */
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(false); // transfer buffer
+  bool *hasSyncedData_local = globalCache->GetHasSyncedData(false);     // transfer buffer中每个block是否传输完成
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);    // transfer buffer中每个block的entry id
+  //! 将host的每一个block融入device
   for (int i = 0; i < noNeededEntries; i++) {
     int entryDestId = neededEntryIDs_local[i];
 
-    if (hasSyncedData_local[i]) {
-      TVoxel *srcVB = syncedVoxelBlocks_local + i * SDF_BLOCK_SIZE3;
-      TVoxel *dstVB = localVBA + hashTable[entryDestId].ptr * SDF_BLOCK_SIZE3;
-
+    if (hasSyncedData_local[i]) {   // 读取成功的才融合
+      TVoxel *srcVB = syncedVoxelBlocks_local + i * SDF_BLOCK_SIZE3;            // host的block
+      TVoxel *dstVB = localVBA + hashTable[entryDestId].ptr * SDF_BLOCK_SIZE3;  // device的block
+      // 融合每一个voxel
       for (int vIdx = 0; vIdx < SDF_BLOCK_SIZE3; vIdx++) {
         CombineVoxelInformation<TVoxel::hasColorInformation, TVoxel>::compute(srcVB[vIdx], dstVB[vIdx], maxW);
       }
     }
 
-    swapStates[entryDestId].state = 2;
+    swapStates[entryDestId].state = 2;    // 融合完成后记得改状态。=2表示存在device端
   }
 }
 
-template<class TVoxel>
+template<class TVoxel>  // TODO：下次从这儿开始
 void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
                                                                           ITMRenderState *renderState) {
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
