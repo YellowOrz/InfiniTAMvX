@@ -4,63 +4,71 @@
 
 #include "../../../Utils/ITMMath.h"
 /**
+ * 融合两个voxel的depth信息
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param [in]src 上一帧体素信息
- * @param [in]dst 当前帧体素信息 ; 设备上新一帧的体素信息
- * @param [in]maxW 最大深度内的点的个数
+ * @param[in] src 
+ * @param[in,out] dst 
+ * @param[in] maxW 最大观测数量，用来限制voxel的权重
  */
-template<class TVoxel>
-_CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxel) &src,
-                                                            DEVICEPTR(TVoxel) &dst,
+template <class TVoxel>
+_CPU_AND_GPU_CODE_ inline void combineVoxelDepthInformation(const CONSTPTR(TVoxel) & src, DEVICEPTR(TVoxel) & dst,
                                                             int maxW) {
-  int newW = dst.w_depth;//当前帧体素块的权重 // 新一帧视角下sdf点下存在的点的个数（sdf点即体素距离物体最近的距离点）
-  int oldW = src.w_depth;//上一帧体素块的权重 // 上一帧视角下sdf点下存在的点的个数
-  float newF = TVoxel::valueToFloat(dst.sdf);//当前帧体素块的sdf值 // 新一帧体素与物体的最近距离
-  float oldF = TVoxel::valueToFloat(src.sdf);//上一帧体素块的sdf值 // 上一帧体素与物体的最近距离
-
+  // 取出depth和权重
+  int newW = dst.w_depth;
+  int oldW = src.w_depth;
+  float newF = TVoxel::valueToFloat(dst.sdf);
+  float oldF = TVoxel::valueToFloat(src.sdf);
   if (oldW == 0) return;
-
+  // 加权取平均
   newF = oldW * oldF + newW * newF;
   newW = oldW + newW;
   newF /= newW;
-  newW = MIN(newW, maxW);
-
-  //更新体素块的sdf值与置信度
+  newW = MIN(newW, maxW);   // 限制权重的上限
+  // 记录
   dst.w_depth = newW; // 新一帧视角下sdf点下存在的点的个数
   dst.sdf = TVoxel::floatToValue(newF); // 优化后新一帧的体素与物体的最近距离
 }
 
 /**
+ * 融合两个voxel的RGB信息
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param [in]src 上一帧体素信息
- * @param [in]dst 当前帧体素信息 设备上新一帧的体素信息
- * @param [in]maxW
+ * @param[in] src 
+ * @param[in,out] dst 
+ * @param[in] maxW 最大观测数量，用来限制voxel的权重
  */
-template<class TVoxel>
-_CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxel) &src,
-                                                            DEVICEPTR(TVoxel) &dst,
+template <class TVoxel>
+_CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxel) & src, DEVICEPTR(TVoxel) & dst,
                                                             int maxW) {
-  int newW = dst.w_color;//当前帧体素块的权重 // 新一帧视角下的体素下存在的点的个数
-  int oldW = src.w_color;//上一帧体素块的权重 // 旧一帧视角下的体素下存在的点的个数
-  Vector3f newC = dst.clr.toFloat() / 255.0f;//当前帧体素块的rgb信息 //新一帧该点的rgb信息
-  Vector3f oldC = src.clr.toFloat() / 255.0f;//上一帧体素块的rgb信息 //旧一帧该点的rgb信息
-
+  // 取出RGB和权重
+  int newW = dst.w_color;
+  int oldW = src.w_color;
+  Vector3f newC = dst.clr.toFloat() / 255.0f;
+  Vector3f oldC = src.clr.toFloat() / 255.0f;
   if (oldW == 0) return;
-  // TODO(wangyuren)同上一个一样的算法，但原理是啥？
+  // 加权取平均
   newC = oldC * (float) oldW + newC * (float) newW;
   newW = oldW + newW;
   newC /= (float) newW;
-  newW = MIN(newW, maxW);
-
-  //更新体素块的rgb信息和权重
+  newW = MIN(newW, maxW);   // 限制权重的上限
+  // 记录
   dst.clr = TO_UCHAR3(newC * 255.0f);
   dst.w_color = (uchar) newW;
 }
 
+/**
+ * @brief 融合两个voxel的信息
+ * 
+ * @tparam hasColor 是C++的非类型模板参数
+ * @tparam TVoxel 
+ */
 template<bool hasColor, class TVoxel>
-struct CombineVoxelInformation;
+struct CombineVoxelInformation;   // TODO：为啥还要写下面两个结构体？？？不能通过if-else判断吗？？？
 
-//体素无颜色信息
+/**
+ * @brief 融合两个voxel的信息（无color）
+ * 
+ * @tparam TVoxel 
+ */
 template<class TVoxel>
 struct CombineVoxelInformation<false, TVoxel> {
   _CPU_AND_GPU_CODE_ static void compute(const CONSTPTR(TVoxel) &src, DEVICEPTR(TVoxel) &dst, int maxW) {
@@ -68,7 +76,11 @@ struct CombineVoxelInformation<false, TVoxel> {
   }
 };
 
-//体素有颜色信息
+/**
+ * @brief 融合两个voxel的信息（有color）
+ * 
+ * @tparam TVoxel 
+ */
 template<class TVoxel>
 struct CombineVoxelInformation<true, TVoxel> {
   _CPU_AND_GPU_CODE_ static void compute(const CONSTPTR(TVoxel) &src, DEVICEPTR(TVoxel) &dst, int maxW) {
@@ -77,3 +89,4 @@ struct CombineVoxelInformation<true, TVoxel> {
   }
 };
 
+// TODO: 没有融合confident的信息的吗

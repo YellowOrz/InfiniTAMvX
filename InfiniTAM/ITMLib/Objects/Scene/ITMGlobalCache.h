@@ -25,14 +25,14 @@ struct ITMHashSwapState {   // 为啥不弄成一个枚举类型？？？
 template<class TVoxel>
 class ITMGlobalCache {
  private:
-  bool *hasStoredData;
-  TVoxel *storedVoxelBlocks;
-  ITMHashSwapState *swapStates_host, *swapStates_device;  // 传输状态。具体意义见ITMHashSwapState::state
-
-  bool *hasSyncedData_host, *hasSyncedData_device;
-  TVoxel *syncedVoxelBlocks_host, *syncedVoxelBlocks_device;
-
-  int *neededEntryIDs_host, *neededEntryIDs_device;
+  /** @note 下面三个数组的长度都为noTotalEntries */
+  bool *hasStoredData;                                    // 每个entry是否已经存在Host上
+  TVoxel *storedVoxelBlocks;                              // 论文Fig.5中的Host Voxel Memory？？？
+  ITMHashSwapState *swapStates_host, *swapStates_device;  // 每个entry的传输状态。具体意义见ITMHashSwapState::state
+  /** @note 以下三个数组的长度都为一次性传输block的最大数量 */
+  bool *hasSyncedData_host, *hasSyncedData_device;            // transfer buffer中每个block是否传输完成
+  TVoxel *syncedVoxelBlocks_host, *syncedVoxelBlocks_device;  // 论文Fig.5中的transfer buffer？？？
+  int *neededEntryIDs_host, *neededEntryIDs_device;           // transfer buffer中每个block的entry id
  public:
   inline void SetStoredData(int address, TVoxel *data) {
     hasStoredData[address] = true;
@@ -47,7 +47,7 @@ class ITMGlobalCache {
   ITMHashSwapState *GetSwapStates(bool useGPU) { return useGPU ? swapStates_device : swapStates_host; }
   int *GetNeededEntryIDs(bool useGPU) { return useGPU ? neededEntryIDs_device : neededEntryIDs_host; }
 
-  int noTotalEntries;
+  int noTotalEntries;     // scene中的entry总数 = bucket数量 + excess entry数量   // TODO: 这个变量怎么就放到public了
 
   ITMGlobalCache() : noTotalEntries(SDF_BUCKET_NUM + SDF_EXCESS_LIST_SIZE) {
     hasStoredData = (bool *) malloc(noTotalEntries * sizeof(bool));

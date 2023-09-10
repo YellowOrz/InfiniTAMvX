@@ -27,7 +27,7 @@ class ITMScene {
    * Current local content of the 8x8x8 voxel blocks -- stored host or device */
   ITMLocalVBA<TVoxel> localVBA;
 
-  /** 暂时不用的block
+  /** swapping所需变量//TODO:是论文Fig5中的transfer buffer吗？？？
    * @note 不管是CPU还是GPU，都是存在内存。只有开启swap后才会启用。
    * Global content of the 8x8x8 voxel blocks -- stored on host only */
   ITMGlobalCache<TVoxel> *globalCache;
