@@ -26,7 +26,7 @@ template<class TVoxel>
 class ITMGlobalCache {
  private:
   /** @note 下面三个数组的长度都为noTotalEntries */
-  bool *hasStoredData;                                    // 每个entry是否已经存在Host上
+  bool *hasStoredData;                                    // 每个entry（block）是否已经存在Host上
   TVoxel *storedVoxelBlocks;                              // 论文Fig.5中的Host Voxel Memory？？？
   ITMHashSwapState *swapStates_host, *swapStates_device;  // 每个entry的传输状态。具体意义见ITMHashSwapState::state
   /** @note 以下三个数组的长度都为一次性传输block的最大数量 */
@@ -34,9 +34,14 @@ class ITMGlobalCache {
   TVoxel *syncedVoxelBlocks_host, *syncedVoxelBlocks_device;  // 论文Fig.5中的transfer buffer？？？
   int *neededEntryIDs_host, *neededEntryIDs_device;           // transfer buffer中每个block的entry id
  public:
+  /**
+   * @brief 拷贝 block数据 到 host端的指定位置
+   * @param[in] address host端的指定位置。就是第几个block
+   * @param[in] data block数据
+   */
   inline void SetStoredData(int address, TVoxel *data) {
-    hasStoredData[address] = true;
-    memcpy(storedVoxelBlocks + address * SDF_BLOCK_SIZE3, data, sizeof(TVoxel) * SDF_BLOCK_SIZE3);
+    hasStoredData[address] = true;  // 记录
+    memcpy(storedVoxelBlocks + address * SDF_BLOCK_SIZE3, data, sizeof(TVoxel) * SDF_BLOCK_SIZE3);  // 拷贝
   }
   inline bool HasStoredData(int address) const { return hasStoredData[address]; }
   inline TVoxel *GetStoredVoxelBlock(int address) { return storedVoxelBlocks + address * SDF_BLOCK_SIZE3; }
@@ -47,7 +52,7 @@ class ITMGlobalCache {
   ITMHashSwapState *GetSwapStates(bool useGPU) { return useGPU ? swapStates_device : swapStates_host; }
   int *GetNeededEntryIDs(bool useGPU) { return useGPU ? neededEntryIDs_device : neededEntryIDs_host; }
 
-  int noTotalEntries;     // scene中的entry总数 = bucket数量 + excess entry数量   // TODO: 这个变量怎么就放到public了
+  int noTotalEntries;     // scene中entry总数 = bucket(ordered list)数量 + excess entry数量   // TODO: 为啥放到public？
 
   ITMGlobalCache() : noTotalEntries(SDF_BUCKET_NUM + SDF_EXCESS_LIST_SIZE) {
     hasStoredData = (bool *) malloc(noTotalEntries * sizeof(bool));

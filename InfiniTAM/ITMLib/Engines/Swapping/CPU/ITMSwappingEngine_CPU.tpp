@@ -19,10 +19,12 @@ int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMSc
   //! 准备
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;             // swapping所需变量
   ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);     // 数据传输状态
+  // device相关变量。不过因为是CPU，device和host都一样
   int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);    // 需要从global memory中读取的entry id ？？？
   TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // 读取出来的voxel
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);    // 记录是否读取成功
-  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);   // TODO: 跟neededEntryIDs_local重复了
+  int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
+      // NOTE: 这里neededEntryIDs_local和neededEntryIDs_global一样。到CUDA版本中就不一样了，local是GPU、global是CPU
   int noTotalEntries = globalCache->noTotalEntries;                     // 整个场景中的entry总数
   //! 找出所有要合并的entry id
   int noNeededEntries = 0;  
@@ -57,7 +59,7 @@ int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMSc
 }
 
 template <class TVoxel>
-void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(  // TODO：下次从这儿开始
+void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState) {
   //! 从host端读取swapstate=1的block数据
   int noNeededEntries = this->LoadFromGlobalMemory(scene);
@@ -89,67 +91,67 @@ void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(
   }
 }
 
-template<class TVoxel>  // TODO：下次从这儿开始
+template<class TVoxel>
 void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
                                                                           ITMRenderState *renderState) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);
+  //! 准备
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;       // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(false);   // 每个entry的传输状态。=2表示存在device端
 
   ITMHashEntry *hashTable = scene->index.GetEntries();
   uchar *entriesVisibleType = ((ITMRenderState_VH *) renderState)->GetEntriesVisibleType();
-
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(false);
-  bool *hasSyncedData_local = globalCache->GetHasSyncedData(false);
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);
-
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);
+  // device相关变量。不过因为是CPU，device和host都一样
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(false);   // transfer buffer
+  bool *hasSyncedData_local = globalCache->GetHasSyncedData(false);             // transfer buffer中每个block是否传输完成
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(false);            // transfer buffer中每个block的entry id
+  // host相关变量。不过因为是CPU，device和host都一样
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
+      // NOTE: 这里syncedVoxelBlocks_local和syncedVoxelBlocks_global的地址一样。而后面GPU版本的会不一样
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                          // device上的voxel block array
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();               // device上VBA中所有被allocate的下标
 
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();
+  int noTotalEntries = globalCache->noTotalEntries;                             // scene中的entry总数
 
-  int noTotalEntries = globalCache->noTotalEntries;
-
-  int noNeededEntries = 0;
-  int noAllocatedVoxelEntries = scene->localVBA.lastFreeBlockId;
-
+  int noNeededEntries = 0;            // 记录本次传输了多少个entry
+  int noAllocatedVoxelEntries = scene->localVBA.lastFreeBlockId;      // device的VBA中可用剩余空位的id
+  //! 遍历每个entry，拷贝需要要从device传输到host的 && 从device端清空
   for (int entryDestId = 0; entryDestId < noTotalEntries; entryDestId++) {
-    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;
+    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;             // 一次性传输大小有限制，默认为0x1000
 
-    int localPtr = hashTable[entryDestId].ptr;
+    int localPtr = hashTable[entryDestId].ptr;                        // TODO: 有哈希冲突的咋办？？？
     ITMHashSwapState &swapState = swapStates[entryDestId];
-
+    // 找到 “要从device传输到host” && “有对应的block” && 不可见（？？？）
     if (swapState.state == 2 && localPtr >= 0 && entriesVisibleType[entryDestId] == 0) {
-      TVoxel *localVBALocation = localVBA + localPtr * SDF_BLOCK_SIZE3;
+      TVoxel *localVBALocation = localVBA + localPtr * SDF_BLOCK_SIZE3;   // 获得block的地址
 
-      neededEntryIDs_local[noNeededEntries] = entryDestId;
-
-      hasSyncedData_local[noNeededEntries] = true;
-      memcpy(syncedVoxelBlocks_local + noNeededEntries * SDF_BLOCK_SIZE3,
-             localVBALocation,
+      neededEntryIDs_local[noNeededEntries] = entryDestId;                // 记录entry，表示已经存在global了
+      hasSyncedData_local[noNeededEntries] = true;                        // 标记已经拷贝
+      memcpy(syncedVoxelBlocks_local + noNeededEntries * SDF_BLOCK_SIZE3, localVBALocation,
              SDF_BLOCK_SIZE3 * sizeof(TVoxel));
 
-      swapStates[entryDestId].state = 0;
+      swapStates[entryDestId].state = 0;                                  // 标记数据位置在host上了
 
       int vbaIdx = noAllocatedVoxelEntries;
+      // 如果在ordered list，则清空信息   // TODO: 在excess list中的就不清空了？？？
       if (vbaIdx < SDF_BUCKET_NUM - 1) {
-        noAllocatedVoxelEntries++;
-        voxelAllocationList[vbaIdx + 1] = localPtr;
-        hashTable[entryDestId].ptr = -1;
+        noAllocatedVoxelEntries++;                      // 因为数据转移到host上了，可用剩余空位就+1！
+        voxelAllocationList[vbaIdx + 1] = localPtr;     // 虽然转移走了，但要在device上知道这个位置是有数据的，方便后面找回来
+        hashTable[entryDestId].ptr = -1;                // 清空hash table中记录的位置信息
 
-        for (int i = 0; i < SDF_BLOCK_SIZE3; i++) localVBALocation[i] = TVoxel();
+        for (int i = 0; i < SDF_BLOCK_SIZE3; i++)       // 清空voxel信息
+          localVBALocation[i] = TVoxel();
       }
 
-      noNeededEntries++;
+      noNeededEntries++;      // 传输数量+1
     }
   }
-
-  scene->localVBA.lastFreeBlockId = noAllocatedVoxelEntries;
+  scene->localVBA.lastFreeBlockId = noAllocatedVoxelEntries;    // TODO: 为啥上面不用引用？？？
 
   // would copy neededEntryIDs_local, hasSyncedData_local and syncedVoxelBlocks_local into *_global here
-
+  // TODO：下面好像重复拷贝了。因为这里是CPU，neededEntryIDs_global和neededEntryIDs_local是相等的
+  // NOTE: 推荐看CUDA的代码，没有这么混乱
   if (noNeededEntries > 0) {
     for (int entryId = 0; entryId < noNeededEntries; entryId++) {
       if (hasSyncedData_global[entryId])

@@ -44,9 +44,14 @@ class ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngin
   /**
    * @brief swap out。将device中所有block跟host进行融合？？？
    * @param[in,out] scene 三维场景数据，包含swap所需数据  
-   * @param renderState ？？？
+   * @param[in] renderState 主要用到其中的entry可见信息
    */
   void SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
+  /**
+   * @brief  // TODO: 下次从这儿开始
+   * @param scene 
+   * @param renderState 
+   */
   void CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
 
   ITMSwappingEngine_CPU(void);

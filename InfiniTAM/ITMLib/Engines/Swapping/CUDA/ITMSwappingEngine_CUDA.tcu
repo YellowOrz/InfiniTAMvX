@@ -77,9 +77,9 @@ ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~ITMSwappingEngine_CUDA(void)
 template<class TVoxel>
 int ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMScene<TVoxel,
                                                                                      ITMVoxelBlockHash> *scene) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);
+  //! 准备
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;         // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);  // 数据传输状态
 
   TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);
   bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);
