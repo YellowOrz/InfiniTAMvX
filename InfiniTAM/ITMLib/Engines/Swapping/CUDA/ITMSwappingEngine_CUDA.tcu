@@ -7,57 +7,37 @@
 #include "../../../Utils/ITMCUDAUtils.h"
 using namespace ITMLib;
 
-namespace {
-
-__global__ void buildListToSwapIn_device(int *neededEntryIDs,
-                                         int *noNeededEntries,
-                                         ITMHashSwapState *swapStates,
+namespace { // 这里先声明函数。实现（或者叫定义）在最后面 // TODO: 为啥要加个namespace呢？
+__global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
                                          int noTotalEntries);
 
-template<class TVoxel>
-__global__ void integrateOldIntoActiveData_device(TVoxel *localVBA,
-                                                  ITMHashSwapState *swapStates,
-                                                  TVoxel *syncedVoxelBlocks_local,
-                                                  int *neededEntryIDs_local,
-                                                  ITMHashEntry *hashTable,
-                                                  int maxW);
+template <class TVoxel>
+__global__ void integrateOldIntoActiveData_device(TVoxel *localVBA, ITMHashSwapState *swapStates,
+                                                  TVoxel *syncedVoxelBlocks_local, int *neededEntryIDs_local,
+                                                  ITMHashEntry *hashTable, int maxW);
 
 __global__ void buildListToSwapOut_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
                                           ITMHashEntry *hashTable, uchar *entriesVisibleType, int noTotalEntries);
 
-__global__ void buildListToClean_device(int *neededEntryIDs,
-                                        int *noNeededEntries,
-                                        ITMHashEntry *hashTable,
-                                        uchar *entriesVisibleType,
-                                        int noTotalEntries);
+__global__ void buildListToClean_device(int *neededEntryIDs, int *noNeededEntries, ITMHashEntry *hashTable,
+                                        uchar *entriesVisibleType, int noTotalEntries);
 
-template<class TVoxel>
-__global__ void cleanMemory_device(int *voxelAllocationList,
-                                   int *noAllocatedVoxelEntries,
-                                   ITMHashSwapState *swapStates,
-                                   ITMHashEntry *hashTable,
-                                   TVoxel *localVBA,
-                                   int *neededEntryIDs_local,
+template <class TVoxel>
+__global__ void cleanMemory_device(int *voxelAllocationList, int *noAllocatedVoxelEntries, ITMHashSwapState *swapStates,
+                                   ITMHashEntry *hashTable, TVoxel *localVBA, int *neededEntryIDs_local,
                                    int noNeededEntries);
 
-template<class TVoxel>
-__global__ void cleanMemory_device(int *voxelAllocationList,
-                                   int *noAllocatedVoxelEntries,
-                                   ITMHashEntry *hashTable,
-                                   TVoxel *localVBA,
-                                   int *neededEntryIDs_local,
-                                   int noNeededEntries);
+template <class TVoxel>
+__global__ void cleanMemory_device(int *voxelAllocationList, int *noAllocatedVoxelEntries, ITMHashEntry *hashTable,
+                                   TVoxel *localVBA, int *neededEntryIDs_local, int noNeededEntries);
 
 template<class TVoxel>
 __global__ void cleanVBA(int *neededEntryIDs_local, ITMHashEntry *hashTable, TVoxel *localVBA);
 
-template<class TVoxel>
-__global__ void moveActiveDataToTransferBuffer_device(TVoxel *syncedVoxelBlocks_local,
-                                                      bool *hasSyncedData_local,
-                                                      int *neededEntryIDs_local,
-                                                      ITMHashEntry *hashTable,
+template <class TVoxel>
+__global__ void moveActiveDataToTransferBuffer_device(TVoxel *syncedVoxelBlocks_local, bool *hasSyncedData_local,
+                                                      int *neededEntryIDs_local, ITMHashEntry *hashTable,
                                                       TVoxel *localVBA);
-
 }
 
 template<class TVoxel>
@@ -80,64 +60,56 @@ int ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMS
   //! 准备
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;         // swapping所需变量
   ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);  // 数据传输状态
-
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);
-  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);
-
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);
+  // device相关变量
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // device上的transfer buffer
+  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);            // device拿到的voxel
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // device这儿记录是否读取成功
+  // global相关变量
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // host上的transfer buffer
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
-
+  //! 找出所有要合并的entry id
   dim3 blockSize(256);
   dim3 gridSize((int) ceil((float) scene->index.noTotalEntries / (float) blockSize.x));
-
-  ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int)));
-
+  ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int))); 
   buildListToSwapIn_device << < gridSize, blockSize >> >(neededEntryIDs_local, noNeededEntries_device, swapStates,
       scene->globalCache->noTotalEntries);
   ORcudaKernelCheck;
-
+  //! 将所有要合并的entry对应的block数据读取出来
   int noNeededEntries;
   ORcudaSafeCall(cudaMemcpy(&noNeededEntries, noNeededEntries_device, sizeof(int), cudaMemcpyDeviceToHost));
 
-  if (noNeededEntries > 0) {
-    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM);
-    ORcudaSafeCall(cudaMemcpy(neededEntryIDs_global,
-                              neededEntryIDs_local,
-                              sizeof(int) * noNeededEntries,
+  if (noNeededEntries > 0) {  // "先找到entry 再读取block"是为了能一次性初始化完整
+    // 将要拷贝的entry信息从GPU=>CPU
+    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM); // 一次性传输大小有限制，默认为0x1000 //TODO:放到上面？？？
+    ORcudaSafeCall(cudaMemcpy(neededEntryIDs_global, neededEntryIDs_local, sizeof(int) * noNeededEntries, 
                               cudaMemcpyDeviceToHost));
-
+    // 初始化为0
     memset(syncedVoxelBlocks_global, 0, noNeededEntries * SDF_BLOCK_SIZE3 * sizeof(TVoxel));
     memset(hasSyncedData_global, 0, noNeededEntries * sizeof(bool));
+    // 从host的voxel memory拷贝每一个block到host的transfer buffer
     for (int i = 0; i < noNeededEntries; i++) {
       int entryId = neededEntryIDs_global[i];
 
-      if (globalCache->HasStoredData(entryId)) {
+      if (globalCache->HasStoredData(entryId)) {    // 已经存在Host上的才读取出来。没有读个屁！
         hasSyncedData_global[i] = true;
-        memcpy(syncedVoxelBlocks_global + i * SDF_BLOCK_SIZE3,
-               globalCache->GetStoredVoxelBlock(entryId),
+        memcpy(syncedVoxelBlocks_global + i * SDF_BLOCK_SIZE3, globalCache->GetStoredVoxelBlock(entryId),
                SDF_BLOCK_SIZE3 * sizeof(TVoxel));
       }
     }
-
-    ORcudaSafeCall(cudaMemcpy(hasSyncedData_local,
-                              hasSyncedData_global,
-                              sizeof(bool) * noNeededEntries,
+    // 将host的transfer buffer 一次性拷贝到 device的transfer buffer，包含 block数据 和 是否成功的数据
+    ORcudaSafeCall(cudaMemcpy(hasSyncedData_local, hasSyncedData_global, sizeof(bool) * noNeededEntries, 
                               cudaMemcpyHostToDevice));
-    ORcudaSafeCall(cudaMemcpy(syncedVoxelBlocks_local,
-                              syncedVoxelBlocks_global,
-                              sizeof(TVoxel) * SDF_BLOCK_SIZE3 * noNeededEntries,
-                              cudaMemcpyHostToDevice));
+    ORcudaSafeCall(cudaMemcpy(syncedVoxelBlocks_local, syncedVoxelBlocks_global,
+                              sizeof(TVoxel) * SDF_BLOCK_SIZE3 * noNeededEntries, cudaMemcpyHostToDevice));
   }
 
   return noNeededEntries;
 }
 
-template<class TVoxel>
-void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(ITMScene<TVoxel,
-                                                                                          ITMVoxelBlockHash> *scene,
-                                                                                 ITMRenderState *renderState) {
+template <class TVoxel>
+void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState) {
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
 
   ITMHashEntry *hashTable = scene->index.GetEntries();
@@ -308,11 +280,9 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScen
   }
 }
 
-namespace {
-__global__ void buildListToSwapIn_device(int *neededEntryIDs,
-                                         int *noNeededEntries,
-                                         ITMHashSwapState *swapStates,
-                                         int noTotalEntries) {
+namespace { // 这里是实现。声明在最前面
+__global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
+                                         int noTotalEntries) {  // TODO:下次从这儿开始
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 

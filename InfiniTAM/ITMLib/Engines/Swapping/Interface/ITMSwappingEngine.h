@@ -8,9 +8,8 @@
 
 namespace ITMLib {
 /** \brief
-Interface to engines that swap data in and out of the
-fairly limited GPU memory to some large scale storage
-space.
+ * Swap in/out的接口。将device内存（通常比较小）的数据 跟 host内存（通常比较大）的数据 进行交换。
+ * Interface to engines that swap data in and out of the fairly limited GPU memory to some large scale storage space.
 */
 template<class TVoxel, class TIndex>
 class ITMSwappingEngine {

@@ -38,7 +38,7 @@ int ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMSc
 
   //! 将所有要合并的entry对应的block数据读取出来。would copy neededEntryIDs_local into neededEntryIDs_global here
   if (noNeededEntries > 0) {   // 用两个for循环是为了能一次性初始化完整
-    // 初始化
+    // 初始化为0
     memset(syncedVoxelBlocks_global, 0, noNeededEntries * SDF_BLOCK_SIZE3 * sizeof(TVoxel));
     memset(hasSyncedData_global, 0, noNeededEntries * sizeof(bool));
     // 拷贝每一个block
@@ -122,7 +122,7 @@ void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSce
 
     int localPtr = hashTable[entryDestId].ptr;                        // TODO: 有哈希冲突的咋办？？？
     ITMHashSwapState &swapState = swapStates[entryDestId];
-    // 找到 “要从device传输到host” && “有对应的block” && 不可见（？？？）
+    // 找到 “要从device传输到host” && “有对应的block” && "不可见"
     if (swapState.state == 2 && localPtr >= 0 && entriesVisibleType[entryDestId] == 0) {
       TVoxel *localVBALocation = localVBA + localPtr * SDF_BLOCK_SIZE3;   // 获得block的地址
 
@@ -136,7 +136,7 @@ void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSce
       int vbaIdx = noAllocatedVoxelEntries;
       // 如果在ordered list，则清空信息   // TODO: 在excess list中的就不清空了？？？
       if (vbaIdx < SDF_BUCKET_NUM - 1) {
-        noAllocatedVoxelEntries++;                      // 因为数据转移到host上了，可用剩余空位就+1！
+        noAllocatedVoxelEntries++;                      // 因为数据转移到host上了，可用剩余空位+1！
         voxelAllocationList[vbaIdx + 1] = localPtr;     // 虽然转移走了，但要在device上知道这个位置是有数据的，方便后面找回来
         hashTable[entryDestId].ptr = -1;                // 清空hash table中记录的位置信息
 
@@ -150,7 +150,8 @@ void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSce
   scene->localVBA.lastFreeBlockId = noAllocatedVoxelEntries;    // TODO: 为啥上面不用引用？？？
 
   // would copy neededEntryIDs_local, hasSyncedData_local and syncedVoxelBlocks_local into *_global here
-  // TODO：下面好像重复拷贝了。因为这里是CPU，neededEntryIDs_global和neededEntryIDs_local是相等的
+  // TODO：下面好像重复拷贝了。因为这里是CPU，neededEntryIDs_global和neededEntryIDs_local是相等的。
+    // 除非哪里出bug了，让 swapState.state!=2 但 hasSyncedData_local为true
   // NOTE: 推荐看CUDA的代码，没有这么混乱
   if (noNeededEntries > 0) {
     for (int entryId = 0; entryId < noNeededEntries; entryId++) {
@@ -164,37 +165,40 @@ void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSce
 template<class TVoxel>
 void ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
                                                                         ITMRenderState *renderState) {
+  //! 准备
   ITMHashEntry *hashTable = scene->index.GetEntries();
   uchar *entriesVisibleType = ((ITMRenderState_VH *) renderState)->GetEntriesVisibleType();
 
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();              // device上的voxel block array
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();   // device上VBA中所有被allocate的下标
+  int noAllocatedVoxelEntries = scene->localVBA.lastFreeBlockId;    // device的VBA中可用剩余空位的id
 
-  int noTotalEntries = scene->index.noTotalEntries;
+  int noTotalEntries = scene->index.noTotalEntries;                 // scene中的entry总数
 
+  //! 遍历每个entry，拷贝需要要从device传输到host的 && 从device端清空
   int noNeededEntries = 0;
-  int noAllocatedVoxelEntries = scene->localVBA.lastFreeBlockId;
-
   for (int entryDestId = 0; entryDestId < noTotalEntries; entryDestId++) {
-    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;
+    if (noNeededEntries >= SDF_TRANSFER_BLOCK_NUM) break;   // 一次性传输大小有限制，默认为0x1000
 
     int localPtr = hashTable[entryDestId].ptr;
-
+    // 找到 “有对应的block” && "不可见"。不管swap state是多少
     if (localPtr >= 0 && entriesVisibleType[entryDestId] == 0) {
-      TVoxel *localVBALocation = localVBA + localPtr * SDF_BLOCK_SIZE3;
+      TVoxel *localVBALocation = localVBA + localPtr * SDF_BLOCK_SIZE3; // 获得block的地址
 
       int vbaIdx = noAllocatedVoxelEntries;
-      if (vbaIdx < SDF_BUCKET_NUM - 1) {
-        noAllocatedVoxelEntries++;
-        voxelAllocationList[vbaIdx + 1] = localPtr;
-        hashTable[entryDestId].ptr = -1;
+      // 如果在ordered list，则清空信息
+      if (vbaIdx < SDF_BUCKET_NUM - 1) {  
+        noAllocatedVoxelEntries++;                    // 因为数据转移到host上了，可用剩余空位+1！
+        voxelAllocationList[vbaIdx + 1] = localPtr;   // 虽然转移走了，但要在device上知道这个位置是有数据的，方便后面找回来
+        hashTable[entryDestId].ptr = -1;              // 清空hash table中记录的位置信息
 
-        for (int i = 0; i < SDF_BLOCK_SIZE3; i++) localVBALocation[i] = TVoxel();
+        for (int i = 0; i < SDF_BLOCK_SIZE3; i++)     // 清空voxel信息
+          localVBALocation[i] = TVoxel();
       }
 
-      noNeededEntries++;
+      noNeededEntries++;        // 传输数量+1
     }
   }
 
-  scene->localVBA.lastFreeBlockId = noAllocatedVoxelEntries;
+  scene->localVBA.lastFreeBlockId = noAllocatedVoxelEntries;  // TODO: 为啥上面不用引用？？？
 }

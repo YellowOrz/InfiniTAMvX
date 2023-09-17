@@ -14,13 +14,14 @@ class ITMSwappingEngine_CPU : public ITMSwappingEngine<TVoxel, TIndex> {
 };
 
 /**
- * @brief CPU和GPU之间的数据交换。
+ * CPU和CPU之间的数据交换。
  * @note 上面模板类的偏特化。
  *       这个类目前仅用于调试 —— 将 CPU 内存交换到 CPU 内存？？？
  *       这可能会从其他地方(磁盘、数据库等)流入主机内存。
+ *       推荐看CUDA版本的，CPU版本的有些混乱（比如内存传给内存）
  *   // This class is currently just for debugging purposes -- swaps CPU memory to CPU memory. 
  *   // Potentially this could stream into the host memory from somwhere else (disk, database, etc.).
- * @tparam TVoxel 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  */
 template<class TVoxel>
 class ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngine<TVoxel, ITMVoxelBlockHash> {
@@ -36,21 +37,21 @@ class ITMSwappingEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngin
 
  public:
   /**
-   * @brief swap in。将Host中swapstate=1的bloxk跟device进行融合
+   * swap in。将Host中swapstate=1的block转移到device
    * @param[in,out] scene 三维场景数据，包含swap所需数据  
    * @param renderState 【没用到】
    */
   void IntegrateGlobalIntoLocal(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
   /**
-   * @brief swap out。将device中所有block跟host进行融合？？？
+   * swap out。将device中swap state=2 && 不可见的block转移到host
    * @param[in,out] scene 三维场景数据，包含swap所需数据  
    * @param[in] renderState 主要用到其中的entry可见信息
    */
   void SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
   /**
-   * @brief  // TODO: 下次从这儿开始
-   * @param scene 
-   * @param renderState 
+   * swap out。将device中不可见的block转移到host（不管swap state是多少）
+   * @param[in,out] scene 三维场景数据，包含swap所需数据  
+   * @param[in] renderState 主要用到其中的entry可见信息
    */
   void CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
 

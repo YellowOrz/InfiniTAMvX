@@ -56,8 +56,7 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxe
 }
 
 /**
- * @brief 融合两个voxel的信息
- * 
+ * 融合两个voxel的信息
  * @tparam hasColor 是C++的非类型模板参数
  * @tparam TVoxel 
  */
@@ -65,8 +64,7 @@ template<bool hasColor, class TVoxel>
 struct CombineVoxelInformation;   // TODO：为啥还要写下面两个结构体？？？不能通过if-else判断吗？？？
 
 /**
- * @brief 融合两个voxel的信息（无color）
- * 
+ * 融合两个voxel的信息（无color）
  * @tparam TVoxel 
  */
 template<class TVoxel>
@@ -77,8 +75,7 @@ struct CombineVoxelInformation<false, TVoxel> {
 };
 
 /**
- * @brief 融合两个voxel的信息（有color）
- * 
+ * 融合两个voxel的信息（有color）
  * @tparam TVoxel 
  */
 template<class TVoxel>

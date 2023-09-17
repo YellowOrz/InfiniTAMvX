@@ -13,37 +13,38 @@
 namespace ITMLib {
 
 /**
- * \brief This struct provides functions that can be used to construct swapping engines.
+ * @brief 初始化Swap模块
  */
 struct ITMSwappingEngineFactory {
-  //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
+  // #################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief Makes a swapping engine.
+   * @brief 根据设备类型 初始化Swap模块
    *
    * \param deviceType  The device on which the swapping engine should operate.
    */
-  template<typename TVoxel, typename TIndex>
+  template <typename TVoxel, typename TIndex>
   static ITMSwappingEngine<TVoxel, TIndex> *MakeSwappingEngine(ITMLibSettings::DeviceType deviceType) {
     ITMSwappingEngine<TVoxel, TIndex> *swappingEngine = NULL;
 
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU:swappingEngine = new ITMSwappingEngine_CPU<TVoxel, TIndex>;
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      swappingEngine = new ITMSwappingEngine_CPU<TVoxel, TIndex>;
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        swappingEngine = new ITMSwappingEngine_CUDA<TVoxel, TIndex>;
+      swappingEngine = new ITMSwappingEngine_CUDA<TVoxel, TIndex>;
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        swappingEngine = new ITMSwappingEngine_CPU<TVoxel,TIndex>;
+      swappingEngine = new ITMSwappingEngine_CPU<TVoxel, TIndex>;
 #endif
-        break;
+      break;
     }
 
     return swappingEngine;
   }
 };
 
-}
+} // namespace ITMLib
