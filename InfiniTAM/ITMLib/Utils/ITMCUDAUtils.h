@@ -32,22 +32,28 @@ inline __device__ void warpReduce3(volatile float *sdata, int tid) {
   sdata[3 * tid + 1] += sdata[3 * (tid + 1) + 1];
   sdata[3 * tid + 2] += sdata[3 * (tid + 1) + 2];
 }
-
+/**
+ * 计算数组的前缀和
+ * @tparam T 数组中数字的类型
+ * @param[in] element 数组中的某个数字
+ * @param[in] sum 前缀和
+ * @param[in] localSize 分段大小。必须为256，∵在共享内存中申请了长256的数组
+ * @param[in] localId element在所在分段中的位置
+ * @return
+ */
 template<typename T>
 __device__ int computePrefixSum_device(uint element, T *sum, int localSize, int localId) {
   // TODO: should be localSize...
-  __shared__
-  uint prefixBuffer[16 * 16];
-  __shared__
-  uint groupOffset;
+  __shared__ uint prefixBuffer[16 * 16];  // block
+  __shared__ uint groupOffset;    
 
   prefixBuffer[localId] = element;
   __syncthreads();
 
   int s1, s2;
-
   for (s1 = 1, s2 = 1; s1 < localSize; s1 <<= 1) {
-    s2 |= s1;
+    s2 |= s1;   // TODO: 下次从这儿开始。假设localId=3
+    // NOTE: A & B = B 说明 B 中所有为1的位在 A 中也必须为1
     if ((localId & s2) == s2) prefixBuffer[localId] += prefixBuffer[localId - s1];
     __syncthreads();
   }
