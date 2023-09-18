@@ -63,13 +63,13 @@ int ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMS
   // device相关变量
   TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // device上的transfer buffer
   bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);            // device拿到的voxel
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // device这儿记录是否读取成功
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // device拿到的entry id // TODO：这里好像有错误
   // global相关变量
   TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // host上的transfer buffer
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
   //! 找出所有要合并的entry id
-  dim3 blockSize(256);
+  dim3 blockSize(256);    // 必须=256，因为后面计算前缀和时在共享内存中申请了长256的数组
   dim3 gridSize((int) ceil((float) scene->index.noTotalEntries / (float) blockSize.x));
   ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int))); 
   buildListToSwapIn_device << < gridSize, blockSize >> >(neededEntryIDs_local, noNeededEntries_device, swapStates,
@@ -281,24 +281,39 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScen
 }
 
 namespace { // 这里是实现。声明在最前面
+// NOTE: 下面说的block基本上都是指cuda中的block
+/**
+ * 遍历所有entry，找到需要swap in的entry id
+ * @param[out] neededEntryIDs 需要swap in的entry id数组
+ * @param[out] noNeededEntries 需要swap in的entry总数
+ * @param[in] swapStates swap state=1（表示数据同时在内存和显存上，尚未合并） 就是要swap in
+ * @param[in] noTotalEntries scene中的entry总数
+ * @note CPU中，因为通过for循环遍历所有entry来寻找，所以数量是一个一个地增加；而GPU中是多个线程一起找所需的entry，大家都找到后，必须要
+ *  一个一个存放到数组（neededEntryIDs）中。
+ *       这里通过前缀和的方法 找到每个所需entry在数组中的位置。即先让每个block（cuda的）内部统计一下找到的entry，然后就可以知道每个
+ *  block（cuda的）在数组中的起始位置（即offset），再将block（cuda）内部找到的每个entry的位置+offset就是该entry在数组中的位置。
+ *       但其实这里不算是严格的前缀和，∵严格的前缀和按照数组中数组出现的顺序计算，而这里的前缀和只是为了给每个所需的entry在数组中找一个不冲
+ *  突的位置，同时保证没有数组中没有空闲的位置。
+ */
 __global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
                                          int noTotalEntries) {  // TODO:下次从这儿开始
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
-  __shared__ bool shouldPrefix;
-
+  __shared__ bool shouldPrefix;   // 记录当前block（∵是共享内存。注意是cuda的，不是重建的）是否要计算前缀和
   shouldPrefix = false;
   __syncthreads();
-
+  // 只要block(cuda)中有一个线程找到了所需entry，那么该block就要参与前缀和计算
   bool isNeededId = (swapStates[targetIdx].state == 1);
 
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-
-  if (shouldPrefix) {
+  // 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
+  if (shouldPrefix) {                         // TODO: 这里的isNeededId必然为1
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
-    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM) neededEntryIDs[offset] = targetIdx;
+                                // TODO：没有必要弄blockDim.y，因为block都是一维的，否则前面算targetIdx也要考虑blockDim.y
+    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录到数组中
+      neededEntryIDs[offset] = targetIdx;
   }
 }
 
