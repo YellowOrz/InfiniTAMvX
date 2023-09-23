@@ -10,9 +10,9 @@
 
 namespace ITMLib {
 struct ITMHashSwapState {   // 为啥不弄成一个枚举类型？？？
-  ///  0 - 最近的数据在内存上，不在显存中
-  ///  1 - 数据同时在内存和显存上，尚未合并
-  ///  2 - 大多数最近的数据都在显存中，应该在某个时候传到内存中
+  ///  0 - 数据只在host上
+  ///  1 - 数据同时在host和device上，尚未合并
+  ///  2 - 数据只在device上，需要传输到host上？？？
   ///  0 - most recent data is on host, data not currently in active
   ///      memory
   ///  1 - data both on host and in active memory, information has not

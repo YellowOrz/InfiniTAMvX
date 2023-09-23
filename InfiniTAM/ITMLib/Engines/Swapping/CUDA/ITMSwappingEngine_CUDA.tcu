@@ -60,12 +60,12 @@ int ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMS
   //! 准备
   ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;         // swapping所需变量
   ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);  // 数据传输状态
-  // device相关变量
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // device上的transfer buffer
-  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);            // device拿到的voxel
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // device拿到的entry id // TODO：这里好像有错误
-  // global相关变量
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // host上的transfer buffer
+  // device（GPU）相关变量
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // transfer buffer中的block array
+  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);            // transfer buffer中每个block是否传输完成
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // transfer buffer中每个block的entry id
+  // global（CPU）相关变量
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // 同上
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
   //! 找出所有要合并的entry id
@@ -110,25 +110,23 @@ int ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::LoadFromGlobalMemory(ITMS
 template <class TVoxel>
 void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
-
-  ITMHashEntry *hashTable = scene->index.GetEntries();
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);
-
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);
-
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-
+  //! 从host端的block array中读取swapstate=1的block数据 存放到host的transfer buffer中
   int noNeededEntries = this->LoadFromGlobalMemory(scene);
+  //! 准备：取出融合所需数据
+  ITMHashEntry *hashTable = scene->index.GetEntries();    // hash table
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();    // device端voxel block array
+  int maxW = scene->sceneParams->maxW;                    // voxel的最大观测次数
 
-  int maxW = scene->sceneParams->maxW;
-
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;         // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);  // 每个entry的传输状态。=1在CPU和GPU，需要合并
+  // device（GPU）相关变量 // NOTE: 以下2个数组的长度都为一次性传输block的最大数量  
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // transfer buffer中的block array
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // transfer buffer中每个block的entry id
+    // TODO: 应该加上hasSyncedData_local，∵LoadFromGlobalMemory中globalCache->HasStoredData(entryId)可能为false
+  //! 将host的每一个block融入device
   if (noNeededEntries > 0) {
     dim3 blockSize(SDF_BLOCK_SIZE, SDF_BLOCK_SIZE, SDF_BLOCK_SIZE);
     dim3 gridSize(noNeededEntries);
-
     integrateOldIntoActiveData_device << < gridSize, blockSize >> >(localVBA, swapStates, syncedVoxelBlocks_local,
         neededEntryIDs_local, hashTable, maxW);
     ORcudaKernelCheck;
@@ -138,87 +136,67 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateGlobalIntoLocal
 template<class TVoxel>
 void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
                                                                            ITMRenderState *renderState) {
-  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;
-
-  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);
+  //! 准备
+  ITMGlobalCache<TVoxel> *globalCache = scene->globalCache;   // swapping所需变量
+  ITMHashSwapState *swapStates = globalCache->GetSwapStates(true);  // 每个entry的传输状态。=2表示存在device端
 
   ITMHashEntry *hashTable = scene->index.GetEntries();
   uchar *entriesVisibleType = ((ITMRenderState_VH *) renderState)->GetEntriesVisibleType();
-
-  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);
-  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);
-  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);
-
-  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);
+  // device（GPU）相关变量
+  TVoxel *syncedVoxelBlocks_local = globalCache->GetSyncedVoxelBlocks(true);  // transfer buffer中的block array
+  bool *hasSyncedData_local = globalCache->GetHasSyncedData(true);            // transfer buffer中每个block是否传输完成
+  int *neededEntryIDs_local = globalCache->GetNeededEntryIDs(true);           // transfer buffer中每个block的entry id
+  // host相关变量
+  TVoxel *syncedVoxelBlocks_global = globalCache->GetSyncedVoxelBlocks(false);  // 同上
   bool *hasSyncedData_global = globalCache->GetHasSyncedData(false);
   int *neededEntryIDs_global = globalCache->GetNeededEntryIDs(false);
 
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();              // device上的voxel block array
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();   // device上VBA中所有被allocate的下标
 
-  int noTotalEntries = globalCache->noTotalEntries;
+  int noTotalEntries = globalCache->noTotalEntries; // scene中的entry总数。包含ordered list和unordered(excess) list
 
   dim3 blockSize, gridSize;
-  int noNeededEntries;
-
-  {
+  int noNeededEntries;      // 记录本次传输了多少个entry
+  { //! 遍历scene中每个entry，先找出所有需要的entry（swapState = 2）
     blockSize = dim3(256);
-    gridSize = dim3((int) ceil((float) scene->index.noTotalEntries / (float) blockSize.x));
-
+    gridSize = dim3((int)ceil((float)scene->index.noTotalEntries / (float)blockSize.x));
     ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int)));
-
-    buildListToSwapOut_device << < gridSize, blockSize >> >(neededEntryIDs_local, noNeededEntries_device, swapStates,
-        hashTable, entriesVisibleType, noTotalEntries);
+    buildListToSwapOut_device<<<gridSize, blockSize>>>(neededEntryIDs_local, noNeededEntries_device, swapStates,
+                                                       hashTable, entriesVisibleType, noTotalEntries);
     ORcudaKernelCheck;
-
     ORcudaSafeCall(cudaMemcpy(&noNeededEntries, noNeededEntries_device, sizeof(int), cudaMemcpyDeviceToHost));
   }
-
   if (noNeededEntries > 0) {
-    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM);
-    {
+    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM);  // 限制一次性最多拷贝的数量
+    { //! 将需要的entry从device的VBA 转移到 device的transfer buffer（转移=拷贝+清除）
       blockSize = dim3(SDF_BLOCK_SIZE, SDF_BLOCK_SIZE, SDF_BLOCK_SIZE);
       gridSize = dim3(noNeededEntries);
-
-      moveActiveDataToTransferBuffer_device << < gridSize, blockSize >> >(syncedVoxelBlocks_local, hasSyncedData_local,
-          neededEntryIDs_local, hashTable, localVBA);
+      moveActiveDataToTransferBuffer_device<<<gridSize, blockSize>>>(syncedVoxelBlocks_local, hasSyncedData_local,
+                                                                     neededEntryIDs_local, hashTable, localVBA);
       ORcudaKernelCheck;
     }
-
-    {
+    { //! 对于在ordered list中、已经拷贝完的entry，清空其在hash table中的信息 && 统计清空后剩余voxel block空位数量
       blockSize = dim3(256);
-      gridSize = dim3((int) ceil((float) noNeededEntries / (float) blockSize.x));
-
-      ORcudaSafeCall(cudaMemcpy(noAllocatedVoxelEntries_device,
-                                &scene->localVBA.lastFreeBlockId,
-                                sizeof(int),
+      gridSize = dim3((int)ceil((float)noNeededEntries / (float)blockSize.x));
+      ORcudaSafeCall(cudaMemcpy(noAllocatedVoxelEntries_device, &scene->localVBA.lastFreeBlockId, sizeof(int),
                                 cudaMemcpyHostToDevice));
-
-      cleanMemory_device <<< gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, swapStates, hashTable, localVBA,
-          neededEntryIDs_local, noNeededEntries);
+      cleanMemory_device<<<gridSize, blockSize>>>(voxelAllocationList, noAllocatedVoxelEntries_device, swapStates,
+                                                  hashTable, localVBA, neededEntryIDs_local, noNeededEntries);
       ORcudaKernelCheck;
-
-      ORcudaSafeCall(cudaMemcpy(&scene->localVBA.lastFreeBlockId,
-                                noAllocatedVoxelEntries_device,
-                                sizeof(int),
+      ORcudaSafeCall(cudaMemcpy(&scene->localVBA.lastFreeBlockId, noAllocatedVoxelEntries_device, sizeof(int),
                                 cudaMemcpyDeviceToHost));
-      scene->localVBA.lastFreeBlockId = MAX(scene->localVBA.lastFreeBlockId, 0);
+      scene->localVBA.lastFreeBlockId = MAX(scene->localVBA.lastFreeBlockId, 0);  // 记得更新剩余voxel block数量
       scene->localVBA.lastFreeBlockId = MIN(scene->localVBA.lastFreeBlockId, SDF_LOCAL_BLOCK_NUM);
     }
-
-    ORcudaSafeCall(cudaMemcpy(neededEntryIDs_global,
-                              neededEntryIDs_local,
-                              sizeof(int) * noNeededEntries,
-                              cudaMemcpyDeviceToHost));
-    ORcudaSafeCall(cudaMemcpy(hasSyncedData_global,
-                              hasSyncedData_local,
-                              sizeof(bool) * noNeededEntries,
-                              cudaMemcpyDeviceToHost));
-    ORcudaSafeCall(cudaMemcpy(syncedVoxelBlocks_global,
-                              syncedVoxelBlocks_local,
-                              sizeof(TVoxel) * SDF_BLOCK_SIZE3 * noNeededEntries,
-                              cudaMemcpyDeviceToHost));
-
+    //! 将 device的transfer buffer 拷贝到 host的transfer buffer
+    ORcudaSafeCall(
+        cudaMemcpy(neededEntryIDs_global, neededEntryIDs_local, sizeof(int) * noNeededEntries, cudaMemcpyDeviceToHost));
+    ORcudaSafeCall(
+        cudaMemcpy(hasSyncedData_global, hasSyncedData_local, sizeof(bool) * noNeededEntries, cudaMemcpyDeviceToHost));
+    ORcudaSafeCall(cudaMemcpy(syncedVoxelBlocks_global, syncedVoxelBlocks_local,
+                              sizeof(TVoxel) * SDF_BLOCK_SIZE3 * noNeededEntries, cudaMemcpyDeviceToHost));
+    //! 将 host的transfer buffer 转移到 host的voxel block array中
     for (int entryId = 0; entryId < noNeededEntries; entryId++) {
       if (hasSyncedData_global[entryId])
         globalCache->SetStoredData(neededEntryIDs_global[entryId],
@@ -227,54 +205,47 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::SaveToGlobalMemory(ITMSc
   }
 }
 
-template<class TVoxel>
+template <class TVoxel>
 void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene,
                                                                          ITMRenderState *renderState) {
+  //! 准备                                                                          
   ITMHashEntry *hashTable = scene->index.GetEntries();
-  uchar *entriesVisibleType = ((ITMRenderState_VH *) renderState)->GetEntriesVisibleType();
+  uchar *entriesVisibleType = ((ITMRenderState_VH *)renderState)->GetEntriesVisibleType();
 
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();            // device上的voxel block array
+  int *voxelAllocationList = scene->localVBA.GetAllocationList(); // device上VBA中所有被allocate的下标
+
+  int noNeededEntries;    // scene中的entry总数
 
   dim3 blockSize, gridSize;
-  int noNeededEntries;
-
-  {
+  {//! 遍历scene中每个entry，先找出所有需要清空的entry（可见、有对应voxel array）
     blockSize = dim3(256);
-    gridSize = dim3((int) ceil((float) scene->index.noTotalEntries / (float) blockSize.x));
-
+    gridSize = dim3((int)ceil((float)scene->index.noTotalEntries / (float)blockSize.x));
     ORcudaSafeCall(cudaMemset(noNeededEntries_device, 0, sizeof(int)));
-
-    buildListToClean_device <<< gridSize, blockSize >> >(entriesToClean_device, noNeededEntries_device, hashTable, entriesVisibleType, scene->index.noTotalEntries);
-
+    buildListToClean_device<<<gridSize, blockSize>>>(entriesToClean_device, noNeededEntries_device, hashTable,
+                                                     entriesVisibleType, scene->index.noTotalEntries);
     ORcudaSafeCall(cudaMemcpy(&noNeededEntries, noNeededEntries_device, sizeof(int), cudaMemcpyDeviceToHost));
   }
 
   if (noNeededEntries > 0) {
-    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM);
-    {
+    noNeededEntries = MIN(noNeededEntries, SDF_TRANSFER_BLOCK_NUM); // 限制一次性最多拷贝的数量
+    { //! 将找到的entry从device的VBA清空
       blockSize = dim3(SDF_BLOCK_SIZE, SDF_BLOCK_SIZE, SDF_BLOCK_SIZE);
       gridSize = dim3(noNeededEntries);
-
-      cleanVBA << < gridSize, blockSize >> >(entriesToClean_device, hashTable, localVBA);
+      cleanVBA<<<gridSize, blockSize>>>(entriesToClean_device, hashTable, localVBA);
+      // TODO：应该加一个ORcudaKernelCheck
     }
-
-    {
+    { //! 所有找到的entry，清空其在hash table中的信息 && 统计清空后剩余voxel block空位数量
       blockSize = dim3(256);
-      gridSize = dim3((int) ceil((float) noNeededEntries / (float) blockSize.x));
-
-      ORcudaSafeCall(cudaMemcpy(noAllocatedVoxelEntries_device,
-                                &scene->localVBA.lastFreeBlockId,
-                                sizeof(int),
+      gridSize = dim3((int)ceil((float)noNeededEntries / (float)blockSize.x));
+      ORcudaSafeCall(cudaMemcpy(noAllocatedVoxelEntries_device, &scene->localVBA.lastFreeBlockId, sizeof(int),
                                 cudaMemcpyHostToDevice));
-
-      cleanMemory_device <<< gridSize, blockSize >> >(voxelAllocationList, noAllocatedVoxelEntries_device, hashTable, localVBA, entriesToClean_device, noNeededEntries);
-
-      ORcudaSafeCall(cudaMemcpy(&scene->localVBA.lastFreeBlockId,
-                                noAllocatedVoxelEntries_device,
-                                sizeof(int),
+      cleanMemory_device<<<gridSize, blockSize>>>(voxelAllocationList, noAllocatedVoxelEntries_device, hashTable,
+                                                  localVBA, entriesToClean_device, noNeededEntries);
+      // TODO：应该加一个ORcudaKernelCheck
+      ORcudaSafeCall(cudaMemcpy(&scene->localVBA.lastFreeBlockId, noAllocatedVoxelEntries_device, sizeof(int),
                                 cudaMemcpyDeviceToHost));
-      scene->localVBA.lastFreeBlockId = MAX(scene->localVBA.lastFreeBlockId, 0);
+      scene->localVBA.lastFreeBlockId = MAX(scene->localVBA.lastFreeBlockId, 0);  // 记得更新剩余voxel block数量
       scene->localVBA.lastFreeBlockId = MIN(scene->localVBA.lastFreeBlockId, SDF_LOCAL_BLOCK_NUM);
     }
   }
@@ -283,17 +254,16 @@ void ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CleanLocalMemory(ITMScen
 namespace { // 这里是实现。声明在最前面
 // NOTE: 下面说的block基本上都是指cuda中的block
 /**
- * 遍历所有entry，找到需要swap in的entry id
- * @param[out] neededEntryIDs 需要swap in的entry id数组
- * @param[out] noNeededEntries 需要swap in的entry总数
- * @param[in] swapStates swap state=1（表示数据同时在内存和显存上，尚未合并） 就是要swap in
- * @param[in] noTotalEntries scene中的entry总数
+ * 遍历scene中所有entry，找到需要swap in的entry id
+ * @param[out] neededEntryIDs   需要swap in的entry id数组
+ * @param[out] noNeededEntries  需要swap in的entry总数
+ * @param[in] swapStates        swap state=1（表示数据同时在内存和显存上，尚未合并） 就是要swap in
+ * @param[in] noTotalEntries    scene中的entry总数
  * @note CPU中，因为通过for循环遍历所有entry来寻找，所以数量是一个一个地增加；而GPU中是多个线程一起找所需的entry，大家都找到后，必须要
  *  一个一个存放到数组（neededEntryIDs）中。
- *       这里通过前缀和的方法 找到每个所需entry在数组中的位置。即先让每个block（cuda的）内部统计一下找到的entry，然后就可以知道每个
- *  block（cuda的）在数组中的起始位置（即offset），再将block（cuda）内部找到的每个entry的位置+offset就是该entry在数组中的位置。
- *       但其实这里不算是严格的前缀和，∵严格的前缀和按照数组中数组出现的顺序计算，而这里的前缀和只是为了给每个所需的entry在数组中找一个不冲
- *  突的位置，同时保证没有数组中没有空闲的位置。
+ *       因为entry是否需要通过0、1表示，因此可以通过前缀和的方法 找到每个所需entry在数组中的位置。即先让每个block（cuda的）内部统计一下找
+ *  到的entry，然后就可以知道每个block（cuda的）在数组中的起始位置（即offset），再将block（cuda）内部找到的每个entry的位置+offset就是
+ *  该entry在数组中的位置。
  */
 __global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
                                          int noTotalEntries) {  // TODO:下次从这儿开始
@@ -303,160 +273,212 @@ __global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntri
   __shared__ bool shouldPrefix;   // 记录当前block（∵是共享内存。注意是cuda的，不是重建的）是否要计算前缀和
   shouldPrefix = false;
   __syncthreads();
-  // 只要block(cuda)中有一个线程找到了所需entry，那么该block就要参与前缀和计算
+  //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   bool isNeededId = (swapStates[targetIdx].state == 1);
 
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-  // 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
-  if (shouldPrefix) {                         // TODO: 这里的isNeededId必然为1
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
+  if (shouldPrefix) {
+    // NOTE: 这里的isNeededId必然为1
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
                                 // TODO：没有必要弄blockDim.y，因为block都是一维的，否则前面算targetIdx也要考虑blockDim.y
-    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录到数组中
+    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录entry id到数组中
       neededEntryIDs[offset] = targetIdx;
   }
 }
 
+/**
+ * 遍历scene中所有entry，找到需要swap out的entry id（swap state=2）
+ * @param[out] neededEntryIDs     需要swap out的entry id数组
+ * @param[out] noNeededEntries    需要swap out的entry总数
+ * @param[in] swapStates          swap state=2（表示存在device端） 就是要swap out
+ * @param[in] hashTable 
+ * @param[in] entriesVisibleType  每个entry的可见情况
+ * @param[in] noTotalEntries      scene中的entry总数
+ */
 __global__ void buildListToSwapOut_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
                                           ITMHashEntry *hashTable, uchar *entriesVisibleType, int noTotalEntries) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
-  __shared__ bool shouldPrefix;
-
+  __shared__ bool shouldPrefix; // 记录当前block（cuda）是否要计算前缀和
   shouldPrefix = false;
   __syncthreads();
-
+  //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   ITMHashSwapState &swapState = swapStates[targetIdx];
-
-  bool isNeededId = (swapState.state == 2 &&
-      hashTable[targetIdx].ptr >= 0 && entriesVisibleType[targetIdx] == 0);
+  bool isNeededId = (swapState.state == 2 && hashTable[targetIdx].ptr >= 0 && entriesVisibleType[targetIdx] == 0);
 
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (shouldPrefix) {
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
-    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM) neededEntryIDs[offset] = targetIdx;
+    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录entry id到数组中
+      neededEntryIDs[offset] = targetIdx;
   }
 }
-
-template<class TVoxel>
-__global__ void cleanMemory_device(int *voxelAllocationList,
-                                   int *noAllocatedVoxelEntries,
-                                   ITMHashSwapState *swapStates,
-                                   ITMHashEntry *hashTable,
-                                   TVoxel *localVBA,
-                                   int *neededEntryIDs_local,
+/**
+ * 设置所需entry的swapState=2 && 统计清空后剩余voxel block空位数量 && 清空在ordered list中的信息
+ * @note 相比另外一个cleanMemory_device()多了设置swapState的步骤
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[out] voxelAllocationList          device上VBA中所有被allocate的下标
+ * @param[in, out] noAllocatedVoxelEntries  device的VBA中剩余空位数(即localVBA.lastFreeBlockId)。包含ordered和unordered list
+ * @param[in] swapStates                    数据传输状态
+ * @param[in] hashTable
+ * @param     localVBA                      【没用到】device的VBA
+ * @param[in] neededEntryIDs_local          device上，transfer buffer中每个block的entry id
+ * @param[in] noNeededEntries               本次传输了多少个entry
+ */
+template <class TVoxel>
+__global__ void cleanMemory_device(int *voxelAllocationList, int *noAllocatedVoxelEntries, ITMHashSwapState *swapStates,
+                                   ITMHashEntry *hashTable, TVoxel *localVBA, int *neededEntryIDs_local,
                                    int noNeededEntries) {
   int locId = threadIdx.x + blockIdx.x * blockDim.x;
-
   if (locId > noNeededEntries - 1) return;
 
   int entryDestId = neededEntryIDs_local[locId];
 
-  swapStates[entryDestId].state = 0;
+  swapStates[entryDestId].state = 0;    // =0表示数据只在host上
 
-  int vbaIdx = atomicAdd(&noAllocatedVoxelEntries[0], 1);
+  int vbaIdx = atomicAdd(&noAllocatedVoxelEntries[0], 1); // TODO: CPU中只在ordered list才加到noAllocatedVoxelEntries？？？
+  // 如果在ordered list，则清空在hash table中的信息 // TODO: 在excess list中的就不清空了？？？
   if (vbaIdx < SDF_LOCAL_BLOCK_NUM - 1) {
-    voxelAllocationList[vbaIdx + 1] = hashTable[entryDestId].ptr;
-    hashTable[entryDestId].ptr = -1;
+    voxelAllocationList[vbaIdx + 1] = hashTable[entryDestId].ptr; // 虽然转移走了，但要在device上知道该位置有数据，方便后续找回
+    hashTable[entryDestId].ptr = -1;  // 清空hash table中记录的位置信息
+    // NOTE: voxel已经在moveActiveDataToTransferBuffer_device()中清空。但是CPU版本中是在这儿清空的
   }
 }
-
-__global__ void buildListToClean_device(int *neededEntryIDs,
-                                        int *noNeededEntries,
-                                        ITMHashEntry *hashTable,
-                                        uchar *entriesVisibleType,
-                                        int noTotalEntries) {
+/**
+ * 遍历scene，所有 可见、有对应数据的entry都需要swap out，记录id
+ * @param[out] neededEntryIDs     需要swap out的entry id数组
+ * @param[out] noNeededEntries    需要swap out的entry总数
+ * @param[in] hashTable 
+ * @param[in] entriesVisibleType  每个entry的可见情况
+ * @param[in] noTotalEntries      scene中的entry总数
+ */
+__global__ void buildListToClean_device(int *neededEntryIDs, int *noNeededEntries, ITMHashEntry *hashTable,
+                                        uchar *entriesVisibleType, int noTotalEntries) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
-  __shared__ bool shouldPrefix;
-
+  __shared__ bool shouldPrefix;   // 记录当前block（cuda）是否要计算前缀和
   shouldPrefix = false;
   __syncthreads();
-
+  //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   bool isNeededId = hashTable[targetIdx].ptr >= 0 && entriesVisibleType[targetIdx] == 0;
 
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (shouldPrefix) {
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
-    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM) neededEntryIDs[offset] = targetIdx;
+    if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录entry id到数组中
+      neededEntryIDs[offset] = targetIdx;
   }
 }
-
-template<class TVoxel>
-__global__ void cleanMemory_device(int *voxelAllocationList,
-                                   int *noAllocatedVoxelEntries,
-                                   ITMHashEntry *hashTable,
-                                   TVoxel *localVBA,
-                                   int *neededEntryIDs_local,
-                                   int noNeededEntries) {
+/**
+ * 统计清空后剩余voxel block空位数量 && 清空在ordered list中的信息
+ * @note 相比另外一个cleanMemory_device()少了设置swapState的步骤
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[out] voxelAllocationList          device上VBA中所有被allocate的下标
+ * @param[in, out] noAllocatedVoxelEntries  device的VBA中剩余空位数(即localVBA.lastFreeBlockId)。包含ordered和unordered list
+ * @param[in] hashTable
+ * @param     localVBA                      【没用到】device的VBA
+ * @param[in] neededEntryIDs_local          device上，transfer buffer中每个block的entry id
+ * @param[in] noNeededEntries               本次传输了多少个entry
+ */
+template <class TVoxel>
+__global__ void cleanMemory_device(int *voxelAllocationList, int *noAllocatedVoxelEntries, ITMHashEntry *hashTable,
+                                   TVoxel *localVBA, int *neededEntryIDs_local, int noNeededEntries) {
   int locId = threadIdx.x + blockIdx.x * blockDim.x;
-
-  if (locId > noNeededEntries - 1) return;
+  if (locId > noNeededEntries - 1)return;
 
   int entryDestId = neededEntryIDs_local[locId];
 
-  int vbaIdx = atomicAdd(&noAllocatedVoxelEntries[0], 1);
+  int vbaIdx = atomicAdd(&noAllocatedVoxelEntries[0], 1); // TODO: CPU中只在ordered list才加到noAllocatedVoxelEntries？？？
+  // 如果在ordered list，则清空在hash table中的信息 
   if (vbaIdx < SDF_LOCAL_BLOCK_NUM - 1) {
-    voxelAllocationList[vbaIdx + 1] = hashTable[entryDestId].ptr;
-    hashTable[entryDestId].ptr = -2;
+    voxelAllocationList[vbaIdx + 1] = hashTable[entryDestId].ptr; // 虽然转移走了，但要在device上知道该位置有数据，方便后续找回
+    hashTable[entryDestId].ptr = -2;  // 清空hash table中记录的位置信息
+    // NOTE: voxel已经在moveActiveDataToTransferBuffer_device()中清空。但是CPU版本中是在这儿清空的
   }
 }
-
-template<class TVoxel>
-__global__ void cleanVBA(int *neededEntryIDs_local, ITMHashEntry *hashTable, TVoxel *localVBA) {
+/**
+ * 将找到的voxel清空
+ * @note 每个线程负责清空单个voxel，不是voxel block。
+ *       参数不需要传入noNeededEntries（需要清空的entry总数），因为gridSize=noNeededEntries。
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in] neededEntryIDs_local  device上，需清空的的entry id
+ * @param[in] hashTable
+ * @param[out] localVBA             device的VBA
+ */
+template <class TVoxel> __global__ void cleanVBA(int *neededEntryIDs_local, ITMHashEntry *hashTable, TVoxel *localVBA) {
+  // 获取entry
   int entryDestId = neededEntryIDs_local[blockIdx.x];
-
   ITMHashEntry &hashEntry = hashTable[entryDestId];
-
+  // 找到voxel block的起始地址
   TVoxel *srcVB = localVBA + hashEntry.ptr * SDF_BLOCK_SIZE3;
-
+  // 清空单个voxel
   int vIdx = threadIdx.x + threadIdx.y * SDF_BLOCK_SIZE + threadIdx.z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
   srcVB[vIdx] = TVoxel();
+  // NOTE: entry的ptr是不清空的
 }
-
-template<class TVoxel>
-__global__ void moveActiveDataToTransferBuffer_device(TVoxel *syncedVoxelBlocks_local,
-                                                      bool *hasSyncedData_local,
-                                                      int *neededEntryIDs_local,
-                                                      ITMHashEntry *hashTable,
+/**
+ * 将需要的voxel从 device的VBA 转移到 device的transfer buffer
+ * @note 转移 = 拷贝 + 清空。每个线程负责转移单个voxel，不是voxel block。
+ *        参数不需要传入noNeededEntries（需要转移的entry总数），因为gridSize=noNeededEntries。
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[out] syncedVoxelBlocks_local device上，transfer buffer中的voxel block array
+ * @param[out] hasSyncedData_local device上，transfer buffer中每个voxel block是否传输完成
+ * @param[in] neededEntryIDs_local device上，需要传到transfer buffer的voxel block的entry id
+ * @param[in] hashTable 
+ * @param[in,out] localVBA device的VBA
+ */
+template <class TVoxel>
+__global__ void moveActiveDataToTransferBuffer_device(TVoxel *syncedVoxelBlocks_local, bool *hasSyncedData_local,
+                                                      int *neededEntryIDs_local, ITMHashEntry *hashTable,
                                                       TVoxel *localVBA) {
   int entryDestId = neededEntryIDs_local[blockIdx.x];
-
   ITMHashEntry &hashEntry = hashTable[entryDestId];
 
-  TVoxel *dstVB = syncedVoxelBlocks_local + blockIdx.x * SDF_BLOCK_SIZE3;
-  TVoxel *srcVB = localVBA + hashEntry.ptr * SDF_BLOCK_SIZE3;
-
+  TVoxel *dstVB = syncedVoxelBlocks_local + blockIdx.x * SDF_BLOCK_SIZE3; // device的transfer buffer上voxel block起点
+  TVoxel *srcVB = localVBA + hashEntry.ptr * SDF_BLOCK_SIZE3;             // localVBA上的voxel block起点
+  // 拷贝一个voxel    // TODO：为啥不一个线程拷贝一整个voxel block？？？线程调度不用资源的吗？？？
   int vIdx = threadIdx.x + threadIdx.y * SDF_BLOCK_SIZE + threadIdx.z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
   dstVB[vIdx] = srcVB[vIdx];
-  srcVB[vIdx] = TVoxel();
+  // 拷贝出来后，device的VBA上的需要清空  // NOTE: entry的ptr是不清空的
+  srcVB[vIdx] = TVoxel();   // TODO: 跟CPU版不同。CPU只清空在ordered list上的，这里还清空在unordered list上的
 
-  if (vIdx == 0) hasSyncedData_local[blockIdx.x] = true;
+  if (vIdx == 0)  // block（cuda）中的第0个线程负责 标记数据拷贝成功
+    hasSyncedData_local[blockIdx.x] = true;   // blockIdx.x即block id
 }
 
-template<class TVoxel>
-__global__ void integrateOldIntoActiveData_device(TVoxel *localVBA,
-                                                  ITMHashSwapState *swapStates,
-                                                  TVoxel *syncedVoxelBlocks_local,
-                                                  int *neededEntryIDs_local,
-                                                  ITMHashEntry *hashTable,
-                                                  int maxW) {
-  int entryDestId = neededEntryIDs_local[blockIdx.x];
+/**
+ * 将device端transfer buffer中的每个voxel融入localVBA
+ * @note 每个线程负责融合单个voxel，不是voxel block
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in, out] localVBA device端，voxel block array
+ * @param[out] swapStates  数据传输状态
+ * @param[in] syncedVoxelBlocks_local device端，transfer buffer中的block array
+ * @param[in] neededEntryIDs_local device端，transfer buffer中每个block的entry id
+ * @param[in] hashTable
+ * @param[in] maxW  voxel的最大观测次数
+ */
+template <class TVoxel>
+__global__ void integrateOldIntoActiveData_device(TVoxel *localVBA, ITMHashSwapState *swapStates,
+                                                  TVoxel *syncedVoxelBlocks_local, int *neededEntryIDs_local,
+                                                  ITMHashEntry *hashTable, int maxW) {
+  int entryDestId = neededEntryIDs_local[blockIdx.x];   // 取出entry id
 
-  TVoxel *srcVB = syncedVoxelBlocks_local + blockIdx.x * SDF_BLOCK_SIZE3;
-  TVoxel *dstVB = localVBA + hashTable[entryDestId].ptr * SDF_BLOCK_SIZE3;
+  TVoxel *srcVB = syncedVoxelBlocks_local + blockIdx.x * SDF_BLOCK_SIZE3;   // device的transfer buffer的voxel block起点
+  TVoxel *dstVB = localVBA + hashTable[entryDestId].ptr * SDF_BLOCK_SIZE3;  // localVBA上的voxel block起点
 
+  // 融合一个voxel
   int vIdx = threadIdx.x + threadIdx.y * SDF_BLOCK_SIZE + threadIdx.z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-
   CombineVoxelInformation<TVoxel::hasColorInformation, TVoxel>::compute(srcVB[vIdx], dstVB[vIdx], maxW);
 
-  if (vIdx == 0) swapStates[entryDestId].state = 2;
+  if (vIdx == 0)  // block（cuda）中的第0个线程负责 融合完成后改状态。=2表示存在device端
+    swapStates[entryDestId].state = 2; 
 }
-
 }

@@ -35,18 +35,20 @@ inline __device__ void warpReduce3(volatile float *sdata, int tid) {
 /**
  * 通过计算数组的前缀和 来找到数组中想要的每个元素 在最终存放的数组中的位置
  * @details 前缀和的计算方法：分治。
- *          步骤一：分组求和。刚开始分组小（2个1组），计算每组之和存在最后；分组长度*2，重复计算
+ *          步骤一：归约求和。跟普通的归约求和相反（数据往前加），将数据往后加。刚开始分组小（2个1组），计算每组之和存在最后；
+ *                 分组长度*2，重复计算
  *          步骤二：更新组内中间数。从最大的分组开始，每组中间 加上前一组的最后一个数，即为它在整个数组中的前缀和。
  *                 分组长度/2，重复计算。等长度为2的组 也计算完，整个数组的前缀和就完成了
  *          但由于CUDA是要分grid和block。所以下面的代码先在block内部（使用共享内存）计算步骤一、二（称为block内的offset），然后计算
  *                block之间的和，
- *          推荐参考“说明材料/CUDA计算前缀和.pptx”和“说明材料/分块合并.cpp”
+ *          推荐参考“说明材料/CUDA计算前缀和.pptx”和“说明材料/CUDA计算前缀和.cpp”
+ *          这里不是单纯的前缀和计算，在前缀和的后面还加入了条件判断，从而专门用于计算所需元素的存放位置
  * @tparam T 数组中数字的类型
  * @param[in] element 数组中的某个数字。值为0（表示不要） or 1（表示想要）。    // TODO: 应该不会是其他取值了吧
  * @param[in,out] sum 数组中最大的前缀和，即想要的元素个数
  * @param[in] localSize cuda的block大小。必须为256，∵在共享内存中申请了长256的数组
  * @param[in] localId block中的线程id
- * @return 每个元素 在最终存放的数组中的位置。-1表示这个元素不需要
+ * @return 当前元素 在最终存放的数组中的位置。-1表示这个元素不需要
  */
 template<typename T>
 __device__ int computePrefixSum_device(uint element, T *sum, int localSize, int localId) {
@@ -58,10 +60,10 @@ __device__ int computePrefixSum_device(uint element, T *sum, int localSize, int 
   __syncthreads();
 
   int s1, s2;
-  //! block内部 分组求和。s1是步长（以2的倍数增长），s2用来选择每组最后一个数（用来存放求和的值）。
-  // NOTE：以下两个for循环可以运行“说明材料/分块合并.cpp”，通过输出进行理解
+  //! block内部 归约求和。s1是步长（以2的倍数增长），s2用来选择每组最后一个数（用来存放求和的值）。
+  // NOTE：以下两个for循环可以运行“说明材料/CUDA计算前缀和.cpp”，通过输出进行理解
   for (s1 = 1, s2 = 1; s1 < localSize; s1 <<= 1) {    // NOTE: 可以参考“说明材料/CUDA计算前缀和.pptx”中第一页
-    s2 |= s1;   // s2从左往右一位一位变成1
+    s2 |= s1;   // s2从左往右一位一位变成1。因为s2表示区间（长度为2^n）中的最后一个数，而且从0开始，所以s2=2^n-1，其二进制是连续多个1
     // NOTE: A & B = B 说明 B 中所有为1的位在 A 中也必须为1。这里是找到localId的二进制中从低位有连续几个1，这个for循环就遍历几遍
     // 例如，localId=71，二进制为1000111，最低位有3个1，则该for循环会遍历3次
     if ((localId & s2) == s2)   // 位置是s2

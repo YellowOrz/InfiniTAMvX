@@ -5,9 +5,8 @@
 #include "../Interface/ITMSwappingEngine.h"
 
 namespace ITMLib {
-template<class TVoxel, class TIndex>
-class ITMSwappingEngine_CUDA : public ITMSwappingEngine<TVoxel, TIndex> {
- public:
+template <class TVoxel, class TIndex> class ITMSwappingEngine_CUDA : public ITMSwappingEngine<TVoxel, TIndex> {
+public:
   void IntegrateGlobalIntoLocal(ITMScene<TVoxel, TIndex> *scene, ITMRenderState *renderState) {}
   void SaveToGlobalMemory(ITMScene<TVoxel, TIndex> *scene, ITMRenderState *renderState) {}
   void CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState) {}
@@ -18,10 +17,11 @@ class ITMSwappingEngine_CUDA : public ITMSwappingEngine<TVoxel, TIndex> {
  * @note 上面模板类的偏特化。
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  */
-template<class TVoxel>
+template <class TVoxel>
 class ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngine<TVoxel, ITMVoxelBlockHash> {
- private:
-  int *noNeededEntries_device, 
+private:
+  // 以下三个变量是给CUDA用的，用于中转的变量，存放在显存上
+  int *noNeededEntries_device;  
   int *noAllocatedVoxelEntries_device;
   int *entriesToClean_device;
   /**
@@ -34,22 +34,22 @@ class ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngi
    */
   int LoadFromGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene);
 
- public:
-   /**
+public:
+  /**
    * swap in。将Host中swapstate=1的block融入device，
-   * @param[in,out] scene 三维场景数据，包含swap所需数据  
+   * @param[in,out] scene 三维场景数据，包含swap所需数据
    * @param renderState 【没用到】
    */
   void IntegrateGlobalIntoLocal(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
   /**
    * swap out。将device中swap state=2 && 不可见的block转移到host
-   * @param[in,out] scene 三维场景数据，包含swap所需数据  
+   * @param[in,out] scene 三维场景数据，包含swap所需数据
    * @param[in] renderState 主要用到其中的entry可见信息
    */
   void SaveToGlobalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
   /**
    * swap out。将device中不可见的block转移到host（不管swap state是多少）
-   * @param[in,out] scene 三维场景数据，包含swap所需数据  
+   * @param[in,out] scene 三维场景数据，包含swap所需数据
    * @param[in] renderState 主要用到其中的entry可见信息
    */
   void CleanLocalMemory(ITMScene<TVoxel, ITMVoxelBlockHash> *scene, ITMRenderState *renderState);
@@ -57,4 +57,4 @@ class ITMSwappingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMSwappingEngi
   ITMSwappingEngine_CUDA(void);
   ~ITMSwappingEngine_CUDA(void);
 };
-}
+} // namespace ITMLib
