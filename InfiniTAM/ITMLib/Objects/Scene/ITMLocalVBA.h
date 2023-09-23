@@ -27,7 +27,7 @@ class ITMLocalVBA {
   const void* GetVoxelBlocks_MB() const { return voxelBlocks->GetMetalBuffer(); }
   const void* GetAllocationList_MB(void) const { return allocationList->GetMetalBuffer(); }
 #endif
-  int lastFreeBlockId;  // VBA中可用剩余空位的id。因为VBA中数据从后往前存，因此该ID是逐渐变小的
+  int lastFreeBlockId;  // VBA中剩余空位数。因为VBA中数据从后往前存，因此该ID是逐渐变小的
 
   int allocatedSize;  
 
