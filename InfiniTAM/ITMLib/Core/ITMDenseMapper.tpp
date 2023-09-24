@@ -7,14 +7,12 @@
 #include "../Objects/RenderStates/ITMRenderState_VH.h"
 using namespace ITMLib;
 
-template<class TVoxel, class TIndex>
-ITMDenseMapper<TVoxel, TIndex>::ITMDenseMapper(const ITMLibSettings *settings) {
+template <class TVoxel, class TIndex> ITMDenseMapper<TVoxel, TIndex>::ITMDenseMapper(const ITMLibSettings *settings) {
   sceneRecoEngine =
       ITMSceneReconstructionEngineFactory::MakeSceneReconstructionEngine<TVoxel, TIndex>(settings->deviceType);
-  swappingEngine =
-      settings->swappingMode != ITMLibSettings::SWAPPINGMODE_DISABLED ? ITMSwappingEngineFactory::MakeSwappingEngine<
-          TVoxel,
-          TIndex>(settings->deviceType) : NULL;
+  swappingEngine = settings->swappingMode != ITMLibSettings::SWAPPINGMODE_DISABLED
+                       ? ITMSwappingEngineFactory::MakeSwappingEngine<TVoxel, TIndex>(settings->deviceType)
+                       : NULL;
 
   swappingMode = settings->swappingMode;
 }

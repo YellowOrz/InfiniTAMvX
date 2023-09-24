@@ -22,22 +22,29 @@ ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::~ITMSceneReconstruc
 template <class TVoxel>
 void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::ResetScene(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
-  int numBlocks = scene->index.getNumAllocatedVoxelBlocks();
-  int blockSize = scene->index.getVoxelBlockSize();
-
+  int numBlocks = scene->index.getNumAllocatedVoxelBlocks();    // block数量，=SDF_LOCAL_BLOCK_NUM
+  int blockSize = scene->index.getVoxelBlockSize();             // block中voxel的数量，=SDF_BLOCK_SIZE3
+  //! 清空每个voxel信息
   TVoxel *voxelBlocks_ptr = scene->localVBA.GetVoxelBlocks();
-  for (int i = 0; i < numBlocks * blockSize; ++i) voxelBlocks_ptr[i] = TVoxel();
+  for (int i = 0; i < numBlocks * blockSize; ++i) // numBlocks * blockSize = voxel总数
+    voxelBlocks_ptr[i] = TVoxel();
+  //! 重置voxel block array中的空闲信息
   int *vbaAllocationList_ptr = scene->localVBA.GetAllocationList();
-  for (int i = 0; i < numBlocks; ++i) vbaAllocationList_ptr[i] = i;
-  scene->localVBA.lastFreeBlockId = numBlocks - 1;
-
+  for (int i = 0; i < numBlocks; ++i)
+    vbaAllocationList_ptr[i] = i;
+  //! 重置localVBA中可用空间的数量
+  scene->localVBA.lastFreeBlockId = numBlocks - 1;  // -1是因为lastFreeBlockId本质上是localVBA中的空余下标
+  //! 重置hash table
   ITMHashEntry tmpEntry;
   memset(&tmpEntry, 0, sizeof(ITMHashEntry));
   tmpEntry.ptr = -2;
   ITMHashEntry *hashEntry_ptr = scene->index.GetEntries();
-  for (int i = 0; i < scene->index.noTotalEntries; ++i) hashEntry_ptr[i] = tmpEntry;
+  for (int i = 0; i < scene->index.noTotalEntries; ++i)
+    hashEntry_ptr[i] = tmpEntry;
+  //! 重置unordered list的空闲信息   
   int *excessList_ptr = scene->index.GetExcessAllocationList();
-  for (int i = 0; i < SDF_EXCESS_LIST_SIZE; ++i) excessList_ptr[i] = i;
+  for (int i = 0; i < SDF_EXCESS_LIST_SIZE; ++i)
+    excessList_ptr[i] = i;
 
   scene->index.SetLastFreeExcessListId(SDF_EXCESS_LIST_SIZE - 1);
 }
@@ -143,27 +150,26 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   float mu = scene->sceneParams->mu;                                  // TSDF的截断值对应的距离
 
   float *depth = view->depth->GetData(MEMORYDEVICE_CPU);              // 深度图
-  int *voxelAllocationList = scene->localVBA.GetAllocationList();     // voxel block array
-  int *excessAllocationList = scene->index.GetExcessAllocationList(); // ???获得溢出的列表的ID？
+  int *voxelAllocationList = scene->localVBA.GetAllocationList();     // VBA的空闲信息
+  int *excessAllocationList = scene->index.GetExcessAllocationList(); // excess list的空闲信息
   ITMHashEntry *hashTable = scene->index.GetEntries();                // hash table
-  ITMHashSwapState *swapStates =                                      // 数据传输状态（内存和显存之间）
+  ITMHashSwapState *swapStates =                                      // 数据传输状态（host和device之间）
       scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
   int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 当前视角下可见entrys的ID数组
-  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entrys的类型？？？
-  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // 上一帧可见的？？？
+  uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entry的类型
+  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // ???上一帧可见但还没拷贝出去的？？？
     entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
   uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);  // 数据存放位置。order entry或excess list
   int noTotalEntries = scene->index.noTotalEntries;
   memset(entriesAllocType, 0, noTotalEntries);
   Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 每个entry对应的block坐标
 
-  bool useSwapping = scene->globalCache != NULL;                        // 是否支持内存-显存之间的数据交换
+  bool useSwapping = scene->globalCache != NULL;                        // 是否支持host-device之间的数据交换
 
   float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE);         // block实际边长的倒数，方便后面计算 
-                                                                        //TODO：不应该叫voxelsize
-
-  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // VBA中最前面一个空位的id（∵从后往前存）
-  int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();    // excess list中最前面一个空位的id（∵从后往前存）
+                                                                        //TODO：应该叫BlockSize更合适
+  int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // VBA中剩余空位数
+  int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();    // excess list中剩余空位数
 
   //! 查看每个像素对应三维点附近所有block的alloction和可见情况。build hashVisibility
 #ifdef WITH_OPENMP
@@ -178,7 +184,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   }
   if (onlyUpdateVisibleList)  // ???为啥只更新可见列表的话，关闭swap？？？
     useSwapping = false;
-  //! 对于所有的entry，对于上面找到的需要分配的block进行分配
+  //! 对于所有的entry，对于上面找到的需要分配的block进行分配。推荐参考文件“说明材料/localVBA.pptx”
   if (!onlyUpdateVisibleList) {  
     // allocate 分配
     for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {  // 遍历每一个entry
@@ -197,8 +203,8 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           hashEntry.pos.x = pt_block_all.x;
           hashEntry.pos.y = pt_block_all.y;
           hashEntry.pos.z = pt_block_all.z;
-          hashEntry.ptr = voxelAllocationList[vbaIdx];  //! 分配的核心：将entry的ptr指向VBA中可用的空余空间的ID
-          hashEntry.offset = 0;
+          hashEntry.ptr = voxelAllocationList[vbaIdx];  // NOTE：voxelAllocationList[vbaIdx]就是VBA中的空闲位置
+          hashEntry.offset = 0;   // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
 
           hashTable[targetIdx] = hashEntry;             // hash table中记录entry信息
         } else {            // 剩余空间不足，无法allocate，需要设置visible=false
@@ -206,7 +212,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           // state.
           entriesVisibleType[targetIdx] = 0;
 
-          // Restore previous value to avoid leaks.
+          // 剩余空间不足了，要把刚刚分配的再还回去。Restore previous value to avoid leaks.
           lastFreeVoxelBlockId++;
         }
         break;
@@ -224,14 +230,14 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           hashEntry.pos.x = pt_block_all.x;
           hashEntry.pos.y = pt_block_all.y;
           hashEntry.pos.z = pt_block_all.z;
-          hashEntry.ptr = voxelAllocationList[vbaIdx]; //! 分配的核心：将entry的ptr指向VBA中可用的空余空间的ID
-          hashEntry.offset = 0;                        
-          // excess list中首先找到可以用的entry的id
-          int exlOffset = excessAllocationList[exlIdx];   //???
+          hashEntry.ptr = voxelAllocationList[vbaIdx]; // NOTE：voxelAllocationList[vbaIdx]就是VBA中的空闲位置
+          hashEntry.offset = 0; // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
+          int exlOffset = excessAllocationList[exlIdx];   // 跟voxelAllocationList同理，找到excess list的空闲位置
 
-          hashTable[targetIdx].offset = exlOffset + 1;  // 记录到excess list都是确定有哈希冲突的，所以offset是往后挪一位
+          hashTable[targetIdx].offset = exlOffset + 1;  // +1是因为上面offset = 0，后面使用的时候会-1，判断的时候会跟1比较
                                                         // connect to child
-          hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry;  // add child to the excess list
+          hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry;  // SDF_BUCKET_NUM之后的是excess list
+                                                              // add child to the excess list
           entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // ∵buildHashAllocAndVisibleTypePP没对unorder entry标记可见
           //TODO：这里是不是有bug？lastFreeExcessListId应该指向一个空的位置，但是exlOffset + 1，导致每次添加会有一个空位？？？
         } else {                          // VBA和excess list有一个没空位了

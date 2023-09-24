@@ -20,10 +20,14 @@ protected:
   ORUtils::MemoryBlock<Vector4s> *blockCoords;
 
 public:
+  /**
+   * @brief 重置场景三维模型
+   * @param[in,out] scene 场景三维模型
+   */
   void ResetScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene);
   /**
    * 根据深度图 计算visible list、分配内存 && 更新hash table  ？？？？？？？？？？？？？？？？？？？？？
-   * @tparam TVoxel
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @param[in,out] scene 更新其中 allocation list、???
    * @param[in] view 当前输入图像
    * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等

@@ -7,17 +7,19 @@
 #include "../Utils/ITMLibSettings.h"
 
 namespace ITMLib {
-/** \brief
-*/
-template<class TVoxel, class TIndex>
-class ITMDenseMapper {
- private:
-  ITMSceneReconstructionEngine<TVoxel, TIndex> *sceneRecoEngine;  // 用于三维模型融合
-  ITMSwappingEngine<TVoxel, TIndex> *swappingEngine;              // 用于CPU和GPU之间的数据交换
+/** 负责 场景三维模型的融合 && swap in/out */
+template <class TVoxel, class TIndex> class ITMDenseMapper {
+private:
+  ITMSceneReconstructionEngine<TVoxel, TIndex> *sceneRecoEngine; // 用于三维模型融合
+  ITMSwappingEngine<TVoxel, TIndex> *swappingEngine;             // 用于CPU和GPU之间的数据交换
 
-  ITMLibSettings::SwappingMode swappingMode;                      // swap默认关闭。在TIMLibSetting中开启
+  ITMLibSettings::SwappingMode swappingMode; // swap默认关闭。在TIMLibSetting中开启
 
- public:
+public:
+  /**
+   * @brief 重置场景三维模型
+   * @param[in,out] scene 场景三维模型
+   */
   void ResetScene(ITMScene<TVoxel, TIndex> *scene) const;
 
   /**
@@ -54,4 +56,4 @@ class ITMDenseMapper {
   explicit ITMDenseMapper(const ITMLibSettings *settings);
   ~ITMDenseMapper();
 };
-}
+} // namespace ITMLib

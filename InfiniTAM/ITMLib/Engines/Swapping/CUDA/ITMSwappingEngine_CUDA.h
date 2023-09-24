@@ -23,7 +23,7 @@ private:
   // 以下三个变量是给CUDA用的，用于中转的变量，存放在显存上
   int *noNeededEntries_device;  
   int *noAllocatedVoxelEntries_device;
-  int *entriesToClean_device;
+  int *entriesToClean_device;   // 长度SDF_LOCAL_BLOCK_NUM
   /**
    * 从host voxel memory中读取swapstate=1的block数据
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB

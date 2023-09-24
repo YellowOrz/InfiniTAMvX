@@ -6,15 +6,17 @@
 #include "../../../ORUtils/MemoryBlockPersister.h"
 
 namespace ITMLib {
-/** @brief 
-Stores the actual voxel content that is referred to by a
-ITMLib::ITMHashTable.
+/** 
+ * @brief 存储在device上的voxel block array
+ * @note 使用方法可以参考文档“说明材料/localVBA.pptx”
+ * Stores the actual voxel content that is referred to by a ITMLib::ITMHashTable.
 */
 template<class TVoxel>
 class ITMLocalVBA {
  private:
   ORUtils::MemoryBlock<TVoxel> *voxelBlocks;  // voxel block array。数据是从后往前存的
-  ORUtils::MemoryBlock<int> *allocationList;  // 记录VBA中所有被allocate的下标??? 场景重置的时候allocationList[i] = i
+  // 记录VBA中所有被allocate的下标??? 长度为SDF_LOCAL_BLOCK_NUM。场景重置的时候allocationList[i] = i
+  ORUtils::MemoryBlock<int> *allocationList;
 
   MemoryDeviceType memoryType;                // 存储类型：CPU or GPU
 
@@ -27,9 +29,8 @@ class ITMLocalVBA {
   const void* GetVoxelBlocks_MB() const { return voxelBlocks->GetMetalBuffer(); }
   const void* GetAllocationList_MB(void) const { return allocationList->GetMetalBuffer(); }
 #endif
-  int lastFreeBlockId;  // VBA中剩余空位数。因为VBA中数据从后往前存，因此该ID是逐渐变小的
-
-  int allocatedSize;  
+  int lastFreeBlockId;  // VBA中剩余空位数, =SDF_LOCAL_BLOCK_NUM-1。因为VBA中数据从后往前存，因此该ID是逐渐变小的
+  int allocatedSize;    // 所有block中voxel的数量
 
   /** 将所有数据（VBA+allocationList+lastFreeBlockId）保存到硬盘上 */
   void SaveToDirectory(const std::string &outputDirectory) const {
@@ -62,15 +63,15 @@ class ITMLocalVBA {
   }
 
   /**
-   * @brief Construct a new ITMLocalVBA object
-   * @param memoryType 
-   * @param noBlocks 
-   * @param blockSize 
+   * @brief 构造函数
+   * @param[in] memoryType  内存类型，CPU or GPU
+   * @param[in] noBlocks    block数量，=SDF_LOCAL_BLOCK_NUM
+   * @param[in] blockSize   block中voxel的数量，=SDF_BLOCK_SIZE3
    */
   ITMLocalVBA(MemoryDeviceType memoryType, int noBlocks, int blockSize) {
     this->memoryType = memoryType;
 
-    allocatedSize = noBlocks * blockSize;
+    allocatedSize = noBlocks * blockSize; // 所有block中voxel的数量
 
     voxelBlocks = new ORUtils::MemoryBlock<TVoxel>(allocatedSize, memoryType);
     allocationList = new ORUtils::MemoryBlock<int>(noBlocks, memoryType);

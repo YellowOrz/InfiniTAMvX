@@ -21,7 +21,7 @@ class ITMScene {
    * Hash table to reference the 8x8x8 blocks */
   TIndex index;
 
-  /** 正在用的的block（默认是8*8*8大小的voxel）。
+  /** voxel block array（默认是8*8*8大小的voxel）。
    * @note 存储的最小元素是voxel，即将单个block中的voxel拉成一维的存入其中。
    *       若用了CUDA，存在显存；若只用了CPU，存在内存
    * Current local content of the 8x8x8 voxel blocks -- stored host or device */
@@ -49,7 +49,13 @@ class ITMScene {
     localVBA.LoadFromDirectory(outputDirectory);
     index.LoadFromDirectory(outputDirectory);
   }
-
+  /**
+   * @brief Construct a new ITMScene object
+   * 
+   * @param _sceneParams 
+   * @param _useSwapping 
+   * @param _memoryType 
+   */
   ITMScene(const ITMSceneParams *_sceneParams, bool _useSwapping, MemoryDeviceType _memoryType)
       : sceneParams(_sceneParams), index(_memoryType),
         localVBA(_memoryType, index.getNumAllocatedVoxelBlocks(), index.getVoxelBlockSize()) {

@@ -18,12 +18,10 @@ namespace ITMLib {
     an ITMLib::Objects::ITMScene and fuse new image information
     into them.
 */
-template<class TVoxel, class TIndex>
-class ITMSceneReconstructionEngine {
- public:
-  /** Clear and reset a scene to set up a new empty
-      one.
-  */
+template <class TVoxel, class TIndex> class ITMSceneReconstructionEngine {
+public:
+  /** Clear and reset a scene to set up a new empty one.
+   */
   virtual void ResetScene(ITMScene<TVoxel, TIndex> *scene) = 0;
 
   /**
@@ -32,22 +30,17 @@ class ITMSceneReconstructionEngine {
       visible blocks, allocate them and update the hash
       table so that the new image data can be integrated.
   */
-  virtual void AllocateSceneFromDepth(ITMScene<TVoxel, TIndex> *scene,
-                                      const ITMView *view,
-                                      const ITMTrackingState *trackingState,
-                                      const ITMRenderState *renderState,
-                                      bool onlyUpdateVisibleList = false,
-                                      bool resetVisibleList = false) = 0;
+  virtual void AllocateSceneFromDepth(ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
+                                      const ITMTrackingState *trackingState, const ITMRenderState *renderState,
+                                      bool onlyUpdateVisibleList = false, bool resetVisibleList = false) = 0;
 
   /** Update the voxel blocks by integrating depth and
       possibly colour information from the given view.
   */
-  virtual void IntegrateIntoScene(ITMScene<TVoxel, TIndex> *scene,
-                                  const ITMView *view,
-                                  const ITMTrackingState *trackingState,
-                                  const ITMRenderState *renderState) = 0;
+  virtual void IntegrateIntoScene(ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
+                                  const ITMTrackingState *trackingState, const ITMRenderState *renderState) = 0;
 
   ITMSceneReconstructionEngine(void) {}
   virtual ~ITMSceneReconstructionEngine(void) {}
 };
-}
+} // namespace ITMLib
