@@ -10,30 +10,35 @@
 
 namespace ITMLib {
 /** 使用voxel hasing的raycasting结果。用于SceneReconstruction和visualisation engines。
-    Stores the render state used by the SceneReconstruction
-    and visualisation engines, as used by voxel hashing.
+ * Stores the render state used by the SceneReconstruction and visualisation engines, as used by voxel hashing.
 */
 class ITMRenderState_VH : public ITMRenderState {
 private:
   MemoryDeviceType memoryType;
 
   /** 可见entries列表（即正被tracker处理的）的id。
-   * A list of "visible entries", that are currently
-  being processed by the tracker.
+   * @note 长度为SDF_LOCAL_BLOCK_NUM
+   * A list of "visible entries", that are currently being processed by the tracker.
   */
   ORUtils::MemoryBlock<int> *visibleEntryIDs;
 
   /** entry的可见情况。=1是正常可见，=2是应该可见但是被删除了（swapped out）
-   * A list of "visible entries", that are
-  currently being processed by integration
-  and tracker.
+   * A list of "visible entries", that are currently being processed by integration and tracker.
   */
   ORUtils::MemoryBlock<uchar> *entriesVisibleType;
 
 public:
-  /** Number of entries in the live list. */
+  /** 可见entry的数量。Number of entries in the live list. */
   int noVisibleEntries;
-
+  /**
+   * @brief Construct a new itmrenderstate vh object
+   * 
+   * @param noTotalEntries 
+   * @param imgSize 
+   * @param vf_min 
+   * @param vf_max 
+   * @param memoryType 
+   */
   ITMRenderState_VH(int noTotalEntries, const Vector2i &imgSize, float vf_min, float vf_max,
                     MemoryDeviceType memoryType = MEMORYDEVICE_CPU)
       : ITMRenderState(imgSize, vf_min, vf_max, memoryType) {
@@ -48,9 +53,8 @@ public:
     delete visibleEntryIDs;
     delete entriesVisibleType;
   }
-  /** 获取可见entries列表（即正被tracker处理的）的id
-   * Get the list of "visible entries", that are currently
-  processed by the tracker.
+  /** 获取可见entries列表（即正被tracker处理的）的id。
+   * Get the list of "visible entries", that are currently processed by the tracker.
   */
   const int *GetVisibleEntryIDs(void) const { return visibleEntryIDs->GetData(memoryType); }
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
@@ -61,8 +65,7 @@ public:
    *  =1是正常可见。
    *  =2是应该可见但是被删除了（swapped out）。
    *  =3？？？
-   * Get the list of "visible entries", that are
-  currently processed by integration and tracker.
+   * Get the list of "visible entries", that are currently processed by integration and tracker.
   */
   uchar *GetEntriesVisibleType(void) { return entriesVisibleType->GetData(memoryType); }
 

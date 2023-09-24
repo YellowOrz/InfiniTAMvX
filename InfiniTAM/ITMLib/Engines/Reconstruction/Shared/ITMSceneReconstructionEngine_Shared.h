@@ -367,7 +367,7 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
       bool isExcess = false;  // 是否存在于excess list（也叫unordered entries）
       if (hashEntry.ptr >= -1) { // >= -1说明已经被分配空间了。seach excess list only if there is no room in ordered part
         while (hashEntry.offset >= 1) { // >= 1说明存在哈希冲突
-          hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;
+          hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
           hashEntry = hashTable[hashIdx];
           if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
             // 记录entry的可见情况，=1是正常可见，=2是应该可见但是被删除了（swapped out）

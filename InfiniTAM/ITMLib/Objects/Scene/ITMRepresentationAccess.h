@@ -60,8 +60,8 @@ _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash
       return cache.blockPtr + linearIdx;
     }
 
-    if (hashEntry.offset < 1) break;
-    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;
+    if (hashEntry.offset < 1) break;  // <1说明没有哈希冲突
+    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
   }
 
   vmIndex = false;
@@ -124,8 +124,8 @@ _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) *voxelData,
       return voxelData[cache.blockPtr + linearIdx];
     }
 
-    if (hashEntry.offset < 1) break;
-    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;
+    if (hashEntry.offset < 1) break;  // <1说明没有哈希冲突
+    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
   }
   //! 找不到，说明这个block里面还没数据，则返回空
   vmIndex = false;
