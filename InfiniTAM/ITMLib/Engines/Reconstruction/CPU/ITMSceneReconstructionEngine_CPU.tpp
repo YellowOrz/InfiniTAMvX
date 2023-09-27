@@ -133,19 +133,17 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   Vector2i depthImgSize = view->depth->noDims;   // 深度图分辨率
   float voxelSize = scene->sceneParams->voxelSize; 
 
-  Vector4f projParams_d, invProjParams_d;
-
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
   if (resetVisibleList) renderState_vh->noVisibleEntries = 0;             // 需要的话，visitle list置为零
-
-  Matrix4f M_d, invM_d;   // 深度图的位姿 和 它的逆
-  M_d = trackingState->pose_d->GetM();  
+   
+  Matrix4f M_d = trackingState->pose_d->GetM();  // 深度图的位姿 和 它的逆
+  Matrix4f invM_d;
   M_d.inv(invM_d); 
 
-  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all; // 深度图的相机内参
-  invProjParams_d = projParams_d;                                     // 相机内参的反投影，方便后面计算
-  invProjParams_d.x = 1.0f / invProjParams_d.x;                       // =1/fx
-  invProjParams_d.y = 1.0f / invProjParams_d.y;                       // =1/fy
+  Vector4f projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;  // 深度图的相机内参
+  Vector4f invProjParams_d = projParams_d;                                      // 相机内参的反投影，方便后面计算
+  invProjParams_d.x = 1.0f / invProjParams_d.x;                                 // = 1/fx
+  invProjParams_d.y = 1.0f / invProjParams_d.y;                                 // = 1/fy
 
   float mu = scene->sceneParams->mu;                                  // TSDF的截断值对应的距离
 
@@ -155,22 +153,21 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   ITMHashEntry *hashTable = scene->index.GetEntries();                // hash table
   ITMHashSwapState *swapStates =                                      // 数据传输状态（host和device之间）
       scene->globalCache != NULL ? scene->globalCache->GetSwapStates(false) : 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 当前视角下可见entrys的ID数组
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();         // 当前视角下可见entrys的ID(数组)
   uchar *entriesVisibleType = renderState_vh->GetEntriesVisibleType(); // 可见entry的类型
-  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)  // ???上一帧可见但还没拷贝出去的？？？
-    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
+  int noTotalEntries = scene->index.noTotalEntries;                     // entry总数。包含ordered + unordered
   uchar *entriesAllocType = this->entriesAllocType->GetData(MEMORYDEVICE_CPU);  // 数据存放位置。order entry或excess list
-  int noTotalEntries = scene->index.noTotalEntries;
-  memset(entriesAllocType, 0, noTotalEntries);
+  memset(entriesAllocType, 0, noTotalEntries);  
   Vector4s *blockCoords = this->blockCoords->GetData(MEMORYDEVICE_CPU); // 每个entry对应的block坐标
 
   bool useSwapping = scene->globalCache != NULL;                        // 是否支持host-device之间的数据交换
 
-  float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE);         // block实际边长的倒数，方便后面计算 
-                                                                        //TODO：应该叫BlockSize更合适
+  float oneOverVoxelSize = 1.0f / (voxelSize * SDF_BLOCK_SIZE); // block实际边长的倒数，方便后面计算。应该叫BlockSize更合适
   int lastFreeVoxelBlockId = scene->localVBA.lastFreeBlockId;           // VBA中剩余空位数
   int lastFreeExcessListId = scene->index.GetLastFreeExcessListId();    // excess list中剩余空位数
-
+  //! 将上一帧可见但还没拷贝出去的entry的可见类型都值为3 ???
+  for (int i = 0; i < renderState_vh->noVisibleEntries; i++)
+    entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
   //! 查看每个像素对应三维点附近所有block的alloction和可见情况。build hashVisibility
 #ifdef WITH_OPENMP
 #pragma omp parallel for
