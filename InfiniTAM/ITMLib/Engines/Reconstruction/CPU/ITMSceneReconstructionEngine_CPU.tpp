@@ -168,7 +168,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   //! 将上一帧可见但还没拷贝出去的entry的可见类型都值为3 ???
   for (int i = 0; i < renderState_vh->noVisibleEntries; i++)
     entriesVisibleType[visibleEntryIDs[i]] = 3; // visible at previous frame and unstreamed
-  //! 查看每个像素对应三维点附近所有block的alloction和可见情况。build hashVisibility
+  //! 查看每个像素对应三维点附近所有block的alloction情况和可见类型。build hashVisibility
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif

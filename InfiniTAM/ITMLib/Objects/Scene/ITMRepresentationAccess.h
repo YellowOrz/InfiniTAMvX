@@ -8,8 +8,7 @@
  * 从三维block坐标 计算 hash id（hash table中的索引）
  * @tparam T block坐标的类型（感觉这么说不太准确？？？）
  * @param[in] blockPos 三维block坐标
- * @return hash id
- * @note hash id = hash value % bucket number
+ * @return hash id = hash value % bucket number
  */
 template<typename T>
 _CPU_AND_GPU_CODE_ inline int hashIndex(const THREADPTR(T) &blockPos) {

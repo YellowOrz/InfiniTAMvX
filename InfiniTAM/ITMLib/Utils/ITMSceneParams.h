@@ -21,8 +21,10 @@ class ITMSceneParams {
   float viewFrustum_min, viewFrustum_max;   // 视锥中，深度最近和最远距离，单位米
 
   /** \brief
-   * TSDF的截断值对应的距离。单位为米。TSDF值的变化间隔=mu÷voxelSize。
-   * ITMLibSettings中默认设定为0.2。
+   * TSDF的截断值对应的距离。单位为米。
+   * @note  要求mu*4>BlockSize，否则fusion中找前后block的时候会报错（见ITMSceneReconstructionEngine_Shared.h第347行附近）
+   *        TSDF值的变化间隔=mu÷voxelSize。
+   *        ITMLibSettings中默认设定为0.02。
    * Encodes the width of the band of the truncated
       signed distance transform that is actually stored
       in the volume. This is again usually specified in
@@ -41,7 +43,15 @@ class ITMSceneParams {
   bool stopIntegratingAtMaxW;   // 到达最大观测次数后是否继续融合
 
   ITMSceneParams(void) {}
-
+  /**
+   * @brief  构造函数，设置相关参数
+   * @param[in] mu TSDF的截断值对应的距离
+   * @param[in] maxW 最大观测次数
+   * @param[in] voxelSize voxel size
+   * @param[in] viewFrustum_min 视锥的最近距离
+   * @param[in] viewFrustum_max 视锥的最远距离
+   * @param[in] stopIntegratingAtMaxW 到达最大观测次数后是否继续融合
+   */
   ITMSceneParams(float mu, int maxW, float voxelSize,
                  float viewFrustum_min, float viewFrustum_max, bool stopIntegratingAtMaxW) {
     this->mu = mu;

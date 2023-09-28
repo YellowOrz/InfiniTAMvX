@@ -56,20 +56,20 @@ struct ITMSurfelSceneParams {
   /**
    * \brief Constructs a set of surfel scene parameters.
    *
-   * \param deltaRadius_                  The maximum fraction by which a new surfel can have a larger radius than the surfel into which it is being fused if full fusion is to occur.
-   * \param gaussianConfidenceSigma_      The sigma value for the Gaussian used when calculating the sample confidence.
-   * \param maxMergeAngle_                The maximum angle allowed between the normals of a pair of surfels if they are to be merged.
-   * \param maxMergeDist_                 The maximum distance allowed between a pair of surfels if they are to be merged.
-   * \param maxSurfelRadius_              The maximum radius a surfel is allowed to have.
-   * \param minRadiusOverlapFactor_       The minimum factor by which the radii of a pair of surfels must overlap if they are to be merged.
-   * \param stableSurfelConfidence_       The confidence value a surfel must have in order for it to be considered "stable".
-   * \param supersamplingFactor_          The factor by which to supersample (in each axis) the index image used for finding surfel correspondences.
-   * \param trackingSurfelMaxDepth_       The maximum depth a surfel must have in order for it to be used for tracking.
-   * \param trackingSurfelMinConfidence_  The minimum confidence value a surfel must have in order for it to be used for tracking.
-   * \param unstableSurfelPeriod_         The number of time steps a surfel is allowed to be unstable without being updated before being removed.
-   * \param unstableSurfelZOffset_        The z offset to apply to unstable surfels when trying to ensure that they are only rendered if there is no stable alternative.
-   * \param useGaussianSampleConfidence_  Whether or not to use a Gaussian-weighted sample confidence as described in the Keller paper.
-   * \param useSurfelMerging_             Whether or not to use surfel merging.
+   * \param deltaRadius_                  完全融合时新半径大于旧的最大值。The maximum fraction by which a new surfel can have a larger radius than the surfel into which it is being fused if full fusion is to occur.
+   * \param gaussianConfidenceSigma_      置信度高斯分布的σ。The sigma value for the Gaussian used when calculating the sample confidence.
+   * \param maxMergeAngle_                融合时法向量夹角的最大差。The maximum angle allowed between the normals of a pair of surfels if they are to be merged.
+   * \param maxMergeDist_                 融合时距离的最大差。The maximum distance allowed between a pair of surfels if they are to be merged.
+   * \param maxSurfelRadius_              最大半径。The maximum radius a surfel is allowed to have.
+   * \param minRadiusOverlapFactor_       融合时重叠的最小半径。The minimum factor by which the radii of a pair of surfels must overlap if they are to be merged.
+   * \param stableSurfelConfidence_       稳定置信度。The confidence value a surfel must have in order for it to be considered "stable".
+   * \param supersamplingFactor_          查找对应的上采样系数。The factor by which to supersample (in each axis) the index image used for finding surfel correspondences.
+   * \param trackingSurfelMaxDepth_       跟踪的最大深度。The maximum depth a surfel must have in order for it to be used for tracking.
+   * \param trackingSurfelMinConfidence_  跟踪的最小置信度。The minimum confidence value a surfel must have in order for it to be used for tracking.
+   * \param unstableSurfelPeriod_         删除前不稳定的最小时间（帧数）。The number of time steps a surfel is allowed to be unstable without being updated before being removed.
+   * \param unstableSurfelZOffset_        渲染时没有稳定，对不稳定的z轴偏移。The z offset to apply to unstable surfels when trying to ensure that they are only rendered if there is no stable alternative.
+   * \param useGaussianSampleConfidence_  是否使用高斯加权置信度。Whether or not to use a Gaussian-weighted sample confidence as described in the Keller paper.
+   * \param useSurfelMerging_             是否融合。Whether or not to use surfel merging.
    */
   explicit ITMSurfelSceneParams(float deltaRadius_,
                                 float gaussianConfidenceSigma_,

@@ -197,13 +197,14 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
                            const Vector4f &projParams, const ITMRenderState *renderState, bool updateVisibleList) {
   
   const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 之前计算好的渲染小块
-  float mu = scene->sceneParams->mu;                                              // voxel size=0.005的话，=0.02？？？
+  float mu = scene->sceneParams->mu;                                              // SDF的截断值对应的距离
   float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;                  // voxel size的倒数
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点（voxel坐标）
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // voxel block array
   const typename ITMVoxelBlockHash::IndexData *voxelIndex = scene->index.getIndexData();  // hash table
   uchar *entriesVisibleType = NULL;
-  if (updateVisibleList && (dynamic_cast<const ITMRenderState_VH *>(renderState) != NULL)) {  // TODO:为啥用dynamic_cast？？？
+  if (updateVisibleList && (dynamic_cast<const ITMRenderState_VH *>(renderState) != NULL)) {  
+    // TODO:上面用啥dynamic_cast？？？应该下面用吧？？？
     entriesVisibleType = ((ITMRenderState_VH *)renderState)->GetEntriesVisibleType();   // visible entry列表
   }
   //! 遍历每个像素，计算对应ray的值
