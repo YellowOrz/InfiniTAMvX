@@ -194,8 +194,9 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   ORcudaKernelCheck;
 
   bool useSwapping = scene->globalCache != NULL;
-  if (onlyUpdateVisibleList)
+  if (onlyUpdateVisibleList)  // ???为啥只更新可见列表的话，关闭swap？？？
     useSwapping = false;
+  //! 对于所有的entry，对于上面找到的需要分配的block进行分配。推荐参考文件“说明材料/localVBA.pptx”
   if (!onlyUpdateVisibleList) {
     allocateVoxelBlocksList_device<<<gridSizeAL, cudaBlockSizeAL>>>(
         voxelAllocationList, excessAllocationList, hashTable, noTotalEntries,
@@ -440,25 +441,13 @@ __global__ void integrateIntoScene_device(TVoxel *localVBA,
   pt_model.w = 1.0f;
 
   ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
-      localVoxelBlock[locId],
-      pt_model,
-      M_d,
-      projParams_d,
-      M_rgb,
-      projParams_rgb,
-      mu,
-      maxW,
-      depth,
-      confidence,
-      depthImgSize,
-      rgb,
-      rgbImgSize);
+      localVoxelBlock[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence,
+      depthImgSize, rgb, rgbImgSize);
 }
 /**
- * @brief 寻找每个像素对应三维点附近所有block，查看alloction和可见情况  // TODO：下次从这儿开始
- * @param[out] entriesAllocType 没有分配的entry会记录存放位置。
- *                              =1为orderneeds allocation，=2为excess list
- * @param[out] entriesVisibleType 所有entry的可见情况。=1是正常可见，=2是应该可见但是被删除了（swapped out）
+ * @brief 寻找每个像素对应三维点附近所有block，查看alloction和可见情况
+ * @param[out] entriesAllocType entry存放位置。=1为order entry，=2为excess list
+ * @param[out] entriesVisibleType 所有entry的可见情况。=1是正常可见，=2是可见但是被swap out
  * @param[out] blockCoords 没有分配的entry会记录block坐标（short类型）
  * @param[in] depth 深度图
  * @param[in] invM_d 深度图位姿的逆（local to world？？？）
@@ -495,75 +484,78 @@ __global__ void setToType3(uchar *entriesVisibleType, int *visibleEntryIDs, int 
   if (entryId > noVisibleEntries - 1) return;
   entriesVisibleType[visibleEntryIDs[entryId]] = 3;
 }
-
-__global__ void allocateVoxelBlocksList_device(int *voxelAllocationList,
-                                               int *excessAllocationList,
-                                               ITMHashEntry *hashTable,
-                                               int noTotalEntries,
-                                               AllocationTempData *allocData,
-                                               uchar *entriesAllocType,
-                                               uchar *entriesVisibleType,
-                                               Vector4s *blockCoords) {
+/**
+ * @brief 遍历所有entry，给需要分配的block分配内存  // TODO:下次从这儿开始
+ * @param voxelAllocationList 
+ * @param excessAllocationList 
+ * @param hashTable 
+ * @param noTotalEntries 
+ * @param allocData 
+ * @param entriesAllocType 
+ * @param entriesVisibleType 
+ * @param blockCoords  
+ */
+__global__ void allocateVoxelBlocksList_device(int *voxelAllocationList, int *excessAllocationList,
+                                               ITMHashEntry *hashTable, int noTotalEntries,
+                                               AllocationTempData *allocData, uchar *entriesAllocType,
+                                               uchar *entriesVisibleType, Vector4s *blockCoords) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
-  int vbaIdx, exlIdx;
+  int vbaIdx, exlIdx; // 用寄存器更快
+  switch (entriesAllocType[targetIdx]) {  // TODO: 将不同case中的相同操作拿出来放一起，减少分化
+  case 1: // needs allocation, fits in the ordered list
+    vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
+    // TODO: 应该判断allocData->noAllocatedVoxelEntries>=1以减少原子操作？但是不能保证对比了后，空间不会被别人抢去。有没有原子比大小？
+    if (vbaIdx >= 0) { // there is room in the voxel block array
+      Vector4s pt_block_all = blockCoords[targetIdx];
 
-  switch (entriesAllocType[targetIdx]) {
-    case 1: //needs allocation, fits in the ordered list
-      vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
+      ITMHashEntry hashEntry;
+      hashEntry.pos.x = pt_block_all.x;
+      hashEntry.pos.y = pt_block_all.y;
+      hashEntry.pos.z = pt_block_all.z;
+      hashEntry.ptr = voxelAllocationList[vbaIdx];
+      hashEntry.offset = 0;
 
-      if (vbaIdx >= 0) //there is room in the voxel block array
-      {
-        Vector4s pt_block_all = blockCoords[targetIdx];
+      hashTable[targetIdx] = hashEntry;
+    } else {
+      // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its state.
+      entriesVisibleType[targetIdx] = 0;
 
-        ITMHashEntry hashEntry;
-        hashEntry.pos.x = pt_block_all.x;
-        hashEntry.pos.y = pt_block_all.y;
-        hashEntry.pos.z = pt_block_all.z;
-        hashEntry.ptr = voxelAllocationList[vbaIdx];
-        hashEntry.offset = 0;
+      // Restore the previous value to avoid leaks.
+      atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
+    }
+    break;
 
-        hashTable[targetIdx] = hashEntry;
-      } else {
-        // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its state.
-        entriesVisibleType[targetIdx] = 0;
+  case 2: // needs allocation in the excess list
+    vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
+    exlIdx = atomicSub(&allocData->noAllocatedExcessEntries, 1);
 
-        // Restore the previous value to avoid leaks.
-        atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
-      }
-      break;
+    if (vbaIdx >= 0 && exlIdx >= 0) { // there is room in the voxel block array and excess list
+      Vector4s pt_block_all = blockCoords[targetIdx];
 
-    case 2: //needs allocation in the excess list
-      vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
-      exlIdx = atomicSub(&allocData->noAllocatedExcessEntries, 1);
+      ITMHashEntry hashEntry;
+      hashEntry.pos.x = pt_block_all.x;
+      hashEntry.pos.y = pt_block_all.y;
+      hashEntry.pos.z = pt_block_all.z;
+      hashEntry.ptr = voxelAllocationList[vbaIdx];
+      hashEntry.offset = 0;
 
-      if (vbaIdx >= 0 && exlIdx >= 0) //there is room in the voxel block array and excess list
-      {
-        Vector4s pt_block_all = blockCoords[targetIdx];
+      int exlOffset = excessAllocationList[exlIdx];
 
-        ITMHashEntry hashEntry;
-        hashEntry.pos.x = pt_block_all.x;
-        hashEntry.pos.y = pt_block_all.y;
-        hashEntry.pos.z = pt_block_all.z;
-        hashEntry.ptr = voxelAllocationList[vbaIdx];
-        hashEntry.offset = 0;
+      hashTable[targetIdx].offset = exlOffset + 1; // connect to child
 
-        int exlOffset = excessAllocationList[exlIdx];
+      hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; // add child to the excess list
 
-        hashTable[targetIdx].offset = exlOffset + 1; //connect to child
+      entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // make child visible
+    } else {
+      // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
+      // Restore the previous values to avoid leaks.
+      atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
+      atomicAdd(&allocData->noAllocatedExcessEntries, 1);
+    }
 
-        hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; //add child to the excess list
-
-        entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; //make child visible
-      } else {
-        // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
-        // Restore the previous values to avoid leaks.
-        atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
-        atomicAdd(&allocData->noAllocatedExcessEntries, 1);
-      }
-
-      break;
+    break;
   }
 }
 

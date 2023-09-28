@@ -297,19 +297,18 @@ template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
 };
 
 /**
- * 寻找单个像素对应三维点附近所有block，查看alloction和可见情况
- * @param[out] entriesAllocType 没有分配的entry会记录存放位置。
- *                              =1为orderneeds allocation，=2为excess list
- * @param[out] entriesVisibleType 所有entry的可见情况。=1是正常可见，=2是应该可见但是被删除了（swapped out）
+ * 寻找单个像素对应三维点附近所有block，查看alloction情况和可见类型
+ * @param[out] entriesAllocType entry存放位置。=1为order entry，=2为excess list
+ * @param[out] entriesVisibleType 所有entry的可见类型。=1是正常可见，=2是可见但是被swap out
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
  * @param[out] blockCoords 没有分配的entry会记录block坐标（short类型）
  * @param[in] depth 深度图
  * @param[in] invM_d 深度图位姿的逆（local to world？？？）
  * @param[in] projParams_d 深度图相机内参的反投影
- * @param[in] mu TSDF的截断值对应的距离
+ * @param[in] mu TSDF的截断值对应的距离。默认为0.02=4*voxel_size
  * @param[in] imgSize 图像分辨率（x*y)
- * @param[in] oneOverVoxelSize block实际边长的倒数。不应该叫VoxelSize
+ * @param[in] oneOverVoxelSize block实际边长的倒数。应该叫BlockSize
  * @param[in] hashTable
  * @param[in] viewFrustum_min 视锥中最小深度
  * @param[in] viewFrustum_max 视锥中最大深度
@@ -330,22 +329,23 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
   pt_camera_f.z = depth_measure;
   pt_camera_f.x = pt_camera_f.z * ((float(x) - projParams_d.z) * projParams_d.x);
   pt_camera_f.y = pt_camera_f.z * ((float(y) - projParams_d.w) * projParams_d.y);
-  //! 找到三维点前后距离mu的block（朝向光心是前面）
-  float norm = sqrt(pt_camera_f.x * pt_camera_f.x + pt_camera_f.y * pt_camera_f.y + pt_camera_f.z * pt_camera_f.z);
-
-  Vector4f pt_buff = pt_camera_f * (1.0f - mu / norm);
+  //! 确定搜索范围：找到三维点前后距离mu的block坐标（朝向光心是前面）
+  float norm = sqrt(pt_camera_f.x * pt_camera_f.x +                     // 光心到当前三维点的距离
+                    pt_camera_f.y * pt_camera_f.y + pt_camera_f.z * pt_camera_f.z);
+  Vector4f pt_buff = pt_camera_f * (1.0f - mu / norm);      // 前面的block坐标（相机坐标系）。公式为相似三角△
+  pt_buff.w = 1.0f; 
+  Vector3f point = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize;     // 先转到世界坐标系下，然后转成block坐标
+  pt_buff = pt_camera_f * (1.0f + mu / norm);               // 后面的block坐标（相机坐标系）
   pt_buff.w = 1.0f;
-  Vector3f point = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize;   // 前面的block坐标。先转到世界坐标系下，然后转成block坐标
-  pt_buff = pt_camera_f * (1.0f + mu / norm);
-  pt_buff.w = 1.0f;
-  Vector3f point_e = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize; // 后面的block坐标
-  Vector3f direction = point_e - point;
+  Vector3f point_e = TO_VECTOR3(invM_d * pt_buff) * oneOverVoxelSize; 
+  //! 计算搜索步长        // TODO: 值得深入研究，保证前进的时候不会漏掉block、也不会在一个block中反复搜索
+  Vector3f direction = point_e - point;     // 搜索步长
   norm = sqrt(direction.x * direction.x + direction.y * direction.y + 
-              direction.z * direction.z);   // 若mu=4*voxel_size（即默认设置），则direction长度为一个block（即norm=1）
-  int noSteps = (int) ceil(2.0f * norm);    // ？？？步长为半个mu？？？那为啥下面要减1？
-  direction /= (float) (noSteps - 1);                                 // 单位方向向量
-
-  //! 寻找前后范围mu之内的所有block，查看alloction和可见情况 // add neighbouring blocks
+              direction.z * direction.z);   // TODO: 不用再算了，norm=2*mu/BlockSize。这样计算还会导致浮点数误差呢！！！
+  int noSteps = (int) ceil(2.0f * norm);    // TODO：有风险，如果mu*4<=BlockSize，noSteps=1，下面会除以0！！！
+  direction /= (float) (noSteps - 1);       
+  //! 寻找前后范围mu之内的所有block，查看alloction和可见类型 // add neighbouring blocks
+  // NOTE: 下面的涉及的所有block都是可见的，不同的是可见类型
   unsigned int hashIdx;
   Vector3s blockPos;
   for (int i = 0; i < noSteps; i++) {
@@ -354,37 +354,39 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
     hashIdx = hashIndex(blockPos);  //compute index in hash table 
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
-    //当前block是否已经allocation   //check if hash table contains entry
+    // 查找对应block   //check if hash table contains entry
     bool isFound = false;
-    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {  // 判断IS_EQUAL3是因为存在哈希冲突
-      // 记录entry的可见情况，=1是正常可见，=2是应该可见但是被删除了（swapped out）
-      //entry has been streamed out but is visible or in memory and visible
-      entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;  // ???
+    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {  // 判断IS_EQUAL3是因为存在哈希冲突，>=-1说明已经分配过
+      // 记录entry对应block的可见类型，=1是正常可见，=2是可见但是被swap out
+      // entry has been streamed out but is visible or in memory and visible
+      entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1; 
       isFound = true;
     }
     // 上面没找到可能是因为哈希冲突，继续遍历entry对应的bucket（其实InfiniTAM的bucket size=1）
     if (!isFound) {   
       bool isExcess = false;  // 是否存在于excess list（也叫unordered entries）
       if (hashEntry.ptr >= -1) { // >= -1说明已经被分配空间了。seach excess list only if there is no room in ordered part
-        while (hashEntry.offset >= 1) { // >= 1说明存在哈希冲突
+        while (hashEntry.offset >= 1) { // offset>= 1说明存在哈希冲突，要根据offset到unorder list(也叫excess list)中找
+          isExcess = true;
           hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
           hashEntry = hashTable[hashIdx];
           if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
-            // 记录entry的可见情况，=1是正常可见，=2是应该可见但是被删除了（swapped out）
-            //entry has been streamed out but is visible or in memory and visible
+            // 记录entry对应block的可见类型，=1是正常可见，=2是可见但是被swap out
+            // entry has been streamed out but is visible or in memory and visible
             entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1;  // hashEntry.ptr == -1表示被swapped out
             isFound = true;   // TODO: 单帧内出现哈希冲突咋办？？？ 后面来的hashIdx会把前面的覆盖掉的
             break;
           }
         }
-        isExcess = true;
       }
-      // 遍历完bucket后还是没找到，说明这个block就没有被allocate，需要被allocate
+      // 遍历完bucket后还是没找到，说明这个block还没分配内存
       if (!isFound) {   
-        entriesAllocType[hashIdx] = isExcess ? 2 : 1;   // 记录存放位置。=1存放于orderneeds allocation，=2存放于excess list
-        if (!isExcess) // 只对order entry标记可见（虽然没分配空间）。why？？？。new entry is visible
+        entriesAllocType[hashIdx] = isExcess ? 2 : 1;   // 记录存放位置。=1存放于order list，=2存放于excess(unorder) list
+        if (!isExcess) // entriesVisibleType只记录order entry的可见类型。因为其长度为bucket num。new entry is visible
           entriesVisibleType[hashIdx] = 1; 
-        blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1); // 记录block位置
+        blockCoords[hashIdx] = Vector4s(blockPos.x, blockPos.y, blockPos.z, 1); // 记录block位置，等后面再真正分配内存
+        // TODO: blockCoords弄成stack<pair<hashIdx, blockCoord>>更好一些？这样之后不用再次遍历所有entry
+        // TODO: cuda中可以使用前缀和，以及将不同hashIdx分开存
       }
     }
 

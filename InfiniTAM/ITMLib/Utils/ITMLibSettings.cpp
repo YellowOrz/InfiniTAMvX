@@ -7,32 +7,15 @@ using namespace ITMLib;
 #include <cmath>
 
 ITMLibSettings::ITMLibSettings(void)
-    : sceneParams(0.02f,    // TSDF的截断值对应的距离
-                  100,      // 最大观测次数
-                  0.005f,   // voxel size
-                  0.2f,     // 深度最近距离
-                  3.0f,     // 深度最远距离
-                  false),   // 到达最大观测次数后是否继续融合
-      surfelSceneParams(0.5f,     // 完全融合时新半径大于旧的最大值
-                        0.6f,     // 置信度高斯分布的σ
-                        static_cast<float>(20 * M_PI / 180),  // 融合时法向量夹角的最大差
-                        0.01f,    // 融合时距离的最大差
-                        0.004f,   // 最大半径
-                        3.5f,     // 融合时重叠的最小半径
-                        25.0f,    // 稳定置信度
-                        4,        // 查找对应的上采样系数
-                        1.0f,     // 跟踪的最大深度
-                        5.0f,     // 跟踪的最小置信度
-                        20,       // 删除前不稳定的最小时间（帧数）
-                        10000000,   // 渲染时没有稳定，对不稳定的z轴偏移
-                        true,     // 是否使用高斯加权置信度
-                        true) {   // 是否融合
+    : sceneParams(0.02f, 100, 0.005f, 0.2f, 3.0f, false),
+      surfelSceneParams(0.5f, 0.6f, static_cast<float>(20 * M_PI / 180), 0.01f, 0.004f, 3.5f, 25.0f, 4, 1.0f, 5.0f, 20,
+                        10000000, true, true) {
   // skips every other point when using the colour renderer for creating a point cloud
   skipPoints = true;  // raycasting渲染RGB的点云时，是否要跳过一些点
 
   // create all the things required for marching cubes and mesh extraction
   // - uses additional memory (lots!)
-  createMeshingEngine = true;
+  createMeshingEngine = true; // 
 
 #ifndef COMPILE_WITHOUT_CUDA
   deviceType = DEVICE_CUDA;
