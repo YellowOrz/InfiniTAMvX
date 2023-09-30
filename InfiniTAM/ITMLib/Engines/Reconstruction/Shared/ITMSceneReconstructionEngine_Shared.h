@@ -366,8 +366,8 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
     if (!isFound) {   
       bool isExcess = false;  // 是否存在于excess list（也叫unordered entries）
       if (hashEntry.ptr >= -1) { // >= -1说明已经被分配空间了。seach excess list only if there is no room in ordered part
+        isExcess = true;
         while (hashEntry.offset >= 1) { // offset>= 1说明存在哈希冲突，要根据offset到unorder list(也叫excess list)中找
-          isExcess = true;
           hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
           hashEntry = hashTable[hashIdx];
           if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {
