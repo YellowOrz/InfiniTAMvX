@@ -15,8 +15,9 @@ template <class TVoxel>
 class ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>
     : public ITMSceneReconstructionEngine<TVoxel, ITMVoxelBlockHash> {
 protected:
-  /** 要分配的空间类型（其实是位置）。=1存放于orderneeds allocation，=2存放于excess list*/
+  /** 要分配的空间类型（其实是位置）。=1存放于order list，=2存放于unorder(excess) list*/
   ORUtils::MemoryBlock<unsigned char> *entriesAllocType;
+  /** 每个entry对应的block坐标。长度为entry总数。分配内存之前用来临时记录要分配的block位置信息 */
   ORUtils::MemoryBlock<Vector4s> *blockCoords;
 
 public:
@@ -26,9 +27,10 @@ public:
    */
   void ResetScene(ITMScene<TVoxel, ITMVoxelBlockHash> *scene);
   /**
-   * 根据深度图 计算visible list、分配内存 && 更新hash table  ？？？？？？？？？？？？？？？？？？？？？
+   * 根据深度图 找到所有可见的entry（或者叫block），没有分配内存的分配一下（同时更新hash table）
+   * @details 这是fusion的准备工作，找到fusion会用到的block，从而节省计算量
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
-   * @param[in,out] scene 更新其中 allocation list、???
+   * @param[in,out] scene 三维场景的相关信息。更新其中voxelAllocationList、excessAllocationList、hashTable、swapStates等
    * @param[in] view 当前输入图像
    * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
    * @param[out] renderState 更新其中 可见entry的id数组和数量

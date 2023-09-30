@@ -266,7 +266,7 @@ namespace { // 这里是实现。声明在最前面
  *  该entry在数组中的位置。
  */
 __global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntries, ITMHashSwapState *swapStates,
-                                         int noTotalEntries) {  // TODO:下次从这儿开始
+                                         int noTotalEntries) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
@@ -275,10 +275,9 @@ __global__ void buildListToSwapIn_device(int *neededEntryIDs, int *noNeededEntri
   __syncthreads();
   //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   bool isNeededId = (swapStates[targetIdx].state == 1);
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (shouldPrefix) {
     // NOTE: 这里的isNeededId必然为1
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
@@ -308,10 +307,9 @@ __global__ void buildListToSwapOut_device(int *neededEntryIDs, int *noNeededEntr
   //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   ITMHashSwapState &swapState = swapStates[targetIdx];
   bool isNeededId = (swapState.state == 2 && hashTable[targetIdx].ptr >= 0 && entriesVisibleType[targetIdx] == 0);
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (shouldPrefix) {
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
     if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录entry id到数组中
@@ -367,10 +365,9 @@ __global__ void buildListToClean_device(int *neededEntryIDs, int *noNeededEntrie
   __syncthreads();
   //! 只要block(cuda)中有一个线程找到了所需entry，那么该block（cuda）就要参与前缀和计算
   bool isNeededId = hashTable[targetIdx].ptr >= 0 && entriesVisibleType[targetIdx] == 0;
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (isNeededId) shouldPrefix = true;
   __syncthreads();
-  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
   if (shouldPrefix) {
     int offset = computePrefixSum_device<int>(isNeededId, noNeededEntries, blockDim.x * blockDim.y, threadIdx.x);
     if (offset != -1 && offset < SDF_TRANSFER_BLOCK_NUM)  // 记录entry id到数组中

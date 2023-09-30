@@ -45,11 +45,14 @@ void ITMDenseMapper<TVoxel, TIndex>::ProcessFrame(const ITMView *view, const ITM
       // TODO：这里跟论文好像不太一样。论文Fig.4说的顺序是swap in、raycasting、swap out，这里swap in后面紧跟swap out
     // swapping: GPU -> CPU
     switch (swappingMode) {
-      case ITMLibSettings::SWAPPINGMODE_ENABLED: swappingEngine->SaveToGlobalMemory(scene, renderState);   // 进行交换
-        break;
-      case ITMLibSettings::SWAPPINGMODE_DELETE: swappingEngine->CleanLocalMemory(scene, renderState);      // 删除不可见的
-        break;
-      case ITMLibSettings::SWAPPINGMODE_DISABLED: break;                                                   // 不进行交换
+    case ITMLibSettings::SWAPPINGMODE_ENABLED:
+      swappingEngine->SaveToGlobalMemory(scene, renderState); // 进行交换
+      break;
+    case ITMLibSettings::SWAPPINGMODE_DELETE:
+      swappingEngine->CleanLocalMemory(scene, renderState);   // 删除不可见的
+      break;
+    case ITMLibSettings::SWAPPINGMODE_DISABLED:               // 不进行交换
+      break; 
     }
   }
 }

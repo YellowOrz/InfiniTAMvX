@@ -17,7 +17,7 @@
 // device上voxel block array(即localVBA)的长度
 // Number of locally stored blocks, currently 2^17
 #define SDF_LOCAL_BLOCK_NUM 0x40000
-// hash bucket（即ordered entry）的数量，须为2的倍数（∵用位操作替换取余），须>SDF_LOCAL_BLOCK_NUM？？？
+// hash bucket（即ordered entry）的数量，须为2的倍数（∵用位操作替换取余），必须>SDF_LOCAL_BLOCK_NUM？？？
 // Number of Hash Bucket, should be 2^n and bigger than SDF_LOCAL_BLOCK_NUM, SDF_HASH_MASK = SDF_BUCKET_NUM - 1
 #define SDF_BUCKET_NUM 0x100000 
 // 用于从哈希值转bucket id的取余操作（其实使用位操作完成的），=SDF_BUCKET_NUM-1

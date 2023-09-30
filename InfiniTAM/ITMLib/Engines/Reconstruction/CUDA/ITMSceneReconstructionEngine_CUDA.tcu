@@ -138,7 +138,7 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   float voxelSize = scene->sceneParams->voxelSize;
 
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
-  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;             // 需要的话，visitle list置为零
+  if (resetVisibleList) renderState_vh->noVisibleEntries = 0;             // 需要的话，visible list置为零
 
   Matrix4f M_d = trackingState->pose_d->GetM(); // 深度图的位姿 和 它的逆
   Matrix4f invM_d;
@@ -204,8 +204,8 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
         blockCoords_device);
     ORcudaKernelCheck;
   }
-
-  if (useSwapping) {
+  //! 找到所有entry中可见的 build visible list
+  if (useSwapping) {  // 开启swap，可见 但 不止在显存上，标记一下需要合并
     buildVisibleList_device<true><<<gridSizeAL, cudaBlockSizeAL>>>(
         hashTable, swapStates, noTotalEntries, visibleEntryIDs, (AllocationTempData *)allocationTempData_device,
         entriesVisibleType, M_d, projParams_d, depthImgSize, voxelSize);
@@ -216,7 +216,8 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
         entriesVisibleType, M_d, projParams_d, depthImgSize, voxelSize);
     ORcudaKernelCheck;
   }
-
+  //! 开启swap，将所有entry中可见但是没有分配空间的分配一下 
+  // TODO：之前buildHashAllocAndVisibleTypePP不是都分配过了吗？？？还有什么情况会没有分配过？？？
   if (useSwapping) {
     reAllocateSwappedOutVoxelBlocks_device<<<gridSizeAL, cudaBlockSizeAL>>>(
         voxelAllocationList, hashTable, noTotalEntries, (AllocationTempData *)allocationTempData_device,
@@ -230,12 +231,10 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   scene->index.SetLastFreeExcessListId(tempData->noAllocatedExcessEntries);
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(ITMScene<TVoxel,
-                                                                                               ITMVoxelBlockHash> *scene,
-                                                                                      const ITMView *view,
-                                                                                      const ITMTrackingState *trackingState,
-                                                                                      const ITMRenderState *renderState) {
+template <class TVoxel> // TODO: 下次从这儿开始
+void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
+    ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState) {
   Vector2i rgbImgSize = view->rgb->noDims;
   Vector2i depthImgSize = view->depth->noDims;
   float voxelSize = scene->sceneParams->voxelSize;
@@ -292,22 +291,15 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::ResetScene(I
   scene->localVBA.lastFreeBlockId = numBlocks - 1;
 }
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::AllocateSceneFromDepth(ITMScene<TVoxel,
-                                                                                                    ITMPlainVoxelArray> *scene,
-                                                                                           const ITMView *view,
-                                                                                           const ITMTrackingState *trackingState,
-                                                                                           const ITMRenderState *renderState,
-                                                                                           bool onlyUpdateVisibleList,
-                                                                                           bool resetVisibleList) {
-}
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::AllocateSceneFromDepth(
+    ITMScene<TVoxel, ITMPlainVoxelArray> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState, bool onlyUpdateVisibleList, bool resetVisibleList) {}
 
-template<class TVoxel>
-void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::IntegrateIntoScene(ITMScene<TVoxel,
-                                                                                                ITMPlainVoxelArray> *scene,
-                                                                                       const ITMView *view,
-                                                                                       const ITMTrackingState *trackingState,
-                                                                                       const ITMRenderState *renderState) {
+template <class TVoxel>
+void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::IntegrateIntoScene(
+    ITMScene<TVoxel, ITMPlainVoxelArray> *scene, const ITMView *view, const ITMTrackingState *trackingState,
+    const ITMRenderState *renderState) {
   Vector2i rgbImgSize = view->rgb->noDims;
   Vector2i depthImgSize = view->depth->noDims;
   float voxelSize = scene->sceneParams->voxelSize;
@@ -349,95 +341,61 @@ namespace {
 
 // device functions
 
-template<class TVoxel, bool stopMaxW>
-__global__ void integrateIntoScene_device(TVoxel *voxelArray,
-                                          const ITMPlainVoxelArray::ITMVoxelArrayInfo *arrayInfo,
-                                          const Vector4u *rgb,
-                                          Vector2i rgbImgSize,
-                                          const float *depth,
-                                          const float *confidence,
-                                          Vector2i depthImgSize,
-                                          Matrix4f M_d,
-                                          Matrix4f M_rgb,
-                                          Vector4f projParams_d,
-                                          Vector4f projParams_rgb,
-                                          float _voxelSize,
-                                          float mu,
+template <class TVoxel, bool stopMaxW>
+__global__ void integrateIntoScene_device(TVoxel *voxelArray, const ITMPlainVoxelArray::ITMVoxelArrayInfo *arrayInfo,
+                                          const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
+                                          const float *confidence, Vector2i depthImgSize, Matrix4f M_d, Matrix4f M_rgb,
+                                          Vector4f projParams_d, Vector4f projParams_rgb, float _voxelSize, float mu,
                                           int maxW) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
   int z = blockIdx.z * blockDim.z + threadIdx.z;
 
   Vector4f pt_model;
-  int locId;
+  int locId = x + y * arrayInfo->size.x + z * arrayInfo->size.x * arrayInfo->size.y;
 
-  locId = x + y * arrayInfo->size.x + z * arrayInfo->size.x * arrayInfo->size.y;
+  if (stopMaxW)
+    if (voxelArray[locId].w_depth == maxW)
+      return;
+  //	if (approximateIntegration) if (voxelArray[locId].w_depth != 0) return;
 
-  if (stopMaxW) if (voxelArray[locId].w_depth == maxW) return;
-//	if (approximateIntegration) if (voxelArray[locId].w_depth != 0) return;
-
-  pt_model.x = (float) (x + arrayInfo->offset.x) * _voxelSize;
-  pt_model.y = (float) (y + arrayInfo->offset.y) * _voxelSize;
-  pt_model.z = (float) (z + arrayInfo->offset.z) * _voxelSize;
+  pt_model.x = (float)(x + arrayInfo->offset.x) * _voxelSize;
+  pt_model.y = (float)(y + arrayInfo->offset.y) * _voxelSize;
+  pt_model.z = (float)(z + arrayInfo->offset.z) * _voxelSize;
   pt_model.w = 1.0f;
 
-  ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation,
-                          TVoxel::hasConfidenceInformation,
-                          TVoxel>::compute(voxelArray[locId],
-                                           pt_model,
-                                           M_d,
-                                           projParams_d,
-                                           M_rgb,
-                                           projParams_rgb,
-                                           mu,
-                                           maxW,
-                                           depth,
-                                           confidence,
-                                           depthImgSize,
-                                           rgb,
-                                           rgbImgSize);
+  ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
+      voxelArray[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence, depthImgSize,
+      rgb, rgbImgSize);
 }
 
-template<class TVoxel, bool stopMaxW>
-__global__ void integrateIntoScene_device(TVoxel *localVBA,
-                                          const ITMHashEntry *hashTable,
-                                          int *visibleEntryIDs,
-                                          const Vector4u *rgb,
-                                          Vector2i rgbImgSize,
-                                          const float *depth,
-                                          const float *confidence,
-                                          Vector2i depthImgSize,
-                                          Matrix4f M_d,
-                                          Matrix4f M_rgb,
-                                          Vector4f projParams_d,
-                                          Vector4f projParams_rgb,
-                                          float _voxelSize,
-                                          float mu,
+template <class TVoxel, bool stopMaxW>
+__global__ void integrateIntoScene_device(TVoxel *localVBA, const ITMHashEntry *hashTable, int *visibleEntryIDs,
+                                          const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
+                                          const float *confidence, Vector2i depthImgSize, Matrix4f M_d, Matrix4f M_rgb,
+                                          Vector4f projParams_d, Vector4f projParams_rgb, float _voxelSize, float mu,
                                           int maxW) {
-  Vector3i globalPos;
   int entryId = visibleEntryIDs[blockIdx.x];
-
   const ITMHashEntry &currentHashEntry = hashTable[entryId];
-
   if (currentHashEntry.ptr < 0) return;
 
-  globalPos = currentHashEntry.pos.toInt() * SDF_BLOCK_SIZE;
+  Vector3i globalPos = currentHashEntry.pos.toInt() * SDF_BLOCK_SIZE;
 
   TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * SDF_BLOCK_SIZE3]);
 
   int x = threadIdx.x, y = threadIdx.y, z = threadIdx.z;
 
+  int locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
+
+  if (stopMaxW)
+    if (localVoxelBlock[locId].w_depth == maxW)
+      return;
+  // if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) return;
+  
   Vector4f pt_model;
-  int locId;
-
-  locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-
-  if (stopMaxW) if (localVoxelBlock[locId].w_depth == maxW) return;
-  //if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) return;
-
-  pt_model.x = (float) (globalPos.x + x) * _voxelSize;
-  pt_model.y = (float) (globalPos.y + y) * _voxelSize;
-  pt_model.z = (float) (globalPos.z + z) * _voxelSize;
+  pt_model.x = (float)(globalPos.x + x) * _voxelSize;
+  pt_model.y = (float)(globalPos.y + y) * _voxelSize;
+  pt_model.z = (float)(globalPos.z + z) * _voxelSize;
   pt_model.w = 1.0f;
 
   ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
@@ -466,7 +424,6 @@ __global__ void buildHashAllocAndVisibleType_device(uchar *entriesAllocType, uch
                                                     float _voxelSize, ITMHashEntry *hashTable, float viewFrustum_min,
                                                     float viewFrustum_max) {
   int x = threadIdx.x + blockIdx.x * blockDim.x, y = threadIdx.y + blockIdx.y * blockDim.y;
-
   if (x > _imgSize.x - 1 || y > _imgSize.y - 1) return;
 
   buildHashAllocAndVisibleTypePP(entriesAllocType, entriesVisibleType, x, y, blockCoords, depth, invM_d,
@@ -485,15 +442,15 @@ __global__ void setToType3(uchar *entriesVisibleType, int *visibleEntryIDs, int 
   entriesVisibleType[visibleEntryIDs[entryId]] = 3;
 }
 /**
- * @brief 遍历所有entry，给需要分配的block分配内存  // TODO:下次从这儿开始
- * @param voxelAllocationList 
- * @param excessAllocationList 
- * @param hashTable 
- * @param noTotalEntries 
- * @param allocData 
- * @param entriesAllocType 
- * @param entriesVisibleType 
- * @param blockCoords  
+ * @brief 遍历所有entry，给需要分配的block分配内存
+ * @param[in] voxelAllocationList VBA的空闲信息
+ * @param[in] excessAllocationList excess list的空闲信息
+ * @param[out] hashTable 
+ * @param[in] noTotalEntries entry总数
+ * @param[in, out] allocData 杂碎变量的集合。包含 VBA中剩余空位数、excess list中剩余空位数、可见的entry总数
+ * @param[in] entriesAllocType 要分配的空间类型（其实是位置）。=1存放于order list，=2存放于unorder(excess) list
+ * @param[out] entriesVisibleType 所有entry的可见类型。长度noTotalEntries
+ * @param[in] blockCoords 每个entry对应的block坐标
  */
 __global__ void allocateVoxelBlocksList_device(int *voxelAllocationList, int *excessAllocationList,
                                                ITMHashEntry *hashTable, int noTotalEntries,
@@ -504,81 +461,101 @@ __global__ void allocateVoxelBlocksList_device(int *voxelAllocationList, int *ex
 
   int vbaIdx, exlIdx; // 用寄存器更快
   switch (entriesAllocType[targetIdx]) {  // TODO: 将不同case中的相同操作拿出来放一起，减少分化
-  case 1: // needs allocation, fits in the ordered list
-    vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
+  case 1: //! 需要分配到ordered list。needs allocation, fits in the ordered list
+    vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1); // --是因为VBA是从后往前存的
     // TODO: 应该判断allocData->noAllocatedVoxelEntries>=1以减少原子操作？但是不能保证对比了后，空间不会被别人抢去。有没有原子比大小？
-    if (vbaIdx >= 0) { // there is room in the voxel block array
-      Vector4s pt_block_all = blockCoords[targetIdx];
+    if (vbaIdx >= 0) {  // 剩余空间充足。there is room in the voxel block array
+      Vector4s pt_block_all = blockCoords[targetIdx]; // 取出buildHashAllocAndVisibleTypePP中记录的block坐标
 
       ITMHashEntry hashEntry;
       hashEntry.pos.x = pt_block_all.x;
       hashEntry.pos.y = pt_block_all.y;
       hashEntry.pos.z = pt_block_all.z;
-      hashEntry.ptr = voxelAllocationList[vbaIdx];
-      hashEntry.offset = 0;
+      hashEntry.ptr = voxelAllocationList[vbaIdx];  // NOTE：voxelAllocationList[vbaIdx]就是VBA中的空闲位置
+      hashEntry.offset = 0;   // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
 
-      hashTable[targetIdx] = hashEntry;
-    } else {
+      hashTable[targetIdx] = hashEntry;             // hash table中记录entry信息
+    } else {            // 剩余空间不足
       // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its state.
-      entriesVisibleType[targetIdx] = 0;
+      entriesVisibleType[targetIdx] = 0;    // 无法allocate，需要设置visible=false
 
-      // Restore the previous value to avoid leaks.
+      // 剩余空间不足了，要把刚刚分配的再还回去。Restore the previous value to avoid leaks.
       atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
     }
     break;
 
-  case 2: // needs allocation in the excess list
+  case 2: //! 需要分配到excess list（即unordered entry）。 needs allocation in the excess list
     vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
     exlIdx = atomicSub(&allocData->noAllocatedExcessEntries, 1);
 
-    if (vbaIdx >= 0 && exlIdx >= 0) { // there is room in the voxel block array and excess list
-      Vector4s pt_block_all = blockCoords[targetIdx];
+    if (vbaIdx >= 0 && exlIdx >= 0) { // VBA和excess list都有空位。there is room in the voxel block array and excess list
+      Vector4s pt_block_all = blockCoords[targetIdx]; // 取出block坐标
 
       ITMHashEntry hashEntry;
       hashEntry.pos.x = pt_block_all.x;
       hashEntry.pos.y = pt_block_all.y;
       hashEntry.pos.z = pt_block_all.z;
-      hashEntry.ptr = voxelAllocationList[vbaIdx];
-      hashEntry.offset = 0;
+      hashEntry.ptr = voxelAllocationList[vbaIdx];  // NOTE：voxelAllocationList[vbaIdx]就是VBA中的空闲位置
+      hashEntry.offset = 0; // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
 
-      int exlOffset = excessAllocationList[exlIdx];
+      int exlOffset = excessAllocationList[exlIdx]; // 跟voxelAllocationList同理，找到excess list的空闲位置
 
-      hashTable[targetIdx].offset = exlOffset + 1; // connect to child
-
-      hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry; // add child to the excess list
-
-      entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // make child visible
-    } else {
+      hashTable[targetIdx].offset = exlOffset + 1;      // +1是因为上面offset = 0，后面使用的时候会-1，判断的时候会跟1比较
+                                                        // connect to child
+      hashTable[SDF_BUCKET_NUM + exlOffset] = hashEntry;  // SDF_BUCKET_NUM之后的是excess list
+                                                          // add child to the excess list
+      entriesVisibleType[SDF_BUCKET_NUM + exlOffset] = 1; // ∵buildHashAllocAndVisibleTypePP没对unorder entry标记可见
+                                                          // make child visible
+    } else {                          // VBA和excess list有一个没空位了
       // No need to mark the entry as not visible since buildHashAllocAndVisibleTypePP did not mark it.
       // Restore the previous values to avoid leaks.
       atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
       atomicAdd(&allocData->noAllocatedExcessEntries, 1);
     }
-
     break;
   }
 }
-
-__global__ void reAllocateSwappedOutVoxelBlocks_device(int *voxelAllocationList,
-                                                       ITMHashEntry *hashTable,
-                                                       int noTotalEntries,
-                                                       AllocationTempData *allocData, /*int *noAllocatedVoxelEntries,*/
-                                                       uchar *entriesVisibleType) {
+/**
+ * 将所有entry中可见但是没有分配空间的分配一下  // TODO：buildHashAllocAndVisibleTypePP不是都分配过了吗？？？什么情况会没有分配过？
+ * @param[in] voxelAllocationList VBA的空闲信息
+ * @param[in, out] hashTable
+ * @param[in] noTotalEntries entry总数
+ * @param[in, out] allocData 杂碎变量的集合。包含 VBA中剩余空位数、excess list中剩余空位数、可见的entry总数
+ * @param[in] entriesVisibleType 所有entry的可见类型  // TODO: 这里输入visibleEntryIDs更好吧？？？
+ */
+__global__ void reAllocateSwappedOutVoxelBlocks_device(int *voxelAllocationList, ITMHashEntry *hashTable,
+                                                       int noTotalEntries, AllocationTempData *allocData, 
+                                                       /*int *noAllocatedVoxelEntries,*/ uchar *entriesVisibleType) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
   if (targetIdx > noTotalEntries - 1) return;
 
   int vbaIdx;
   int hashEntry_ptr = hashTable[targetIdx].ptr;
 
-  if (entriesVisibleType[targetIdx] > 0 && hashEntry_ptr
-      == -1) //it is visible and has been previously allocated inside the hash, but deallocated from VBA
-  {
+  if (entriesVisibleType[targetIdx] > 0 && hashEntry_ptr == -1) {   // 可见但是没有分配空间???
+    //it is visible and has been previously allocated inside the hash, but deallocated from VBA
     vbaIdx = atomicSub(&allocData->noAllocatedVoxelEntries, 1);
-    if (vbaIdx >= 0) hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx];
-    else atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
+    if (vbaIdx >= 0)  // 还有剩余空间
+      hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx]; // NOTE：所谓分配内存，就是将entry的ptr取值为VBA的空闲位置的下标
+    else              // 没有剩余空间了，还回去
+      atomicAdd(&allocData->noAllocatedVoxelEntries, 1);
   }
 }
-
+/**
+ * @brief 再次检查entry的可见性 && 更新swap status && 汇总所有可见block的entry id
+ * @details 只查看“之前可见 但 现在不可见”的可见性；“更新swap status”只在开启swap的情况下可用
+ * @tparam useSwapping 是否支持交换内存-显存数据。C++的非类型模板参数https://blog.csdn.net/lanchunhui/article/details/49634077
+ * @param[in] hashTable 
+ * @param[in, out] swapStates 所有entry的数据传输状态，只有开启swap功能的情况下才会用
+ * @param[in] noTotalEntries entry总数
+ * @param[out] visibleEntryIDs 所有可见block的entry id
+ * @param[in, out] allocData 杂碎变量的集合。包含 VBA中剩余空位数、excess list中剩余空位数、可见的entry总数
+ * @param[out] entriesVisibleType 所有entry的可见类型
+ * @param[in] M_d world to local的变换矩阵
+ * @param[in] projParams_d 投影的相机内参
+ * @param[in] depthImgSize 深度图的图像大小
+ * @param[in] voxelSize voxel的实际尺寸。单位米
+ */
 template<bool useSwapping>
 __global__ void buildVisibleList_device(ITMHashEntry *hashTable, ITMHashSwapState *swapStates, int noTotalEntries,
                                         int *visibleEntryIDs, AllocationTempData *allocData, uchar *entriesVisibleType,
@@ -592,49 +569,36 @@ __global__ void buildVisibleList_device(ITMHashEntry *hashTable, ITMHashSwapStat
 
   unsigned char hashVisibleType = entriesVisibleType[targetIdx];
   const ITMHashEntry &hashEntry = hashTable[targetIdx];
-
-  if (hashVisibleType == 3) {
+  //! 之前可见 但 现在不可见的再检查一下可见性
+  if (hashVisibleType == 3) {         // =3说明之前可见，但是现在不可见
     bool isVisibleEnlarged, isVisible;
-
-    if (useSwapping) {
-      checkBlockVisibility<true>(isVisible,
-                                 isVisibleEnlarged,
-                                 hashEntry.pos,
-                                 M_d,
-                                 projParams_d,
-                                 voxelSize,
+    if (useSwapping) {  // 有swap的会用更大（扩大1/8）的image size查看可见性。 ∵要保证device和host的数据无缝融合？？？
+      checkBlockVisibility<true>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                  depthImgSize);
-      if (!isVisibleEnlarged) hashVisibleType = 0;
-    } else {
-      checkBlockVisibility<false>(isVisible,
-                                  isVisibleEnlarged,
-                                  hashEntry.pos,
-                                  M_d,
-                                  projParams_d,
-                                  voxelSize,
+      if (!isVisibleEnlarged) hashVisibleType = 0;  // 搜索后确定不可见
+    } else {            // 没有swap用正常的image size查看可见性
+      checkBlockVisibility<false>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                   depthImgSize);
-      if (!isVisible) hashVisibleType = 0;
+      if (!isVisible) hashVisibleType = 0;          // 搜索后确定不可见
     }
     entriesVisibleType[targetIdx] = hashVisibleType;
   }
 
-  if (hashVisibleType > 0) shouldPrefix = true;
-
+  //! 开启swap，可见 但 不只在显存上，标记一下需要合并
   if (useSwapping) {
-    if (hashVisibleType > 0 && swapStates[targetIdx].state != 2) swapStates[targetIdx].state = 1;
+    if (hashVisibleType > 0 && swapStates[targetIdx].state != 2)
+      swapStates[targetIdx].state = 1;  // =1说明数据同时在内存和显存上，尚未合并
   }
-
+  //! 通过前缀和来找到 所需entry在最后数组中的位置，然后记录
+  if (hashVisibleType > 0) shouldPrefix = true;
   __syncthreads();
-
   if (shouldPrefix) {
-    int offset = computePrefixSum_device<int>(hashVisibleType > 0,
-                                              &allocData->noVisibleEntries,
-                                              blockDim.x * blockDim.y,
-                                              threadIdx.x);
-    if (offset != -1) visibleEntryIDs[offset] = targetIdx;
+    int offset = computePrefixSum_device<int>(hashVisibleType > 0, &allocData->noVisibleEntries,
+                                              blockDim.x * blockDim.y, threadIdx.x);
+    if (offset != -1) visibleEntryIDs[offset] = targetIdx;  // 记录entry id到数组中
   }
 
-#if 0
+#if 0   // TODO: active list是啥？？？论文中没有
   // "active list": blocks that have new information from depth image
   // currently not used...
   __syncthreads();
@@ -646,5 +610,4 @@ __global__ void buildVisibleList_device(ITMHashEntry *hashTable, ITMHashSwapStat
   }
 #endif
 }
-
 }

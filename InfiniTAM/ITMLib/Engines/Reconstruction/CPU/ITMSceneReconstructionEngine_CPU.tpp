@@ -194,7 +194,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
         lastFreeVoxelBlockId--;           // --是因为VBA是从后往前存的
 
         if (vbaIdx >= 0) {  // 剩余空间充足。there is room in the voxel block array
-          Vector4s pt_block_all = blockCoords[targetIdx]; // 取出block坐标
+          Vector4s pt_block_all = blockCoords[targetIdx]; // 取出buildHashAllocAndVisibleTypePP中记录的block坐标
 
           ITMHashEntry hashEntry;
           hashEntry.pos.x = pt_block_all.x;
@@ -204,10 +204,10 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           hashEntry.offset = 0;   // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
 
           hashTable[targetIdx] = hashEntry;             // hash table中记录entry信息
-        } else {            // 剩余空间不足，无法allocate，需要设置visible=false
+        } else {            // 剩余空间不足
           // Mark entry as not visible since we couldn't allocate it but buildHashAllocAndVisibleTypePP changed its
           // state.
-          entriesVisibleType[targetIdx] = 0;
+          entriesVisibleType[targetIdx] = 0;  // 无法allocate，需要设置visible=false
 
           // 剩余空间不足了，要把刚刚分配的再还回去。Restore previous value to avoid leaks.
           lastFreeVoxelBlockId++;
@@ -227,7 +227,8 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           hashEntry.pos.x = pt_block_all.x;
           hashEntry.pos.y = pt_block_all.y;
           hashEntry.pos.z = pt_block_all.z;
-          hashEntry.ptr = voxelAllocationList[vbaIdx]; // NOTE：voxelAllocationList[vbaIdx]就是VBA中的空闲位置
+          hashEntry.ptr = voxelAllocationList[vbaIdx];  // NOTE：所谓分配内存，就是将entry的ptr取值为VBA的空闲位置的下标
+                                                        // NOTE: voxelAllocationList[vbaIdx]就是VBA中的空闲位置
           hashEntry.offset = 0; // TODO: 设置成-1更合理。这样之后遇到冲突了，offset就不用+1或者-1了
           int exlOffset = excessAllocationList[exlIdx];   // 跟voxelAllocationList同理，找到excess list的空闲位置
 
@@ -243,7 +244,6 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
           lastFreeVoxelBlockId++;
           lastFreeExcessListId++;
         }
-
         break;
       }
     }
@@ -254,35 +254,32 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
     unsigned char hashVisibleType = entriesVisibleType[targetIdx];
     const ITMHashEntry &hashEntry = hashTable[targetIdx];
-    // hashVisibleType == 3的再检查一下可见性？？
-    if (hashVisibleType == 3) {   // =3说明没有被重置（即resetVisibleList=false）
+    // 之前可见 但 现在不可见的再检查一下可见性
+    if (hashVisibleType == 3) {       // =3说明之前可见，但是现在不可见
       bool isVisibleEnlarged, isVisible;
-      if (useSwapping) {  // 有swap的会用更大的imagesize查看可见性。 why？？？
+      if (useSwapping) {  // 有swap的会用更大（扩大1/8）的image size查看可见性。 ∵要保证device和host的数据无缝融合？？？
         checkBlockVisibility<true>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                    depthImgSize);
-        if (!isVisibleEnlarged)
-          hashVisibleType = 0;
-      } else {            // 没有swap用正常的imagesize查看可见性
+        if (!isVisibleEnlarged) hashVisibleType = 0;  // 搜索后确定不可见
+      } else {            // 没有swap用正常的image size查看可见性
         checkBlockVisibility<false>(isVisible, isVisibleEnlarged, hashEntry.pos, M_d, projParams_d, voxelSize,
                                     depthImgSize);
-        if (!isVisible) {
-          hashVisibleType = 0;
-        }
+        if (!isVisible) hashVisibleType = 0;          // 搜索后确定不可见
       }
       entriesVisibleType[targetIdx] = hashVisibleType;
     }
-    // 开启swap，可见 但 不止在显存上，标记一下需要合并
+    // 开启swap，可见 但 不只在显存上，标记一下需要合并
     if (useSwapping) {
       if (hashVisibleType > 0 && swapStates[targetIdx].state != 2)
         swapStates[targetIdx].state = 1;  // =1说明数据同时在内存和显存上，尚未合并
     }
     // 最终记录可见的
     if (hashVisibleType > 0) {
-      visibleEntryIDs[noVisibleEntries] = targetIdx;
+      visibleEntryIDs[noVisibleEntries] = targetIdx; 
       noVisibleEntries++;
     }
 
-#if 0
+#if 0   // TODO: active list是啥？？？论文中没有
     // "active list", currently disabled
     if (hashVisibleType == 1) {
         activeEntryIDs[noActiveEntries] = targetIdx;
@@ -291,19 +288,20 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
 #endif
   }
 
-  //! 开启swap，将所有entry中可见但是没有分配空间的分配一下 TODO：之前buildHashAllocAndVisibleTypePP不是都分配过了吗？？？？
+  //! 开启swap，将所有entry中可见但是没有分配空间的分配一下 
+  // TODO：之前buildHashAllocAndVisibleTypePP不是都分配过了吗？？？还有什么情况会没有分配过？？？
   // reallocate deleted ones from previous swap operation
   if (useSwapping) {
-    for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
+    for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {  // TODO: 遍历visibleEntryIDs更好吧？？？
       int vbaIdx;
       ITMHashEntry hashEntry = hashTable[targetIdx];
 
-      if (entriesVisibleType[targetIdx] > 0 && hashEntry.ptr == -1) { // 可见但是没有分配空间???
+      if (entriesVisibleType[targetIdx] > 0 && hashEntry.ptr == -1) { // 可见但是没有分配空间
         vbaIdx = lastFreeVoxelBlockId;
         lastFreeVoxelBlockId--;
         if (vbaIdx >= 0)    // 还有剩余空间
-          hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx];
-        else
+          hashTable[targetIdx].ptr = voxelAllocationList[vbaIdx]; // NOTE：分配内存，就是将entry的ptr取值为VBA的空闲位置的下标
+        else                // 没有剩余空间了，还回去
           lastFreeVoxelBlockId++; // Avoid leaks
       }
     }
@@ -312,7 +310,7 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::AllocateSceneF
   renderState_vh->noVisibleEntries = noVisibleEntries;
 
   scene->localVBA.lastFreeBlockId = lastFreeVoxelBlockId;
-  scene->index.SetLastFreeExcessListId(lastFreeExcessListId);
+  scene->index.SetLastFreeExcessListId(lastFreeExcessListId); // TODO：为啥不把lastFreeExcessListId弄成public
 }
 
 template<class TVoxel>
