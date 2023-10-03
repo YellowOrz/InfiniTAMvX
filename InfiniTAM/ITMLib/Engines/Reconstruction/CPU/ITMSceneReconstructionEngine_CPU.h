@@ -15,9 +15,9 @@ template <class TVoxel>
 class ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>
     : public ITMSceneReconstructionEngine<TVoxel, ITMVoxelBlockHash> {
 protected:
-  /** 要分配的空间类型（其实是位置）。=1存放于order list，=2存放于unorder(excess) list*/
+  // 要分配的空间类型（其实是位置）。=1存放于order list，=2存放于unorder(excess) list
   ORUtils::MemoryBlock<unsigned char> *entriesAllocType;
-  /** 每个entry对应的block坐标。长度为entry总数。分配内存之前用来临时记录要分配的block位置信息 */
+  // 每个entry对应的block坐标。长度为entry总数。分配内存之前用来临时记录要分配的block位置信息
   ORUtils::MemoryBlock<Vector4s> *blockCoords;
 
 public:

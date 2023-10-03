@@ -111,8 +111,7 @@ __device__ static inline void atomicMin(float *address, float val) {
   int old = *address_as_i, assumed;
   do {
     assumed = old;
-    old = ::atomicCAS(address_as_i, assumed,
-                      __float_as_int(::fminf(val, __int_as_float(assumed))));
+    old = ::atomicCAS(address_as_i, assumed,__float_as_int(::fminf(val, __int_as_float(assumed))));
   } while (assumed != old);
 }
 
@@ -121,30 +120,47 @@ __device__ static inline void atomicMax(float *address, float val) {
   int old = *address_as_i, assumed;
   do {
     assumed = old;
-    old = ::atomicCAS(address_as_i, assumed,
-                      __float_as_int(::fmaxf(val, __int_as_float(assumed))));
+    old = ::atomicCAS(address_as_i, assumed, __float_as_int(::fmaxf(val, __int_as_float(assumed))));
   } while (assumed != old);
 }
-
+/**
+ * @brief 数组初始化成指定内容（grid中block有以个维度）
+ * @tparam T 数组的数据类型
+ * @param[out] devPtr 数组
+ * @param[in] val 数组初始化成的内容
+ * @param[in] nwords 数组长度
+ */
 template<typename T>
 __global__ void memsetKernel_device(T *devPtr, const T val, size_t nwords) {
   size_t offset = threadIdx.x + blockDim.x * blockIdx.x;
   if (offset >= nwords) return;
   devPtr[offset] = val;
 }
-
+/**
+ * @brief 数组初始化成指定内容（grid中block有三个维度）
+ * @tparam T 数组的数据类型
+ * @param[out] devPtr 数组
+ * @param[in] val 数组初始化成的内容
+ * @param[in] nwords 数组长度
+ */
 template<typename T>
 __global__ void memsetKernelLarge_device(T *devPtr, const T val, size_t nwords) {
   size_t offset = threadIdx.x + blockDim.x * (blockIdx.x + blockIdx.y * gridDim.x);
   if (offset >= nwords) return;
   devPtr[offset] = val;
 }
-
+/**
+ * @brief 数组初始化成指定内容
+ * @tparam T 数组的数据类型
+ * @param[out] devPtr 数组
+ * @param[in] val 数组初始化成的内容
+ * @param[in] nwords 数组长度
+ */
 template<typename T>
 inline void memsetKernel(T *devPtr, const T val, size_t nwords) {
   dim3 blockSize(256);
   dim3 gridSize((int) ceil((float) nwords / (float) blockSize.x));
-  if (gridSize.x <= 65535) {
+  if (gridSize.x <= 65535) {  // grid中单个维度的block数量最大是65535
     memsetKernel_device<T> <<<gridSize, blockSize>>>(devPtr, val, nwords);
     ORcudaKernelCheck;
   } else {

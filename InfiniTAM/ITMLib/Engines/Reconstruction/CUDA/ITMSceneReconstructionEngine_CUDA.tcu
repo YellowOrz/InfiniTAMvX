@@ -16,65 +16,33 @@ using namespace ITMLib;
 
 namespace {
 
-template<class TVoxel, bool stopMaxW>
-__global__ void integrateIntoScene_device(TVoxel *localVBA,
-                                          const ITMHashEntry *hashTable,
-                                          int *noVisibleEntryIDs,
-                                          const Vector4u *rgb,
-                                          Vector2i rgbImgSize,
-                                          const float *depth,
-                                          const float *confidence,
-                                          Vector2i imgSize,
-                                          Matrix4f M_d,
-                                          Matrix4f M_rgb,
-                                          Vector4f projParams_d,
-                                          Vector4f projParams_rgb,
-                                          float _voxelSize,
-                                          float mu,
+template <class TVoxel, bool stopMaxW>
+__global__ void integrateIntoScene_device(TVoxel *localVBA, const ITMHashEntry *hashTable, int *noVisibleEntryIDs,
+                                          const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
+                                          const float *confidence, Vector2i imgSize, Matrix4f M_d, Matrix4f M_rgb,
+                                          Vector4f projParams_d, Vector4f projParams_rgb, float _voxelSize, float mu,
                                           int maxW);
 
-template<class TVoxel, bool stopMaxW>
-__global__ void integrateIntoScene_device(TVoxel *voxelArray,
-                                          const ITMPlainVoxelArray::ITMVoxelArrayInfo *arrayInfo,
-                                          const Vector4u *rgb,
-                                          Vector2i rgbImgSize,
-                                          const float *depth,
-                                          const float *confidence,
-                                          Vector2i depthImgSize,
-                                          Matrix4f M_d,
-                                          Matrix4f M_rgb,
-                                          Vector4f projParams_d,
-                                          Vector4f projParams_rgb,
-                                          float _voxelSize,
-                                          float mu,
+template <class TVoxel, bool stopMaxW>
+__global__ void integrateIntoScene_device(TVoxel *voxelArray, const ITMPlainVoxelArray::ITMVoxelArrayInfo *arrayInfo,
+                                          const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
+                                          const float *confidence, Vector2i depthImgSize, Matrix4f M_d, Matrix4f M_rgb,
+                                          Vector4f projParams_d, Vector4f projParams_rgb, float _voxelSize, float mu,
                                           int maxW);
 
-__global__ void buildHashAllocAndVisibleType_device(uchar *entriesAllocType,
-                                                    uchar *entriesVisibleType,
-                                                    Vector4s *blockCoords,
-                                                    const float *depth,
-                                                    Matrix4f invM_d,
-                                                    Vector4f projParams_d,
-                                                    float mu,
-                                                    Vector2i _imgSize,
-                                                    float _voxelSize,
-                                                    ITMHashEntry *hashTable,
-                                                    float viewFrustum_min,
+__global__ void buildHashAllocAndVisibleType_device(uchar *entriesAllocType, uchar *entriesVisibleType,
+                                                    Vector4s *blockCoords, const float *depth, Matrix4f invM_d,
+                                                    Vector4f projParams_d, float mu, Vector2i _imgSize,
+                                                    float _voxelSize, ITMHashEntry *hashTable, float viewFrustum_min,
                                                     float viewFrustrum_max);
 
-__global__ void allocateVoxelBlocksList_device(int *voxelAllocationList,
-                                               int *excessAllocationList,
-                                               ITMHashEntry *hashTable,
-                                               int noTotalEntries,
-                                               AllocationTempData *allocData,
-                                               uchar *entriesAllocType,
-                                               uchar *entriesVisibleType,
-                                               Vector4s *blockCoords);
+__global__ void allocateVoxelBlocksList_device(int *voxelAllocationList, int *excessAllocationList,
+                                               ITMHashEntry *hashTable, int noTotalEntries,
+                                               AllocationTempData *allocData, uchar *entriesAllocType,
+                                               uchar *entriesVisibleType, Vector4s *blockCoords);
 
-__global__ void reAllocateSwappedOutVoxelBlocks_device(int *voxelAllocationList,
-                                                       ITMHashEntry *hashTable,
-                                                       int noTotalEntries,
-                                                       AllocationTempData *allocData,
+__global__ void reAllocateSwappedOutVoxelBlocks_device(int *voxelAllocationList, ITMHashEntry *hashTable,
+                                                       int noTotalEntries, AllocationTempData *allocData,
                                                        uchar *entriesVisibleType);
 
 __global__ void setToType3(uchar *entriesVisibleType, int *visibleEntryIDs, int noVisibleEntries);
@@ -109,20 +77,23 @@ ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~ITMSceneReconstru
 template<class TVoxel>
 void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::ResetScene(ITMScene<TVoxel,
                                                                                        ITMVoxelBlockHash> *scene) {
-  int numBlocks = scene->index.getNumAllocatedVoxelBlocks();
-  int blockSize = scene->index.getVoxelBlockSize();
-
+  int numBlocks = scene->index.getNumAllocatedVoxelBlocks();  // block数量，=SDF_LOCAL_BLOCK_NUM
+  int blockSize = scene->index.getVoxelBlockSize();           // block中voxel的数量，=SDF_BLOCK_SIZE3
+  //! 清空每个voxel信息
   TVoxel *voxelBlocks_ptr = scene->localVBA.GetVoxelBlocks();
   memsetKernel<TVoxel>(voxelBlocks_ptr, TVoxel(), numBlocks * blockSize);
+  //! 重置voxel block array中的空闲信息
   int *vbaAllocationList_ptr = scene->localVBA.GetAllocationList();
   fillArrayKernel<int>(vbaAllocationList_ptr, numBlocks);
-  scene->localVBA.lastFreeBlockId = numBlocks - 1;
-
+  //! 重置localVBA中可用空间的数量
+  scene->localVBA.lastFreeBlockId = numBlocks - 1;  // -1是因为lastFreeBlockId本质上是localVBA中的空余下标
+  //! 重置hash table
   ITMHashEntry tmpEntry;
   memset(&tmpEntry, 0, sizeof(ITMHashEntry));
   tmpEntry.ptr = -2;
   ITMHashEntry *hashEntry_ptr = scene->index.GetEntries();
   memsetKernel<ITMHashEntry>(hashEntry_ptr, tmpEntry, scene->index.noTotalEntries);
+  //! 重置unordered list的空闲信息 
   int *excessList_ptr = scene->index.GetExcessAllocationList();
   fillArrayKernel<int>(excessList_ptr, SDF_EXCESS_LIST_SIZE);
 
@@ -231,45 +202,45 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::AllocateScene
   scene->index.SetLastFreeExcessListId(tempData->noAllocatedExcessEntries);
 }
 
-template <class TVoxel> // TODO: 下次从这儿开始
+template <class TVoxel>
 void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMVoxelBlockHash>::IntegrateIntoScene(
     ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, const ITMTrackingState *trackingState,
     const ITMRenderState *renderState) {
-  Vector2i rgbImgSize = view->rgb->noDims;
-  Vector2i depthImgSize = view->depth->noDims;
+  //! 准备
+  Vector2i rgbImgSize = view->rgb->noDims;      // 当前帧RGB图的分辨率
+  Vector2i depthImgSize = view->depth->noDims;  // 当前帧深度图的分辨率
   float voxelSize = scene->sceneParams->voxelSize;
 
-  Matrix4f M_d, M_rgb;
-  Vector4f projParams_d, projParams_rgb;
-
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
   if (renderState_vh->noVisibleEntries == 0) return;
 
-  M_d = trackingState->pose_d->GetM();
-  if (TVoxel::hasColorInformation) M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d;
+  Matrix4f M_d = trackingState->pose_d->GetM();             // 当前帧中深度图的位姿（word to local）
+  Matrix4f M_rgb;
+  if (TVoxel::hasColorInformation)
+    M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d; // 当前帧中RGB图的位姿（word to local）
 
-  projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;
-  projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;
+  Vector4f projParams_d = view->calib.intrinsics_d.projectionParamsSimple.all;      // 深度图相机内参
+  Vector4f projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;  // RGB图相机内参
 
-  float mu = scene->sceneParams->mu;
-  int maxW = scene->sceneParams->maxW;
+  float mu = scene->sceneParams->mu;    // TSDF的截断值对应的距离，单位米
+  int maxW = scene->sceneParams->maxW;  // voxel的最大观测次数，用于融合
 
-  float *depth = view->depth->GetData(MEMORYDEVICE_CUDA);
-  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CUDA);
-  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CUDA);
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  ITMHashEntry *hashTable = scene->index.GetEntries();
+  float *depth = view->depth->GetData(MEMORYDEVICE_CUDA);                 // 深度图
+  float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CUDA);  // 深度图的置信度（根据距离计算）
+  Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CUDA);                  // 彩色图
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                    // device上的voxel block array
+  ITMHashEntry *hashTable = scene->index.GetEntries();                    // hash table
 
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();            // 可见entry id列表
 
   dim3 cudaBlockSize(SDF_BLOCK_SIZE, SDF_BLOCK_SIZE, SDF_BLOCK_SIZE);
   dim3 gridSize(renderState_vh->noVisibleEntries);
-
-  if (scene->sceneParams->stopIntegratingAtMaxW) {
+  //! 遍历可见entry列表
+  if (scene->sceneParams->stopIntegratingAtMaxW) {    // 到达最大观测次数后,继续融合
     integrateIntoScene_device<TVoxel, true> << < gridSize, cudaBlockSize >> >(localVBA, hashTable, visibleEntryIDs,
         rgb, rgbImgSize, depth, confidence, depthImgSize, M_d, M_rgb, projParams_d, projParams_rgb, voxelSize, mu, maxW);
     ORcudaKernelCheck;
-  } else {
+  } else {                                            // 到达最大观测次数后,不融合
     integrateIntoScene_device<TVoxel, false> << < gridSize, cudaBlockSize >> >(localVBA, hashTable, visibleEntryIDs,
         rgb, rgbImgSize, depth, confidence, depthImgSize, M_d, M_rgb, projParams_d, projParams_rgb, voxelSize, mu, maxW);
     ORcudaKernelCheck;
@@ -340,7 +311,6 @@ void ITMSceneReconstructionEngine_CUDA<TVoxel, ITMPlainVoxelArray>::IntegrateInt
 namespace {
 
 // device functions
-
 template <class TVoxel, bool stopMaxW>
 __global__ void integrateIntoScene_device(TVoxel *voxelArray, const ITMPlainVoxelArray::ITMVoxelArrayInfo *arrayInfo,
                                           const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
@@ -368,36 +338,52 @@ __global__ void integrateIntoScene_device(TVoxel *voxelArray, const ITMPlainVoxe
       voxelArray[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence, depthImgSize,
       rgb, rgbImgSize);
 }
-
+/**
+ * 根据可见列表，融合更新每一个voxel
+ * @note 每一个cuda线程负责更新一个voxel
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam stopMaxW 到达最大观测次数后是否继续融合
+ * @param[in, out] localVBA device上的voxel block array
+ * @param[in] hashTable hash table
+ * @param[in] visibleEntryIDs 可见entry id列表
+ * @param[in] rgb 彩色图
+ * @param[in] rgbImgSize 当前帧RGB图的分辨率
+ * @param[in] depth 深度图
+ * @param[in] confidence 深度图的置信度（根据距离计算）
+ * @param[in] depthImgSize 当前帧深度图的分辨率
+ * @param[in] M_d 当前帧中深度图的位姿（word to local）
+ * @param[in] M_rgb 当前帧中RGB图的位姿（word to local）
+ * @param[in] projParams_d 深度图相机内参
+ * @param[in] projParams_rgb RGB图相机内参
+ * @param[in] _voxelSize voxel size
+ * @param[in] mu TSDF的截断值对应的距离，单位米
+ * @param[in] maxW voxel的最大观测次数，用于融合
+ */
 template <class TVoxel, bool stopMaxW>
 __global__ void integrateIntoScene_device(TVoxel *localVBA, const ITMHashEntry *hashTable, int *visibleEntryIDs,
                                           const Vector4u *rgb, Vector2i rgbImgSize, const float *depth,
                                           const float *confidence, Vector2i depthImgSize, Matrix4f M_d, Matrix4f M_rgb,
                                           Vector4f projParams_d, Vector4f projParams_rgb, float _voxelSize, float mu,
                                           int maxW) {
+  //! 准备
   int entryId = visibleEntryIDs[blockIdx.x];
-  const ITMHashEntry &currentHashEntry = hashTable[entryId];
+  const ITMHashEntry &currentHashEntry = hashTable[entryId];  // 获取entry
   if (currentHashEntry.ptr < 0) return;
 
-  Vector3i globalPos = currentHashEntry.pos.toInt() * SDF_BLOCK_SIZE;
-
-  TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * SDF_BLOCK_SIZE3]);
-
-  int x = threadIdx.x, y = threadIdx.y, z = threadIdx.z;
-
-  int locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-
-  if (stopMaxW)
-    if (localVoxelBlock[locId].w_depth == maxW)
-      return;
-  // if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) return;
+  TVoxel *localVoxelBlock = &(localVBA[currentHashEntry.ptr * SDF_BLOCK_SIZE3]);  // 取出当前voxel block在localVBA中的地址
   
-  Vector4f pt_model;
+  int x = threadIdx.x, y = threadIdx.y, z = threadIdx.z;
+  int locId = x + y * SDF_BLOCK_SIZE + z * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;   // 当前voxel在当前voxel block中的一维坐标
+
+  if (stopMaxW) if (localVoxelBlock[locId].w_depth == maxW) return;   // 到达最大观测次数后就不融合了
+  // if (approximateIntegration) if (localVoxelBlock[locId].w_depth != 0) return;
+  Vector3i globalPos = currentHashEntry.pos.toInt() * SDF_BLOCK_SIZE;   // 当前voxel block靠近原点的顶点的voxel坐标
+  Vector4f pt_model;          // 当前voxel在全局下的真实坐标（单位米）
   pt_model.x = (float)(globalPos.x + x) * _voxelSize;
   pt_model.y = (float)(globalPos.y + y) * _voxelSize;
   pt_model.z = (float)(globalPos.z + z) * _voxelSize;
-  pt_model.w = 1.0f;
-
+  pt_model.w = 1.0f;      // 为了后续使用齐次坐标???
+  //! 更新当前voxel
   ComputeUpdatedVoxelInfo<TVoxel::hasColorInformation, TVoxel::hasConfidenceInformation, TVoxel>::compute(
       localVoxelBlock[locId], pt_model, M_d, projParams_d, M_rgb, projParams_rgb, mu, maxW, depth, confidence,
       depthImgSize, rgb, rgbImgSize);

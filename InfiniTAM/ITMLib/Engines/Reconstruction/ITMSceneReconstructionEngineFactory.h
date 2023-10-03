@@ -12,12 +12,13 @@
 
 namespace ITMLib {
 
-/** \brief This struct provides functions that can be used to construct scene reconstruction engines. */
+/** \brief 初始化 重建模块
+ * This struct provides functions that can be used to construct scene reconstruction engines. */
 struct ITMSceneReconstructionEngineFactory {
   // #################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief Makes a scene reconstruction engine.
+   * \brief 根据 设备类型 初始化重建模块。Makes a scene reconstruction engine.
    * \param deviceType  The device on which the scene reconstruction engine should operate.
    */
   template <typename TVoxel, typename TIndex>
