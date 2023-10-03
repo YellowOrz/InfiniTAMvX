@@ -69,15 +69,15 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   Vector4f projParams_rgb = view->calib.intrinsics_rgb.projectionParamsSimple.all;  // RGB图相机内参
 
   float mu = scene->sceneParams->mu;    // TSDF的截断值对应的距离，单位米
-  int maxW = scene->sceneParams->maxW;  // voxel的最大观测次数，用来融合；超过后若还要融合，采用滑窗方式
+  int maxW = scene->sceneParams->maxW;  // voxel的最大观测次数，用于融合
 
   float *depth = view->depth->GetData(MEMORYDEVICE_CPU);                // 深度图
   float *confidence = view->depthConfidence->GetData(MEMORYDEVICE_CPU); // 深度图的置信度（根据距离计算）
   Vector4u *rgb = view->rgb->GetData(MEMORYDEVICE_CPU);                 // 彩色图
-  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                  // voxel block array
+  TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                  // device上的voxel block array
   ITMHashEntry *hashTable = scene->index.GetEntries();                  // hash table
 
-  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();          // 可见entry列表
+  int *visibleEntryIds = renderState_vh->GetVisibleEntryIDs();          // 可见entry id列表
   int noVisibleEntries = renderState_vh->noVisibleEntries;              // 可见entry数量
 
   bool stopIntegratingAtMaxW = scene->sceneParams->stopIntegratingAtMaxW;  // 到达最大观测次数后是否继续融合

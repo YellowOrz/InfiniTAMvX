@@ -11,31 +11,25 @@
 
 namespace ITMLib {
 /** \brief
-    Interface to engines implementing the main KinectFusion
-    depth integration process.
+    Interface to engines implementing the main KinectFusion depth integration process.
 
-    These classes basically manage
-    an ITMLib::Objects::ITMScene and fuse new image information
-    into them.
+    These classes basically manage an ITMLib::Objects::ITMScene and fuse new image information into them.
 */
 template <class TVoxel, class TIndex> class ITMSceneReconstructionEngine {
 public:
-  /** Clear and reset a scene to set up a new empty one.
-   */
+  /** Clear and reset a scene to set up a new empty one. */
   virtual void ResetScene(ITMScene<TVoxel, TIndex> *scene) = 0;
 
   /**
    * @brief 给定一帧新的输入（包含深度图），计算可见块，分配内存 并 更新hash table，方便后续 将当前帧融合进场景。
-   * Given a view with a new depth image, compute the
-      visible blocks, allocate them and update the hash
-      table so that the new image data can be integrated.
+   * Given a view with a new depth image, compute the visible blocks, allocate them and update the hash table so that 
+   * the new image data can be integrated.
   */
   virtual void AllocateSceneFromDepth(ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                       const ITMTrackingState *trackingState, const ITMRenderState *renderState,
                                       bool onlyUpdateVisibleList = false, bool resetVisibleList = false) = 0;
 
-  /** Update the voxel blocks by integrating depth and
-      possibly colour information from the given view.
+  /** Update the voxel blocks by integrating depth and possibly colour information from the given view.
   */
   virtual void IntegrateIntoScene(ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                   const ITMTrackingState *trackingState, const ITMRenderState *renderState) = 0;
