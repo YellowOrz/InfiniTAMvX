@@ -58,14 +58,14 @@ _CPU_AND_GPU_CODE_ inline void combineVoxelColorInformation(const CONSTPTR(TVoxe
 /**
  * 融合两个voxel的信息
  * @tparam hasColor 是C++的非类型模板参数
- * @tparam TVoxel 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  */
 template<bool hasColor, class TVoxel>
 struct CombineVoxelInformation;   // TODO：为啥还要写下面两个结构体？？？不能通过if-else判断吗？？？
 
 /**
  * 融合两个voxel的信息（无color）
- * @tparam TVoxel 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  */
 template<class TVoxel>
 struct CombineVoxelInformation<false, TVoxel> {
@@ -76,7 +76,7 @@ struct CombineVoxelInformation<false, TVoxel> {
 
 /**
  * 融合两个voxel的信息（有color）
- * @tparam TVoxel 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  */
 template<class TVoxel>
 struct CombineVoxelInformation<true, TVoxel> {

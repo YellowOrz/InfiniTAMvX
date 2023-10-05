@@ -10,7 +10,7 @@ template<class TVoxel, class TIndex>
 class ITMMeshingEngine_CPU : public ITMMeshingEngine<TVoxel, TIndex> {
   void MeshScene(ITMMesh *mesh, const ITMScene<TVoxel, TIndex> *scene) {}
 };
-
+/** 上面模板类的偏特化，针对hashing索引的三维模型 */
 template<class TVoxel>
 class ITMMeshingEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMMeshingEngine<TVoxel, ITMVoxelBlockHash> {
  public:
@@ -20,3 +20,4 @@ class ITMMeshingEngine_CPU<TVoxel, ITMVoxelBlockHash> : public ITMMeshingEngine<
   ~ITMMeshingEngine_CPU(void) {}
 };
 }
+// TODO: 没有针对ITMPlainVoxelArray的偏特化

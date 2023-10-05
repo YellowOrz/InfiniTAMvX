@@ -4,119 +4,115 @@
 
 #include <algorithm>
 
-#include "../Shared/ITMMeshingEngine_Shared.h"
-#include "../../../Utils/ITMCUDAUtils.h"
 #include "../../../../ORUtils/CUDADefines.h"
+#include "../../../Utils/ITMCUDAUtils.h"
+#include "../Shared/ITMMeshingEngine_Shared.h"
 
 using namespace ITMLib;
-
-template<class TVoxel>
-__global__ void meshScene_device(ITMMesh::Triangle *triangles,
-                                 unsigned int *noTriangles_device,
-                                 float factor,
-                                 int noTotalEntries,
-                                 int noMaxTriangles,
-                                 const Vector4s *visibleBlockGlobalPos,
-                                 const TVoxel *localVBA,
-                                 const ITMHashEntry *hashTable);
-
-template<int dummy>
+/**
+ * 将TSDF转成Mesh
+ * @param[out] triangles            mesh中的三角形面片
+ * @param[out] noTriangles_device   记录当前三角形数量（存储在GPU上）
+ * @param[in] factor                voxel size。单位米   
+ * @param[in] noTotalEntries        scene中entry的总数（包含order和unorder list）
+ * @param[in] noMaxTriangles        三角形的最大数量
+ * @param[in] visibleBlockGlobalPos 当前voxel block的全局位置
+ * @param[in] localVBA              局部block的数据
+ * @param[in] hashTable             hash table
+*/
+template <class TVoxel>
+__global__ void meshScene_device(ITMMesh::Triangle *triangles, unsigned int *noTriangles_device, float factor,
+                                 int noTotalEntries, int noMaxTriangles, const Vector4s *visibleBlockGlobalPos,
+                                 const TVoxel *localVBA, const ITMHashEntry *hashTable);
+/**
+ * 遍历每个entry，找到有效（分配内存）的block的坐标
+ * @tparam dummy                      没用到
+ * @param[out] visibleBlockGlobalPos  分配了内存的block的坐标   // TODO: 不应该叫visible，叫valid更合适
+ * @param[in] hashTable               hash table
+ * @param[in] noTotalEntries          scene中entry的总数（包含order和unorder list）
+*/
+template <int dummy>
 __global__ void findAllocateBlocks(Vector4s *visibleBlockGlobalPos, const ITMHashEntry *hashTable, int noTotalEntries) {
   int entryId = threadIdx.x + blockIdx.x * blockDim.x;
   if (entryId > noTotalEntries - 1) return;
 
   const ITMHashEntry &currentHashEntry = hashTable[entryId];
-
+  // 分配内存的，就记录对应block的坐标
   if (currentHashEntry.ptr >= 0)
     visibleBlockGlobalPos[currentHashEntry.ptr] =
-        Vector4s(currentHashEntry.pos.x, currentHashEntry.pos.y, currentHashEntry.pos.z, 1);
+        Vector4s(currentHashEntry.pos.x, currentHashEntry.pos.y, currentHashEntry.pos.z, 1);  // 最后的1用来表示其有效
+  // NOTE：直接遍历localVBA是因为无法区分哪些是存了有效数据（∵整个数组都提前分配好的）
 }
 
-template<class TVoxel>
-ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::ITMMeshingEngine_CUDA(void) {
-  ORcudaSafeCall(cudaMalloc((void **) &visibleBlockGlobalPos_device, SDF_LOCAL_BLOCK_NUM * sizeof(Vector4s)));
-  ORcudaSafeCall(cudaMalloc((void **) &noTriangles_device, sizeof(unsigned int)));
+template <class TVoxel> ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::ITMMeshingEngine_CUDA(void) {
+  ORcudaSafeCall(cudaMalloc((void **)&visibleBlockGlobalPos_device, SDF_LOCAL_BLOCK_NUM * sizeof(Vector4s)));
+  ORcudaSafeCall(cudaMalloc((void **)&noTriangles_device, sizeof(unsigned int)));
 }
 
-template<class TVoxel>
-ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~ITMMeshingEngine_CUDA(void) {
+template <class TVoxel> ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~ITMMeshingEngine_CUDA(void) {
   ORcudaSafeCall(cudaFree(visibleBlockGlobalPos_device));
   ORcudaSafeCall(cudaFree(noTriangles_device));
 }
 
-template<class TVoxel>
+template <class TVoxel>
 void ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::MeshScene(ITMMesh *mesh,
                                                                  const ITMScene<TVoxel, ITMVoxelBlockHash> *scene) {
-  ITMMesh::Triangle *triangles = mesh->triangles->GetData(MEMORYDEVICE_CUDA);
-  const TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();
-  const ITMHashEntry *hashTable = scene->index.GetEntries();
+  //! 准备相关数据
+  ITMMesh::Triangle *triangles = mesh->triangles->GetData(MEMORYDEVICE_CUDA); // 获取之后三角面片存储位置的指针
+  const TVoxel *localVBA = scene->localVBA.GetVoxelBlocks();                  // device上的voxel block array
+  const ITMHashEntry *hashTable = scene->index.GetEntries();                  // hash table
 
-  int noMaxTriangles = mesh->noMaxTriangles, noTotalEntries = scene->index.noTotalEntries;
-  float factor = scene->sceneParams->voxelSize;
+  int noMaxTriangles = mesh->noMaxTriangles;            // 三角片面的最大数量（常量）
+  int noTotalEntries = scene->index.noTotalEntries;     // 场景中entry总数
+  float factor = scene->sceneParams->voxelSize;         // voxel size，单位米
 
-  ORcudaSafeCall(cudaMemset(noTriangles_device, 0, sizeof(unsigned int)));
+  ORcudaSafeCall(cudaMemset(noTriangles_device, 0, sizeof(unsigned int)));    // 当前三角面片的数量
   ORcudaSafeCall(cudaMemset(visibleBlockGlobalPos_device, 0, sizeof(Vector4s) * SDF_LOCAL_BLOCK_NUM));
 
-  { // identify used voxel blocks
+  { //! 找到分配了内存的block的坐标。identify used voxel blocks
     dim3 cudaBlockSize(256);
-    dim3 gridSize((int) ceil((float) noTotalEntries / (float) cudaBlockSize.x));
-
+    dim3 gridSize((int)ceil((float)noTotalEntries / (float)cudaBlockSize.x));
     findAllocateBlocks<-1><<<gridSize, cudaBlockSize>>>(visibleBlockGlobalPos_device, hashTable, noTotalEntries);
     ORcudaKernelCheck;
   }
-
-  { // mesh used voxel blocks
+  { //! 从上面找到的block中抽取三角面片。mesh used voxel blocks
     dim3 cudaBlockSize(SDF_BLOCK_SIZE, SDF_BLOCK_SIZE, SDF_BLOCK_SIZE);
     dim3 gridSize(SDF_LOCAL_BLOCK_NUM / 16, 16);
-
-    meshScene_device<TVoxel> <<< gridSize, cudaBlockSize >> >(triangles, noTriangles_device, factor, noTotalEntries, noMaxTriangles,
-        visibleBlockGlobalPos_device, localVBA, hashTable);
+    meshScene_device<TVoxel><<<gridSize, cudaBlockSize>>>(triangles, noTriangles_device, factor, noTotalEntries,
+                                                          noMaxTriangles, visibleBlockGlobalPos_device, localVBA,
+                                                          hashTable);
     ORcudaKernelCheck;
-
-    ORcudaSafeCall(cudaMemcpy(&mesh->noTotalTriangles,
-                              noTriangles_device,
-                              sizeof(unsigned int),
-                              cudaMemcpyDeviceToHost));
-
-    // meshScene_device made sure up to noMaxTriangles triangles were copied in the output array but,
-    // since the check was performed with atomicAdds, the actual number stored in noTriangles_device
-    // might be greater than noMaxTriangles.
-    // We coerce it to be lesser or equal to that number, not doing it causes a segfault when using the mesh later.
+    ORcudaSafeCall(
+        cudaMemcpy(&mesh->noTotalTriangles, noTriangles_device, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+    // meshScene_device made sure up to noMaxTriangles triangles were copied in the output array but, since the check was performed with atomicAdds, the actual number stored in noTriangles_device might be greater than noMaxTriangles. We coerce it to be lesser or equal to that number, not doing it causes a segfault when using the mesh later.
+    // meshScene_device中限制三角面片数量为noMaxTriangles，所以这里也要限制一下，从而对应上
     mesh->noTotalTriangles = std::min<uint>(mesh->noTotalTriangles, static_cast<uint>(noMaxTriangles));
   }
 }
 
-template<class TVoxel>
-ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray>::ITMMeshingEngine_CUDA(void) {}
+template <class TVoxel> ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray>::ITMMeshingEngine_CUDA(void) {}
 
-template<class TVoxel>
-ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray>::~ITMMeshingEngine_CUDA(void) {}
+template <class TVoxel> ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray>::~ITMMeshingEngine_CUDA(void) {}
 
-template<class TVoxel>
+template <class TVoxel>
 void ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray>::MeshScene(ITMMesh *mesh,
                                                                   const ITMScene<TVoxel, ITMPlainVoxelArray> *scene) {}
 
-template<class TVoxel>
-__global__ void meshScene_device(ITMMesh::Triangle *triangles,
-                                 unsigned int *noTriangles_device,
-                                 float factor,
-                                 int noTotalEntries,
-                                 int noMaxTriangles,
-                                 const Vector4s *visibleBlockGlobalPos,
-                                 const TVoxel *localVBA,
-                                 const ITMHashEntry *hashTable) {
+template <class TVoxel>
+__global__ void meshScene_device(ITMMesh::Triangle *triangles, unsigned int *noTriangles_device, float factor,
+                                 int noTotalEntries, int noMaxTriangles, const Vector4s *visibleBlockGlobalPos,
+                                 const TVoxel *localVBA, const ITMHashEntry *hashTable) {
+  //! 计算当前block左下角voxel的voxel坐标
   const Vector4s globalPos_4s = visibleBlockGlobalPos[blockIdx.x + gridDim.x * blockIdx.y];
-
-  if (globalPos_4s.w == 0) return;
-
+  if (globalPos_4s.w == 0) return;  // ==0表示这不是有效（分配了内存）的block，∵findAllocateBlocks中将最后一位=1
   Vector3i globalPos = Vector3i(globalPos_4s.x, globalPos_4s.y, globalPos_4s.z) * SDF_BLOCK_SIZE;
-
+  //! 以当前voxel为左下角的cube，获取其cube类型（查表，记录id），以及 8个顶点
   Vector3f vertList[12];
   int cubeIndex =
       buildVertList(vertList, globalPos, Vector3i(threadIdx.x, threadIdx.y, threadIdx.z), localVBA, hashTable);
-
-  if (cubeIndex < 0) return;
-
+  if (cubeIndex < 0) return;  // <0表示当前voxel中没有三角面片
+  // TODO：优化方案，block内部就不要查hashtable，block边缘的最多查8个entry（可以提前记录下来）
+  //! 记录当前voxel中的所有三角面片
   for (int i = 0; triangleTable[cubeIndex][i] != -1; i += 3) {
     int triangleId = atomicAdd(noTriangles_device, 1);
 
@@ -124,6 +120,7 @@ __global__ void meshScene_device(ITMMesh::Triangle *triangles,
       triangles[triangleId].p0 = vertList[triangleTable[cubeIndex][i]] * factor;
       triangles[triangleId].p1 = vertList[triangleTable[cubeIndex][i + 1]] * factor;
       triangles[triangleId].p2 = vertList[triangleTable[cubeIndex][i + 2]] * factor;
+      // TODO: 添加颜色
     }
   }
 }
