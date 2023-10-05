@@ -13,34 +13,34 @@ namespace ITMLib {
  * \brief This struct provides functions that can be used to construct meshing engines.
  */
 struct ITMMeshingEngineFactory {
-  //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
+  // #################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
    * \brief 构造mesh模块
    * Makes a meshing engine.
-   *
    * \param deviceType  The device on which the meshing engine should operate.
    */
-  template<typename TVoxel, typename TIndex>
+  template <typename TVoxel, typename TIndex>
   static ITMMeshingEngine<TVoxel, TIndex> *MakeMeshingEngine(ITMLibSettings::DeviceType deviceType) {
     ITMMeshingEngine<TVoxel, TIndex> *meshingEngine = NULL;
 
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU: meshingEngine = new ITMMeshingEngine_CPU<TVoxel, TIndex>;
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      meshingEngine = new ITMMeshingEngine_CPU<TVoxel, TIndex>;
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        meshingEngine = new ITMMeshingEngine_CUDA<TVoxel, TIndex>;
+      meshingEngine = new ITMMeshingEngine_CUDA<TVoxel, TIndex>;
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        meshingEngine = new ITMMeshingEngine_CPU<TVoxel, TIndex>;
+      meshingEngine = new ITMMeshingEngine_CPU<TVoxel, TIndex>;
 #endif
-        break;
+      break;
     }
 
     return meshingEngine;
   }
 };
-}
+} // namespace ITMLib

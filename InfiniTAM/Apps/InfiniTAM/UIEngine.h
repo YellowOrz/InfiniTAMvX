@@ -33,7 +33,7 @@ class UIEngine {
   };
   std::vector<UIColourMode> colourModes_main,       // 固定视角（跟随相机）下，可视化界面色彩显示模式的多个选项
                             colourModes_freeview;   // 自由视角下，可视化界面色彩显示模式的多个选项
-  int currentColourMode;    // 当前可视化界面色彩显示模式
+  int currentColourMode;                            // 当前可视化界面色彩显示模式
 
   InputSource::ImageSourceEngine *imageSource;  // 图像序列数据来源
   InputSource::IMUSourceEngine *imuSource;      // IMU数据来源
@@ -79,10 +79,9 @@ class UIEngine {
   static void glutIdleFunction();
   /**
    * @brief UI界面中，键盘按键对应功能
-   * 
    * @param[in] key 键盘按键
-   * @param x 没用到？？？
-   * @param y 没用到？？？
+   * @param x 没用到。因为OpenGL要求这么写
+   * @param y 没用到。因为OpenGL要求这么写
    */
   static void glutKeyUpFunction(unsigned char key, int x, int y);
   static void glutMouseButtonFunction(int button, int state, int x, int y);

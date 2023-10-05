@@ -179,15 +179,15 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
   UIEngine *uiEngine = UIEngine::Instance();
 
   switch (key) {
-  case 'n':   //! 单帧跟踪模式，每次按n处理下一帧
+  case 'n': //! 单帧跟踪模式，每次按n处理下一帧
     printf("processing one frame ...\n");
     uiEngine->mainLoopAction = UIEngine::PROCESS_FRAME;
     break;
-  case 'b':   //! 视频流跟踪模式，数据从相机来
+  case 'b': //! 视频流跟踪模式，数据从相机来
     printf("processing input source ...\n");
     uiEngine->mainLoopAction = UIEngine::PROCESS_VIDEO;
     break;
-  case 's':   //! 切换 是否要将输入图片保存到硬盘上。默认不保存
+  case 's': //! 切换 是否要将输入图片保存到硬盘上。默认不保存
     if (uiEngine->isRecording) {
       printf("stopped recoding disk ...\n");
       uiEngine->isRecording = false;
@@ -197,7 +197,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
       uiEngine->isRecording = true;
     }
     break;
-  case 'v':   //! 切换 是否要将输入彩色图和深度图分别以视频的形式保存到硬盘上。默认不保存
+  case 'v': //! 切换 是否要将输入彩色图和深度图分别以视频的形式保存到硬盘上。默认不保存
     if ((uiEngine->rgbVideoWriter != NULL) || (uiEngine->depthVideoWriter != NULL)) {
       printf("stop recoding video\n");
       delete uiEngine->rgbVideoWriter;
@@ -210,19 +210,19 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
       uiEngine->depthVideoWriter = new FFMPEGWriter();
     }
     break;
-  case 'e':   //! 退出程序 && UI
-  case 27: // esc key
+  case 'e': //! 退出程序 && UI
+  case 27:  // esc key
     printf("exiting ...\n");
     uiEngine->mainLoopAction = UIEngine::EXIT;
     break;
-  case 'f':   //! 切换 自由视角（上帝视角） 和 固定视角（跟随相机）
+  case 'f': //! 切换 自由视角（上帝视角） 和 固定视角（跟随相机）
     uiEngine->currentColourMode = 0;
-    if (uiEngine->freeviewActive) {
+    if (uiEngine->freeviewActive) { // 自由视角 => 固定视角
       uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
       uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH;
 
       uiEngine->freeviewActive = false;
-    } else {
+    } else {                        // 固定视角 => 自由视角
       uiEngine->outImageType[0] = ITMMainEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED;
       uiEngine->outImageType[1] = ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST;
 
@@ -236,8 +236,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
           dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
       if (multiEngine != NULL) {
         int idx = multiEngine->findPrimaryLocalMapIdx();
-        if (idx < 0)
-          idx = 0;
+        if (idx < 0) idx = 0;
         multiEngine->setFreeviewLocalMapIdx(idx);
       }
 
@@ -253,7 +252,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
       uiEngine->currentColourMode = 0;
     uiEngine->needsRefresh = true;
     break;
-  case 't': { //! 切换 是否要三维模型融合（integration）
+  case 't': { //! 切换 是否要融合（integration）三维模型
     uiEngine->integrationActive = !uiEngine->integrationActive;
 
     ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *basicEngine =
@@ -471,13 +470,8 @@ void UIEngine::glutMouseWheelFunction(int button, int dir, int x, int y) {
   uiEngine->needsRefresh = true;
 }
 
-void UIEngine::Initialise(int &argc,
-                          char **argv,
-                          ImageSourceEngine *imageSource,
-                          IMUSourceEngine *imuSource,
-                          ITMMainEngine *mainEngine,
-                          const char *outFolder,
-                          ITMLibSettings::DeviceType deviceType) {
+void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource, IMUSourceEngine *imuSource,
+                          ITMMainEngine *mainEngine, const char *outFolder, ITMLibSettings::DeviceType deviceType) {
   this->freeviewActive = false;
   this->integrationActive = true;
   this->currentColourMode = 0;
@@ -642,7 +636,7 @@ void UIEngine::ProcessFrame() {
   trackingResult = (int) trackerResult;
 
 #ifndef COMPILE_WITHOUT_CUDA
-  ORcudaSafeCall(cudaThreadSynchronize());
+  ORcudaSafeCall(cudaThreadSynchronize());  // TODO: 用cudaDeviceSynchronize
 #endif
   //! 停止记录单帧时间 && 计算单帧处理时间
   sdkStopTimer(&timer_instant);

@@ -27,11 +27,11 @@ public:
    * Process a single frame
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
-   * @param view 要被融合的图像。也是tracking的输入图像
-   * @param trackingState 主要用到其中的？？？
-   * @param scene 三维模型
-   * @param renderState
-   * @param resetVisibleList
+   * @param[in] view 要被融合的图像。也是tracking的输入图像
+   * @param[in] trackingState 只用到其中的 位姿
+   * @param[in, out] scene 三维模型
+   * @param[in, out] renderState
+   * @param[in] resetVisibleList 是否重置可见列表
    */
   void ProcessFrame(const ITMView *view, const ITMTrackingState *trackingState, ITMScene<TVoxel, TIndex> *scene,
                     ITMRenderState *renderState_live, bool resetVisibleList = false);
