@@ -14,7 +14,7 @@ template <typename TIndex> struct ITMRenderStateFactory {
   }
 };
 
-// TODO：这里是模板的特例化吗？
+/** 上面模板类的偏特化，针对hashing索引的三维模型 */
 template <> struct ITMRenderStateFactory<ITMVoxelBlockHash> {
   /** Creates a render state, containing rendering info for the scene. */
   static ITMRenderState *CreateRenderState(const Vector2i &imgSize, const ITMSceneParams *sceneParams,
