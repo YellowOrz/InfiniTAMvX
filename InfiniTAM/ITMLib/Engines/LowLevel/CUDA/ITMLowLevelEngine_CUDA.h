@@ -21,9 +21,9 @@ public:
   void FilterSubsample(ITMUChar4Image *image_out, const ITMUChar4Image *image_in) const;
   /** 将图片缩小一半。通过2x2的均值滤波  */
   void FilterSubsample(ITMFloatImage *image_out, const ITMFloatImage *image_in) const;
-  /** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
+  /** 将有洞（包含无效像素）的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
   void FilterSubsampleWithHoles(ITMFloatImage *image_out, const ITMFloatImage *image_in) const;
-  /** 将有洞的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
+  /** 将有洞（包含无效像素）的图片缩小一半。通过2x2的均值滤波，并检查像素有效性 */
   void FilterSubsampleWithHoles(ITMFloat4Image *image_out, const ITMFloat4Image *image_in) const;
 
   /** 计算x方向的梯度 */

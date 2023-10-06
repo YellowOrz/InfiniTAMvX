@@ -82,7 +82,7 @@ _CPU_AND_GPU_CODE_ inline void filterDepth(DEVICEPTR(float) * imageData_out, con
       dz = (tmpz - z);
       dz *= dz;
       w = exp(-0.5f * ((abs(i) + abs(j)) * MEAN_SIGMA_L * MEAN_SIGMA_L +  // 坐标距离
-                           dz * sigma_z * sigma_z));                         // 深度距离
+                       dz * sigma_z * sigma_z));                          // 深度距离
       w_sum += w;   // 求和权重
       final_depth += w * tmpz;  // 加权求和深度值
     }

@@ -9,7 +9,6 @@ class ITMViewBuilder_CUDA : public ITMViewBuilder {
 public:
   /**
    * @brief 将Kinect的视差图转成深度图
-   *
    * @param[out] depth_out 真正的深度图
    * @param[in] disp_in Kinect拍摄的视差图
    * @param[in] depthIntrinsics depth的内参
@@ -19,7 +18,6 @@ public:
                                const ITMIntrinsics *depthIntrinsics, Vector2f disparityCalibParams);
   /**
    * @brief 将原始读取的深度图转成深度图
-   *
    * @param[out] depth_out 真正的深度图
    * @param[in] depth_in 读入的原始深度图
    * @param[in] depthCalibParams 转换的两个参数。来自相机参数文件的最后一行
@@ -29,7 +27,6 @@ public:
   void DepthFiltering(ITMFloatImage *image_out, const ITMFloatImage *image_in);
   /**
    * @brief 计算深度图的法向量和不确定性（权重），用于衡量深度图噪声
-   *
    * @param[out] normal_out 法向量
    * @param[out] sigmaZ_out 不确定性（权重）
    * @param[in] depth_in
@@ -39,7 +36,6 @@ public:
                                Vector4f intrinsic);
   /**
    * @brief 更新view中的RGB-D数据
-   *
    * @param[out] view tracking的输入数据
    * @param[in] rgbImage
    * @param[in] rawDepthImage
@@ -51,7 +47,6 @@ public:
                   bool modelSensorNoise = false, bool storePreviousImage = true);
   /**
    * @brief 更新view中的RGB-D和IMU数据
-   *
    * @param[out] view tracking的输入数据
    * @param[in] rgbImage
    * @param[in] depthImage
