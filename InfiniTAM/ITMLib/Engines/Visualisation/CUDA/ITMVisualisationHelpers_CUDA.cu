@@ -59,49 +59,53 @@ __global__ void ITMLib::buildCompleteVisibleList_device(const ITMHashEntry *hash
     if (offset != -1) visibleEntryIDs[offset] = targetIdx;
   }
 }
-
-__global__ void ITMLib::projectAndSplitBlocks_device(const ITMHashEntry *hashEntries,
-                                                     const int *visibleEntryIDs,
-                                                     int noVisibleEntries,
-                                                     const Matrix4f pose_M,
-                                                     const Vector4f intrinsics,
-                                                     const Vector2i imgSize,
-                                                     float voxelSize,
-                                                     RenderingBlock *renderingBlocks,
-                                                     uint *noTotalBlocks) {
+/**
+ * @brief 将可见的voxel block投影到当前相机视角 && 分小块记录最大最小深度。用来辅助后续raycast
+ * @param[in] hashEntries hash table
+ * @param[in] visibleEntryIDs 所有可见的entry的id
+ * @param[in] noVisibleEntries 所有可见的entry的总数
+ * @param[in] pose_M 当前相机位姿。world to local
+ * @param[in] intrinsics 相机内参
+ * @param[in] imgSize 成像的图片大小
+ * @param[in] voxelSize 真实的voxel size。单位米
+ * @param[out] renderingBlocks voxel block投影到成像平面后的分块
+ * @param[out] noTotalBlocks 上面分块的总数。
+ * @note 这里找到的最大最小深度就是后面raycast的搜索范围。分块可以更加精细地确定深度范围，从而减少后面raycast的搜索
+ */
+__global__ void ITMLib::projectAndSplitBlocks_device(const ITMHashEntry *hashEntries, const int *visibleEntryIDs,
+                                                     int noVisibleEntries, const Matrix4f pose_M,
+                                                     const Vector4f intrinsics, const Vector2i imgSize, float voxelSize,
+                                                     RenderingBlock *renderingBlocks, uint *noTotalBlocks) {
   int in_offset = threadIdx.x + blockDim.x * blockIdx.x;
 
   const ITMHashEntry &blockData(hashEntries[visibleEntryIDs[in_offset]]);
-
-  Vector2i upperLeft, lowerRight;
+  //! 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
+  Vector2i upperLeft, lowerRight;   // 包围盒的左上、右下坐标
   Vector2f zRange;
   bool validProjection = false;
-  if (in_offset < noVisibleEntries)
-    if (blockData.ptr >= 0)
-      validProjection =
-          ProjectSingleBlock(blockData.pos, pose_M, intrinsics, imgSize, voxelSize, upperLeft, lowerRight, zRange);
-
+  if (in_offset < noVisibleEntries) // TODO:in_offset>noVisibleEntries应该return
+    if (blockData.ptr >= 0)         // >=0表示当前block有效 
+      validProjection = ProjectSingleBlock(blockData.pos, pose_M, intrinsics, imgSize, voxelSize, upperLeft, 
+                                           lowerRight, zRange);
+  //! 将包围盒分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)=(16,16)。ceilf是向上取整。为啥要分块渲染？？？
   Vector2i requiredRenderingBlocks(ceilf((float)(lowerRight.x - upperLeft.x + 1) / renderingBlockSizeX),
   ceilf((float) (lowerRight.y - upperLeft.y + 1) / renderingBlockSizeY));
 
-  size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;
-  if (!validProjection) requiredNumBlocks = 0;
-
+  size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 包围盒中小块数量
+      // TODO: 按照renderingBlockSizeX和renderingBlockSizeY都为16，不可能有requiredNumBlocks>1
+  if (!validProjection) requiredNumBlocks = 0;    // TODO：直接return 就好？还是为了一定要有下面的computePrefixSum_device？
+  // 通过前缀和 来找到每个小块 在最终数组里的位置
   int out_offset = computePrefixSum_device<uint>(requiredNumBlocks, noTotalBlocks, blockDim.x, threadIdx.x);
   if (!validProjection) return;
   if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS)) return;
 
-  CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);
+  CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);  // 创建小块
 }
 
-__global__ void ITMLib::checkProjectAndSplitBlocks_device(const ITMHashEntry *hashEntries,
-                                                          int noHashEntries,
-                                                          const Matrix4f pose_M,
-                                                          const Vector4f intrinsics,
-                                                          const Vector2i imgSize,
-                                                          float voxelSize,
-                                                          RenderingBlock *renderingBlocks,
-                                                          uint *noTotalBlocks) {
+__global__ void ITMLib::checkProjectAndSplitBlocks_device(const ITMHashEntry *hashEntries, int noHashEntries,
+                                                          const Matrix4f pose_M, const Vector4f intrinsics,
+                                                          const Vector2i imgSize, float voxelSize,
+                                                          RenderingBlock *renderingBlocks, uint *noTotalBlocks) {
   int targetIdx = threadIdx.x + blockDim.x * blockIdx.x;
   if (targetIdx >= noHashEntries) return;
 

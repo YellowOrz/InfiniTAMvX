@@ -9,7 +9,7 @@ static const CONSTPTR(int) MAX_RENDERING_BLOCKS = 65536 * 4;
 static const CONSTPTR(int) minmaximg_subsample = 8;
 
 #if !(defined __METALC__)
-
+/** raycasting中用来确定搜索深度范围的小块*/
 struct RenderingBlock {
   Vector2s upperLeft;
   Vector2s lowerRight;
@@ -72,7 +72,7 @@ ProjectSingleBlock(const THREADPTR(Vector3s) & blockPos, const THREADPTR(Matrix4
     pt2d.x = (intrinsics.x * pt3d.x / pt3d.z + intrinsics.z) / minmaximg_subsample;
     pt2d.y = (intrinsics.y * pt3d.y / pt3d.z + intrinsics.w) / minmaximg_subsample;
 
-    // remember bounding box, zmin and zmax
+    // 确定最大的包围盒。remember bounding box, zmin and zmax
     if (upperLeft.x > floor(pt2d.x))
       upperLeft.x = (int)floor(pt2d.x);
     if (lowerRight.x < ceil(pt2d.x))
@@ -87,7 +87,7 @@ ProjectSingleBlock(const THREADPTR(Vector3s) & blockPos, const THREADPTR(Matrix4
       zRange.y = pt3d.z;
   }
 
-  // do some sanity checks and respect image bounds
+  // 防止越界。do some sanity checks and respect image bounds
   if (upperLeft.x < 0)
     upperLeft.x = 0;
   if (upperLeft.y < 0)

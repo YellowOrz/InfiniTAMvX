@@ -443,7 +443,8 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
       renderState_freeview =
           ITMRenderStateFactory<TIndex>::CreateRenderState(out->noDims, scene->sceneParams, settings->GetMemoryType());
     }
-
+    // NOTE: 因为现在是自由视角，所以需要在当前视角下重新raycast，不能用跟踪里的raycast结果
+    // raycast三部曲：找可见block、确定ray的搜索范围、渲染图片
     visualisationEngine->FindVisibleBlocks(scene, pose, intrinsics, renderState_freeview);
     visualisationEngine->CreateExpectedDepths(scene, pose, intrinsics, renderState_freeview);
     visualisationEngine->RenderImage(scene, pose, intrinsics, renderState_freeview, renderState_freeview->raycastImage,
