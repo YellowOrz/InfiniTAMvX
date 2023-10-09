@@ -160,24 +160,24 @@ void ITMVisualisationEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepth
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
     ITMRenderState *renderState) const {
   float voxelSize = scene->sceneParams->voxelSize;
-
+  //! 获取彩色图大小 && raycast得到的图片
   Vector2i imgSize = renderState->renderingRangeImage->noDims;
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CUDA);
-
+  //! 给每个像素赋值初始的最小和最大深度
   Vector2f init;
   init.x = FAR_AWAY;
   init.y = VERY_CLOSE;
   memsetKernel<Vector2f>(minmaxData, init, renderState->renderingRangeImage->dataSize);
-
+  
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;
 
   //go through list of visible 8x8x8 blocks
-  {
+  { //! 遍历每个可见的entry，找到需要render的block
     const ITMHashEntry *hash_entries = scene->index.GetEntries();
-    const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
-    int noVisibleEntries = renderState_vh->noVisibleEntries;
-    if (noVisibleEntries == 0) return;
-
+    int noVisibleEntries = renderState_vh->noVisibleEntries;            // 可见的entry的总数
+    if (noVisibleEntries == 0) return;                                  // 没有可见的，就不需要
+    const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();  // 可见的entry的id
+      // NOTE: visibleEntryIDs，UI界面中是在FindVisibleBlocks更新的，用于跟踪的raycast中则是在融合中更新的
     dim3 blockSize(256);
     dim3 gridSize((int) ceil((float) noVisibleEntries / (float) blockSize.x));
     ORcudaSafeCall(cudaMemset(noTotalBlocks_device, 0, sizeof(uint)));
@@ -186,7 +186,7 @@ void ITMVisualisationEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepth
         noTotalBlocks_device);
     ORcudaKernelCheck;
   }
-
+  // 单帧中小块的数量有限制
   uint noTotalBlocks;
   ORcudaSafeCall(cudaMemcpy(&noTotalBlocks, noTotalBlocks_device, sizeof(uint), cudaMemcpyDeviceToHost));
   if (noTotalBlocks == 0) return;

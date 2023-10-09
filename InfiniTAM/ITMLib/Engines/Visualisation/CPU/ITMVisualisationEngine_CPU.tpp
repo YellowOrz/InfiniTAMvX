@@ -121,14 +121,15 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
   //! 获取彩色图大小 && raycast得到的图片
   Vector2i imgSize = renderState->renderingRangeImage->noDims;
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
-  //! 给每个像素赋值最小和最大深度
+  //! 给每个像素赋值初始的最小和最大深度
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
     Vector2f &pixel = minmaxData[locId];
     pixel.x = FAR_AWAY;   // 最小值
     pixel.y = VERY_CLOSE; // 最大值
   }
 
-  //! 获取可见的entry的id   是在哪儿更新的呢？？？
+  //! 获取可见的entry的id   
+  // NOTE: UI界面中是在FindVisibleBlocks更新的，raycasting中是在融合中更新的
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *)renderState; // TODO:为啥要转换？
   const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
   int noVisibleEntries = renderState_vh->noVisibleEntries;
@@ -144,23 +145,21 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     Vector2i upperLeft, lowerRight; // 包围盒的左上、右下坐标
     Vector2f zRange;
     bool validProjection = false;
-    if (blockData.ptr >= 0) {
+    if (blockData.ptr >= 0)         // >=0表示当前block有效
       validProjection = ProjectSingleBlock(blockData.pos, pose->GetM(), intrinsics->projectionParamsSimple.all, imgSize,
                                            voxelSize, upperLeft, lowerRight, zRange);
-    }
-    if (!validProjection)
-      continue;
-    // 分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)=(16,16)。ceilf是向上取整。为啥要分块渲染？？？
+    if (!validProjection) continue;
+    // 将包围盒分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)=(16,16)。ceilf是向上取整。为啥要分块渲染？？？
     Vector2i requiredRenderingBlocks((int)ceilf((float)(lowerRight.x - upperLeft.x + 1) / (float)renderingBlockSizeX),
                                      (int)ceilf((float)(lowerRight.y - upperLeft.y + 1) / (float)renderingBlockSizeY));
-    int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 分块数量
-
+    int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 包围盒中小块数量
+        // TODO: 按照renderingBlockSizeX和renderingBlockSizeY都为16，不可能有requiredNumBlocks>1
     if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS)
-      continue; // raycast单帧中小块的数量有限制  // TODO:这里应该换成break
+      continue; // 单帧中小块的数量有限制  // TODO:这里应该换成break,∵一次超过限制了，之后肯定都超过限制
     int offset = numRenderingBlocks;
     numRenderingBlocks += requiredNumBlocks;
 
-    CreateRenderingBlocks(&(renderingBlocks[0]), offset, upperLeft, lowerRight, zRange);
+    CreateRenderingBlocks(&(renderingBlocks[0]), offset, upperLeft, lowerRight, zRange);  // 创建小块
   }
 
   // go through rendering blocks
@@ -172,10 +171,8 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) {
       for (int x = b.upperLeft.x; x <= b.lowerRight.x; ++x) {
         Vector2f &pixel(minmaxData[x + y * imgSize.x]);
-        if (pixel.x > b.zRange.x)
-          pixel.x = b.zRange.x;
-        if (pixel.y < b.zRange.y)
-          pixel.y = b.zRange.y;
+        if (pixel.x > b.zRange.x)   pixel.x = b.zRange.x;
+        if (pixel.y < b.zRange.y)   pixel.y = b.zRange.y;
       }
     }
   }
@@ -200,7 +197,7 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
   float mu = scene->sceneParams->mu;                                              // SDF的截断值对应的距离
   float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;                  // voxel size的倒数
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点（voxel坐标）
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // voxel block array
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // device上的voxel block array
   const typename ITMVoxelBlockHash::IndexData *voxelIndex = scene->index.getIndexData();  // hash table
   uchar *entriesVisibleType = NULL;
   if (updateVisibleList && (dynamic_cast<const ITMRenderState_VH *>(renderState) != NULL)) {  
@@ -236,7 +233,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
   Matrix4f invM = pose->GetInvM();
 
   Vector4f *pointsRay;
-  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)
+  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)  // TODO：啥时候会 取旧的raycast结果？？？
     pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
   else {
     if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ)
