@@ -304,7 +304,7 @@ class Vector3 : public Vector3_<T> {
   _CPU_AND_GPU_CODE_ inline Vector3<int> toIntFloor() const {
     return Vector3<int>((int) floor(this->x), (int) floor(this->y), (int) floor(this->z));
   }
-
+  /** 将小数的vector中整数位和小数位（residual）分开 */
   _CPU_AND_GPU_CODE_ inline Vector3<int> toIntFloor(Vector3<float> &residual) const {
     Vector3<float> intFloor(floor(this->x), floor(this->y), floor(this->z));
     residual = *this - intFloor;

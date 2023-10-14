@@ -165,7 +165,7 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
 }
 
 /**
- * 读取某个voxel坐标的TSDF值（没有插值） && 更新cache
+ * 读取某个voxel坐标（取整）的TSDF值（没有插值） && 更新cache
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
@@ -187,7 +187,8 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
 }
 
 /**
- * 以三线性插值的方式 获取某个voxel坐标的TSDF值 && 更新cache
+ * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值 && 更新cache
+ * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
@@ -358,7 +359,18 @@ readFromSDF_float_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPT
   vmIndex = true;
   return TVoxel::valueToFloat((1.0f - coeff.z) * res1 + coeff.z * res2);
 }
-
+/**
+ * 通过领域插值的方式 获取某个voxel坐标（带小数）的RGB && 更新cache
+ * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
+ * @param[in] voxelData voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point 要读取TSDF值的voxel坐标
+ * @param[in] cache 之前找到的block的三维坐标和hash id
+ * @return 三维坐标的RGB
+ */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline Vector4f
 readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPTR(TIndex) * voxelIndex,
@@ -366,10 +378,10 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
   TVoxel resn;
   Vector3f ret(0.0f);
   Vector4f ret4;
-  int vmIndex;
+  int vmIndex;  // voxel坐标所属block在hash table中的index，如果找不到则为0。理论上应该return，但是这里没用到
   Vector3f coeff;
   Vector3i pos;
-  TO_INT_FLOOR3(pos, coeff, point);
+  TO_INT_FLOOR3(pos, coeff, point); // 将小数的整数位和小数位分开
 
   resn = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache);
   ret += (1.0f - coeff.x) * (1.0f - coeff.y) * (1.0f - coeff.z) * resn.clr.toFloat();
@@ -402,7 +414,19 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
 
   return ret4 / 255.0f;
 }
-
+/**
+ * 通过领域插值的方式 获取某个voxel坐标（带小数）的 RGB和观测次数 && 更新cache
+ * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
+ * @param[in] voxelData voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point 要读取TSDF值的voxel坐标
+ * @param[in] cache 之前找到的block的三维坐标和hash id
+ * @param[out] maxW 观测次数。取相邻voxel中最大的观测次数
+ * @return 三维坐标的RGB
+ */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline Vector4f
 readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPTR(TIndex) * voxelIndex,
@@ -454,7 +478,7 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
 
   return ret4 / 255.0f;
 }
-
+// TODO 下次从这儿开始
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVoxel) * voxelData,
                                                               const CONSTPTR(TIndex) * voxelIndex,

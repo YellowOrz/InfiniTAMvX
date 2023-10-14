@@ -179,7 +179,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
 }
 
 /**
- * @brief raycasting的核心部分
+ * @brief raycasting的核心部分，得到点云
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[in] scene 三维场景信息
@@ -187,7 +187,8 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
  * @param[in] invM 当前视角的相机 到 世界坐标系 的变换矩阵？？？
  * @param[in] projParams 相机内参，即fx、fy、cx(px)、cy(py)
  * @param[in, out] renderState 里面的renderingRangeImage给定ray的范围，raycastResult是结果点云（voxel坐标下）
- * @param[in] updateVisibleList 在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
+ * @param[in] updateVisibleList 用于跟踪的话，=true来更新可见列表；用于UI界面的自由视角，=false不要更新，以免影响跟踪。
+ *                              在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
  */
 template <class TVoxel, class TIndex>
 static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i &imgSize, const Matrix4f &invM,
@@ -224,13 +225,26 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
   }
 }
 
+/**
+ * @brief 
+ * @tparam TVoxel 
+ * @tparam TIndex 
+ * @param[in] scene 
+ * @param[in] pose 
+ * @param[in] intrinsics 
+ * @param[in] renderState 
+ * @param[in] outputImage 
+ * @param[in] type 
+ * @param[in] raycastType 
+ */
 template <class TVoxel, class TIndex>
 static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
                                const ITMIntrinsics *intrinsics, const ITMRenderState *renderState,
                                ITMUChar4Image *outputImage, IITMVisualisationEngine::RenderImageType type,
                                IITMVisualisationEngine::RenderRaycastSelection raycastType) {
-  Vector2i imgSize = outputImage->noDims;
-  Matrix4f invM = pose->GetInvM();
+  //! 利用raycast获取点云
+  Vector2i imgSize = outputImage->noDims;   // 渲染图片的分辨率
+  Matrix4f invM = pose->GetInvM();          // 相机位姿的逆
 
   Vector4f *pointsRay;
   if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)  // TODO：啥时候会 取旧的raycast结果？？？
@@ -239,23 +253,23 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
     if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ)
       pointsRay = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);
     else {
-      // this one is generally done for freeview visualisation, so
-      // no, do not update the list of visible blocks
+      // this one is generally done for freeview visualisation, so no, do not update the list of visible blocks
+      // 用于UI界面的自由视角，不要更新可见列表，以免影响跟踪。
       GenericRaycast(scene, imgSize, invM, intrinsics->projectionParamsSimple.all, renderState, false);
       pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
     }
   }
-
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));
+  //! 根据渲染类型，从点云得到图片
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机位置。取位姿的最后一列就行
   Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
   const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
 
   if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))
-    type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
+    type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;  // 想要color但是没有，强制设为grey
 
   switch (type) {
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:            //! 彩色图
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -264,7 +278,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       processPixelColour<TVoxel, TIndex>(outRendering[locId], ptRay.toVector3(), ptRay.w > 0, voxelData, voxelIndex);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 法向量图（伪彩色）
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -274,7 +288,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
                                          lightSource);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度图
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -284,7 +298,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
                                              lightSource);
     }
     break;
-  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS:
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS: //! 
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -301,7 +315,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       }
     }
     break;
-  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:              //! 
   default:
 #ifdef WITH_OPENMP
 #pragma omp parallel for
@@ -357,8 +371,7 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   Matrix4f invM = trackingState->pose_d->GetInvM();      // 当前视角的相机 到 世界坐标系 的变换矩阵？？？
 
   //! 计算raycast得到的点云（voxel坐标） && 记录位姿
-  // this one is generally done for the ICP tracker, so yes, update
-  // the list of visible blocks if possible
+  // this one is generally done for the ICP tracker, so yes, update the list of visible blocks if possible
   GenericRaycast(scene, imgSize, invM, view->calib.intrinsics_d.projectionParamsSimple.all, renderState, true);
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
 
