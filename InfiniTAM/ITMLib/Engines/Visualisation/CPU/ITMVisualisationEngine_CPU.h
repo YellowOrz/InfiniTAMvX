@@ -75,11 +75,10 @@ public:
   void CreateExpectedDepths(const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose,
                             const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const;
   /**
-   * @brief 渲染图片  // TODO: 下次从这儿开始
-   * 
-   * @param scene 
-   * @param pose 
-   * @param intrinsics 
+   * @brief 渲染当前相机视角下的图片  // TODO: 下次从这儿开始
+   * @param[in] scene 三维场景信息。主要用到其中的voxel size和hash table
+   * @param[in] pose 当前相机位姿。world to local
+   * @param[in] intrinsics 相机内参，用于投影图片
    * @param renderState 
    * @param outputImage 
    * @param type 

@@ -410,6 +410,15 @@ _CPU_AND_GPU_CODE_ inline void drawPixelNormal(DEVICEPTR(Vector4u) & dest, const
   dest.b = (uchar)((0.3f + (-normal_obj.b + 1.0f) * 0.35f) * 255.0f);
 }
 
+/**
+ * 将单个三维点 投影成 彩色像素
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] dest           彩色像素
+ * @param[in] point           三维点 
+ * @param[in] voxelBlockData
+ * @param[in] indexData
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void drawPixelColour(DEVICEPTR(Vector4u) & dest, const CONSTPTR(Vector3f) & point,
                                                const CONSTPTR(TVoxel) * voxelBlockData,
@@ -593,7 +602,16 @@ _CPU_AND_GPU_CODE_ inline void processPixelGrey(DEVICEPTR(Vector4u) & outRenderi
   else
     outRendering = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 渲染彩色图片的单个像素
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param outRendering
+ * @param point
+ * @param foundPoint
+ * @param voxelData
+ * @param voxelIndex
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void processPixelColour(DEVICEPTR(Vector4u) & outRendering, const CONSTPTR(Vector3f) & point,
                                                   bool foundPoint, const CONSTPTR(TVoxel) * voxelData,

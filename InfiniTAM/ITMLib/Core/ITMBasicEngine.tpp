@@ -395,6 +395,7 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
       raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
 
     // what sort of image is it?
+    //! 设置渲染图片类型
     IITMVisualisationEngine::RenderImageType imageType;
     switch (getImageType) {
     case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:
