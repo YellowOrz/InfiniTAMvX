@@ -19,7 +19,7 @@ _CPU_AND_GPU_CODE_ inline int hashIndex(const THREADPTR(T) &blockPos) {
 /**
  * 从三维voxel坐标 转 三维block坐标
  * @param[in] point 三维voxel坐标(int)
- * @param[in] blockPos 三维block坐标(int)
+ * @param[out] blockPos 三维block坐标(int)
  * @return voxel在block内部坐标的一维坐标（或者叫下标）
  */
 _CPU_AND_GPU_CODE_ inline int pointToVoxelBlockPos(const THREADPTR(Vector3i) &point, THREADPTR(Vector3i) &blockPos) {
@@ -34,18 +34,27 @@ _CPU_AND_GPU_CODE_ inline int pointToVoxelBlockPos(const THREADPTR(Vector3i) &po
   return point.x + (point.y - blockPos.x) * SDF_BLOCK_SIZE + (point.z - blockPos.y) * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE -
          blockPos.z * SDF_BLOCK_SIZE3;
 }
-
+/**
+ * 寻找某个voxel 在 voxel block array中的位置 && 更新cache
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in, out] cache  上次找到的block坐标。
+ * @return voxel 在 voxel block array中的位置
+ * @note 有cache是因为 每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下
+ */
 _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash::IndexData) * voxelIndex,
                                         const THREADPTR(Vector3i) & point, THREADPTR(int) & vmIndex,
                                         THREADPTR(ITMLib::ITMVoxelBlockHash::IndexCache) & cache) {
+  //! 从三维voxel坐标 转 三维block坐标
   Vector3i blockPos;
   short linearIdx = pointToVoxelBlockPos(point, blockPos);
-
+  //! 先看看是不是刚刚找过的，是的话血赚
   if IS_EQUAL3(blockPos, cache.blockPos) {
     vmIndex = true;
     return cache.blockPtr + linearIdx;
   }
-
+  //! 遍历哈希表进行检索
   int hashIdx = hashIndex(blockPos);
 
   while (true) {
@@ -65,13 +74,25 @@ _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash
   vmIndex = false;
   return -1;
 }
-
+/**
+ * 寻找某个voxel 在 voxel block array中的位置
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @return voxel 在 voxel block array中的位置
+ */
 _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash::IndexData) * voxelIndex,
                                         Vector3i point, THREADPTR(int) & vmIndex) {
   ITMLib::ITMVoxelBlockHash::IndexCache cache;
   return findVoxel(voxelIndex, point, vmIndex, cache);
 }
-
+/**
+ * 寻找某个voxel 在 voxel block array中的位置
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] findVoxel  能否找到所需voxel
+ * @return voxel 在 voxel block array中的位置
+ */
 _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash::IndexData) * voxelIndex,
                                         Vector3i point, THREADPTR(bool) & foundPoint) {
   int vmIndex;
@@ -82,15 +103,15 @@ _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash
 }
 
 /**
- * voxel hashing中根据 voxel坐标 找到对应数据
+ * 根据 voxel坐标 找到VBA中对应voxel && 更新cache
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param[in] voxelData voxel block array
- * @param[in] voxelIndex hash table
- * @param[in] point 要读取TSDF值的voxel坐标
- * @param[out] vmIndex voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
  * @param[in, out] cache  上次找到的block坐标。
- * @return 找到的voxel数据。如果找不到则为空
- * @note 有cache是因为 每次找block都要遍历bucket（∵哈希冲突），而raycast快找到等值面的时候会反复找同一个block，索性记录一下
+ * @return 找到的voxel数据。如果找不到则为空的voxel
+ * @note 有cache是因为 每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下
  */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
@@ -125,7 +146,15 @@ _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
   vmIndex = false;
   return TVoxel();
 }
-
+/**
+ * 根据 voxel坐标 找到VBA中对应voxel
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @return 找到的voxel数据。如果找不到则为空的voxel
+ */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
                                            const CONSTPTR(ITMLib::ITMVoxelBlockHash::IndexData) * voxelIndex,
@@ -133,7 +162,15 @@ _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
   ITMLib::ITMVoxelBlockHash::IndexCache cache;
   return readVoxel(voxelData, voxelIndex, point, vmIndex, cache);
 }
-
+/**
+ * 根据 voxel坐标 找到VBA中对应voxel
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要寻找的voxel坐标。注意是整数
+ * @param[out] foundPoint 能否找到所需voxel
+ * @return 找到的voxel数据。如果找不到则为空的voxel
+ */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
                                            const CONSTPTR(ITMLib::ITMVoxelBlockHash::IndexData) * voxelIndex,
@@ -146,14 +183,14 @@ _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
 }
 
 /**
- *
+ * 读取某个voxel坐标（取整）的TSDF值（没有插值）
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param voxelData
- * @param voxelIndex
- * @param point
- * @param vmIndex
- * @return
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @return                三维坐标的TSDF值
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(TVoxel) * voxelData,
@@ -169,13 +206,13 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
- * @param[in] voxelData voxel block array
+ * @param[in] voxelData   voxel block array
  * @param[in] voxelIndex  hash table
- * @param[in] point 要读取TSDF值的voxel坐标
- * @param[out] vmIndex voxel坐标所属block在hash table中的index，如果找不到则为0
- * @param[in, out] cache 之前找到的block的三维坐标和hash id
- * @return 三维坐标的TSDF值
- * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而raycast快找到等值面的时候会反复找同一个block，索性记录一下
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in, out] cache  之前找到的block的三维坐标和hash id
+ * @return                三维坐标的TSDF值
+ * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下
  */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(TVoxel) * voxelData,
@@ -192,13 +229,13 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
- * @param[in] voxelData voxel block array
+ * @param[in] voxelData   voxel block array
  * @param[in] voxelIndex  hash table
- * @param[in] point 要读取TSDF值的voxel坐标
- * @param[out] vmIndex voxel坐标所属block在hash table中的index，如果找不到则为0
- * @param[in] cache 之前找到的block的三维坐标和hash id
- * @return 三维坐标的TSDF值
- * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而raycast快找到等值面的时候会反复找同一个block，索性记录一下。
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in] cache       之前找到的block的三维坐标和hash id
+ * @return                三维坐标的TSDF值
+ * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下。
  *       然后因为这个是在找到等值面附近才调用，所以readVoxel里面不会更新cache
  */
 template <class TVoxel, class TIndex, class TCache>
@@ -231,17 +268,19 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_interpolated(const CONSTPTR(TV
 }
 
 /**
- * 
+ * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值和置信度 && 更新cache
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @tparam TIndex
- * @tparam TCache
- * @param confidence
- * @param voxelData
- * @param voxelIndex
- * @param point
- * @param vmIndex
- * @param cache
- * @return
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
+ * @param[out] confidence voxel坐标的置信度（即观测次数）。同样通过插值得到
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in] cache       之前找到的block的三维坐标和hash id
+ * @return                voxel坐标的TSDF值
+ * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下。
+ *       然后因为这个是在找到等值面附近才调用，所以readVoxel里面不会更新cache
  */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline float
@@ -298,7 +337,22 @@ readWithConfidenceFromSDF_float_interpolated(THREADPTR(float) & confidence, cons
 
   return TVoxel::valueToFloat((1.0f - coeff.z) * res1 + coeff.z * res2);
 }
-
+/**
+ * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值和观测次数 && 更新cache
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in] cache       之前找到的block的三维坐标和hash id
+ * @param[out] maxW       voxel坐标的观测次数。取相邻voxel中最大的观测次数
+ * @return                voxel坐标的TSDF值
+ * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下。
+ *       然后因为这个是在找到等值面附近才调用，所以readVoxel里面不会更新cache
+ * @see 跟readWithConfidenceFromSDF_float_interpolated很像，只不过它的置信度（=观测次数）是插值来的，本函数是取max
+ */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline float
 readFromSDF_float_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPTR(TIndex) * voxelIndex, Vector3f point,
@@ -479,6 +533,16 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
   return ret4 / 255.0f;
 }
 // TODO 下次从这儿开始
+/**
+ * 直接从TSDF中计算 单个voxel坐标（小数）的法向量
+ * @details https://zhuanlan.zhihu.com/p/357490146
+ * @tparam TVoxel
+ * @tparam TIndex
+ * @param voxelData
+ * @param voxelIndex
+ * @param point
+ * @return
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVoxel) * voxelData,
                                                               const CONSTPTR(TIndex) * voxelIndex,
@@ -492,22 +556,24 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
   Vector3f ncoeff(1.0f - coeff.x, 1.0f - coeff.y, 1.0f - coeff.z);
 
   // all 8 values are going to be reused several times
+  //! 取出领域8个voxel的TSDF值
   Vector4f front, back;
-  front.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex).sdf;
+  front.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex).sdf;   // xOy平面上
   front.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 0, 0), vmIndex).sdf;
   front.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 1, 0), vmIndex).sdf;
   front.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 1, 0), vmIndex).sdf;
-  back.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 1), vmIndex).sdf;
+  back.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 1), vmIndex).sdf;    // xOy平面向上平移1
   back.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 0, 1), vmIndex).sdf;
   back.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 1, 1), vmIndex).sdf;
   back.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 1, 1), vmIndex).sdf;
 
   Vector4f tmp;
   float p1, p2, v1;
-  // gradient x
+  
+  //! 平行yOz面的两个平面上的4个点 沿x轴正负方向 平移1个voxel，计算X方向的梯度 // gradient x
   p1 = front.x * ncoeff.y * ncoeff.z + front.z * coeff.y * ncoeff.z + back.x * ncoeff.y * coeff.z +
        back.z * coeff.y * coeff.z;
-  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 0), vmIndex).sdf;
+  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 0), vmIndex).sdf;  // 向x轴负方向 平移
   tmp.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 1, 0), vmIndex).sdf;
   tmp.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 1), vmIndex).sdf;
   tmp.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 1, 1), vmIndex).sdf;
@@ -517,7 +583,7 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
 
   p1 = front.y * ncoeff.y * ncoeff.z + front.w * coeff.y * ncoeff.z + back.y * ncoeff.y * coeff.z +
        back.w * coeff.y * coeff.z;
-  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 0), vmIndex).sdf;
+  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 0), vmIndex).sdf;   // 向x轴正方向 平移
   tmp.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 1, 0), vmIndex).sdf;
   tmp.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 1), vmIndex).sdf;
   tmp.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 1, 1), vmIndex).sdf;
@@ -526,7 +592,7 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
 
   ret.x = TVoxel::valueToFloat(p1 * ncoeff.x + p2 * coeff.x - v1);
 
-  // gradient y
+  //! 平行xOz面的两个平面上的4个点 沿y轴正负方向 平移1个voxel，计算X方向的梯度 // gradient y
   p1 = front.x * ncoeff.x * ncoeff.z + front.y * coeff.x * ncoeff.z + back.x * ncoeff.x * coeff.z +
        back.y * coeff.x * coeff.z;
   tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, -1, 0), vmIndex).sdf;
