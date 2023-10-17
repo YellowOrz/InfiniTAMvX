@@ -242,11 +242,11 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
                                const ITMIntrinsics *intrinsics, const ITMRenderState *renderState,
                                ITMUChar4Image *outputImage, IITMVisualisationEngine::RenderImageType type,
                                IITMVisualisationEngine::RenderRaycastSelection raycastType) {
-  //! 利用raycast获取点云
+  //! 获取raycast的渲染结果
   Vector2i imgSize = outputImage->noDims;   // 渲染图片的分辨率
   Matrix4f invM = pose->GetInvM();          // 相机位姿的逆
 
-  Vector4f *pointsRay;
+  Vector4f *pointsRay;  // raycast的结果
   if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)  // TODO：啥时候会 取旧的raycast结果？？？
     pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
   else {
@@ -260,7 +260,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
     }
   }
   //! 根据渲染类型，从点云得到图片
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机位置。取位姿的最后一列就行
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列就行
   Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
   const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
@@ -292,7 +292,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {     、、 TODO: 下次从这儿开始
       Vector4f ptRay = pointsRay[locId];
       processPixelConfidence<TVoxel, TIndex>(outRendering[locId], ptRay, ptRay.w > 0, voxelData, voxelIndex,
                                              lightSource);
