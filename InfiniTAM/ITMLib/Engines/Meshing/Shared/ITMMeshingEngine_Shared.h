@@ -289,12 +289,12 @@ static const _CPU_AND_GPU_CONSTANT_ int triangleTable[256][16] = {
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param[out] p 8个顶点
  * @param[out] sdf 8个顶点对应的sdf值
- * @param[out] blockLocation
- * @param[out] localVBA
- * @param[out] hashTable
+ * @param[in] blockLocation 当前cube中左下角的voxel坐标（整数）
+ * @param[in] localVBA      device端的voxel block array
+ * @param[in] hashTable     hash table
  * @return 是否成功找到8个顶点。但凡有一个顶点找不到（对应的voxel没有分配内存）or voxel的sdf为截断值，就为false
  */
-template <class TVoxel>   // TODO: 下次从这儿开始
+template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline bool findPointNeighbors(THREADPTR(Vector3f) * p, THREADPTR(float) * sdf,
                                                   Vector3i blockLocation, const CONSTPTR(TVoxel) * localVBA,
                                                   const CONSTPTR(ITMHashEntry) * hashTable) {

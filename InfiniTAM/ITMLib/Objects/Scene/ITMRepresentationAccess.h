@@ -190,7 +190,7 @@ _CPU_AND_GPU_CODE_ inline TVoxel readVoxel(const CONSTPTR(TVoxel) * voxelData,
  * @param[in] voxelIndex  hash table
  * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
  * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
- * @return                三维坐标的TSDF值
+ * @return                voxel坐标的TSDF值
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(TVoxel) * voxelData,
@@ -211,7 +211,7 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
  * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
  * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
  * @param[in, out] cache  之前找到的block的三维坐标和hash id
- * @return                三维坐标的TSDF值
+ * @return                voxel坐标的TSDF值
  * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下
  */
 template <class TVoxel, class TIndex, class TCache>
@@ -224,7 +224,7 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
 }
 
 /**
- * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值 && 更新cache
+ * 通过邻域插值的方式 获取某个voxel坐标（带小数）的TSDF值 && 更新cache
  * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
@@ -234,7 +234,7 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const CONSTPTR(
  * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
  * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
  * @param[in] cache       之前找到的block的三维坐标和hash id
- * @return                三维坐标的TSDF值
+ * @return                voxel坐标的TSDF值
  * @note 有cache是因为每次找block都要遍历bucket（∵哈希冲突），而快找到所需voxel时会反复找同一个block，索性记录一下。
  *       然后因为这个是在找到等值面附近才调用，所以readVoxel里面不会更新cache
  */
@@ -246,7 +246,8 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_interpolated(const CONSTPTR(TV
   Vector3f coeff;
   Vector3i pos;
   TO_INT_FLOOR3(pos, coeff, point);
-
+  //! 三线性插值
+  // NOTE: 推荐参考资料https://zhuanlan.zhihu.com/p/77496615，这里是用双线性插值拼凑出来的，没有参考资料里面的优雅！
   v1 = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache).sdf;
   v2 = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 0, 0), vmIndex, cache).sdf;
   res1 = (1.0f - coeff.x) * v1 + coeff.x * v2;
@@ -268,7 +269,7 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_interpolated(const CONSTPTR(TV
 }
 
 /**
- * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值和置信度 && 更新cache
+ * 通过邻域插值的方式 获取某个voxel坐标（带小数）的TSDF值和置信度 && 更新cache
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
@@ -294,7 +295,8 @@ readWithConfidenceFromSDF_float_interpolated(THREADPTR(float) & confidence, cons
   Vector3f coeff;
   Vector3i pos;
   TO_INT_FLOOR3(pos, coeff, point);
-
+  //! 三线性插值
+  // NOTE: 推荐参考资料https://zhuanlan.zhihu.com/p/77496615，这里是用双线性插值拼凑出来的，没有参考资料里面的优雅！
   voxel = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache);
   v1 = voxel.sdf;
   v1_c = voxel.w_depth;
@@ -338,7 +340,7 @@ readWithConfidenceFromSDF_float_interpolated(THREADPTR(float) & confidence, cons
   return TVoxel::valueToFloat((1.0f - coeff.z) * res1 + coeff.z * res2);
 }
 /**
- * 通过领域插值的方式 获取某个voxel坐标（带小数）的TSDF值和观测次数 && 更新cache
+ * 通过邻域插值的方式 获取某个voxel坐标（带小数）的TSDF值和观测次数 && 更新cache
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
@@ -361,7 +363,7 @@ readFromSDF_float_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPT
   Vector3f coeff;
   Vector3i pos;
   TO_INT_FLOOR3(pos, coeff, point);
-
+  //! 取邻域最近8个voxel中置信度最大的
   {
     const TVoxel &v = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache);
     v1 = v.sdf;
@@ -414,7 +416,7 @@ readFromSDF_float_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPT
   return TVoxel::valueToFloat((1.0f - coeff.z) * res1 + coeff.z * res2);
 }
 /**
- * 通过领域插值的方式 获取某个voxel坐标（带小数）的RGB && 更新cache
+ * 通过邻域插值的方式 获取某个voxel坐标（带小数）的RGB && 更新cache
  * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
@@ -423,7 +425,7 @@ readFromSDF_float_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONSTPT
  * @param[in] voxelIndex  hash table
  * @param[in] point 要读取TSDF值的voxel坐标
  * @param[in] cache 之前找到的block的三维坐标和hash id
- * @return 三维坐标的RGB
+ * @return voxel坐标的RGB
  */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline Vector4f
@@ -436,7 +438,8 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
   Vector3f coeff;
   Vector3i pos;
   TO_INT_FLOOR3(pos, coeff, point); // 将小数的整数位和小数位分开
-
+  //! 三线性插值
+  // NOTE: 推荐参考资料https://zhuanlan.zhihu.com/p/77496615
   resn = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache);
   ret += (1.0f - coeff.x) * (1.0f - coeff.y) * (1.0f - coeff.z) * resn.clr.toFloat();
 
@@ -469,7 +472,7 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
   return ret4 / 255.0f;
 }
 /**
- * 通过领域插值的方式 获取某个voxel坐标（带小数）的 RGB和观测次数 && 更新cache
+ * 通过邻域插值的方式 获取某个voxel坐标（带小数）的 RGB和观测次数 && 更新cache
  * @note 以当前voxel坐标（小数）相邻的8个voxel进行三线性插值
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
@@ -479,7 +482,7 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
  * @param[in] point 要读取TSDF值的voxel坐标
  * @param[in] cache 之前找到的block的三维坐标和hash id
  * @param[out] maxW 观测次数。取相邻voxel中最大的观测次数
- * @return 三维坐标的RGB
+ * @return voxel坐标的RGB
  */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline Vector4f
@@ -492,7 +495,8 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
   Vector3f coeff;
   Vector3i pos;
   TO_INT_FLOOR3(pos, coeff, point);
-
+  //! 三线性插值
+  // NOTE: 推荐参考资料https://zhuanlan.zhihu.com/p/77496615
   resn = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex, cache);
   maxW = resn.w_depth;
   ret += (1.0f - coeff.x) * (1.0f - coeff.y) * (1.0f - coeff.z) * resn.clr.toFloat();
@@ -532,16 +536,16 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
 
   return ret4 / 255.0f;
 }
-// TODO 下次从这儿开始
+
 /**
  * 直接从TSDF中计算 单个voxel坐标（小数）的法向量
- * @details https://zhuanlan.zhihu.com/p/357490146
- * @tparam TVoxel
- * @tparam TIndex
- * @param voxelData
- * @param voxelIndex
- * @param point
- * @return
+ * @details 使用三线性插值得到当前坐标在各个方向的梯度，作为法向量
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] point       voxel坐标。注意是小数
+ * @return                voxel坐标的法向量
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVoxel) * voxelData,
@@ -556,7 +560,7 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
   Vector3f ncoeff(1.0f - coeff.x, 1.0f - coeff.y, 1.0f - coeff.z);
 
   // all 8 values are going to be reused several times
-  //! 取出领域8个voxel的TSDF值
+  //! 取出邻域8个voxel的TSDF值
   Vector4f front, back;
   front.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, 0), vmIndex).sdf;   // xOy平面上
   front.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(1, 0, 0), vmIndex).sdf;
@@ -570,29 +574,32 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
   Vector4f tmp;
   float p1, p2, v1;
   
-  //! 平行yOz面的两个平面上的4个点 沿x轴正负方向 平移1个voxel，计算X方向的梯度 // gradient x
+  // NOTE：下面的双线性插值公式见 https://en.wikipedia.org/wiki/Bilinear_interpolation 中的“On the unit square”
+  //! 用平行yOz面、相邻着当前cube计算X方向的梯度 // gradient x  
+  // 用紧挨着yOz面上的cube的TSDF三线性插值  // TODO: 有必要吗？？？直接用当前cube的对立两个面计算法向量就好了，反正只是用来看看
   p1 = front.x * ncoeff.y * ncoeff.z + front.z * coeff.y * ncoeff.z + back.x * ncoeff.y * coeff.z +
-       back.z * coeff.y * coeff.z;
-  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 0), vmIndex).sdf;  // 向x轴负方向 平移
+       back.z * coeff.y * coeff.z;                                    // 双线性插值。参考《从TSDF中计算法向量.pptx》中的第一页
+  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 0), vmIndex).sdf;  // yOz面向x轴负方向 平移
   tmp.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 1, 0), vmIndex).sdf;
   tmp.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 0, 1), vmIndex).sdf;
   tmp.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(-1, 1, 1), vmIndex).sdf;
-  p2 =
-      tmp.x * ncoeff.y * ncoeff.z + tmp.y * coeff.y * ncoeff.z + tmp.z * ncoeff.y * coeff.z + tmp.w * coeff.y * coeff.z;
-  v1 = p1 * coeff.x + p2 * ncoeff.x;
-
+  p2 = tmp.x * ncoeff.y * ncoeff.z + tmp.y * coeff.y * ncoeff.z + 
+       tmp.z * ncoeff.y * coeff.z + tmp.w * coeff.y * coeff.z;          // 平移后再 双线性插值
+  v1 = p1 * coeff.x + p2 * ncoeff.x;                                    // 用插值到的两个点再插值 // TODO: 为啥这里能用cx???
+  // 用平行yOz的那个面上的四个点
   p1 = front.y * ncoeff.y * ncoeff.z + front.w * coeff.y * ncoeff.z + back.y * ncoeff.y * coeff.z +
-       back.w * coeff.y * coeff.z;
-  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 0), vmIndex).sdf;   // 向x轴正方向 平移
+       back.w * coeff.y * coeff.z;                                      // 同理
+  tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 0), vmIndex).sdf;
   tmp.y = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 1, 0), vmIndex).sdf;
   tmp.z = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 0, 1), vmIndex).sdf;
   tmp.w = readVoxel(voxelData, voxelIndex, pos + Vector3i(2, 1, 1), vmIndex).sdf;
   p2 =
       tmp.x * ncoeff.y * ncoeff.z + tmp.y * coeff.y * ncoeff.z + tmp.z * ncoeff.y * coeff.z + tmp.w * coeff.y * coeff.z;
 
-  ret.x = TVoxel::valueToFloat(p1 * ncoeff.x + p2 * coeff.x - v1);
+  ret.x = TVoxel::valueToFloat(p1 * ncoeff.x + p2 * coeff.x - v1);  // 两个cube插值完后相减，就是梯度 // TODO: 为啥不是v1-v2?
+  // NOTE: 梯度x的计算示意图可以见《从TSDF中计算法向量.ggb》。其中红色cube就是point相邻的点（即上面的front、back），蓝色cube就是插值得到v1的，绿色cube就是插值得到v2的
 
-  //! 平行xOz面的两个平面上的4个点 沿y轴正负方向 平移1个voxel，计算X方向的梯度 // gradient y
+  //! 用平行xOz面、相邻着当前cube计算Y方向的梯度 // gradient y
   p1 = front.x * ncoeff.x * ncoeff.z + front.y * coeff.x * ncoeff.z + back.x * ncoeff.x * coeff.z +
        back.y * coeff.x * coeff.z;
   tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, -1, 0), vmIndex).sdf;
@@ -614,7 +621,7 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
 
   ret.y = TVoxel::valueToFloat(p1 * ncoeff.y + p2 * coeff.y - v1);
 
-  // gradient z
+  //! 用平行xOy面、相邻着当前cube计算Z方向的梯度 // gradient z
   p1 = front.x * ncoeff.x * ncoeff.y + front.y * coeff.x * ncoeff.y + front.z * ncoeff.x * coeff.y +
        front.w * coeff.x * coeff.y;
   tmp.x = readVoxel(voxelData, voxelIndex, pos + Vector3i(0, 0, -1), vmIndex).sdf;
@@ -636,19 +643,19 @@ _CPU_AND_GPU_CODE_ inline Vector3f computeSingleNormalFromSDF(const CONSTPTR(TVo
 
   ret.z = TVoxel::valueToFloat(p1 * ncoeff.z + p2 * coeff.z - v1);
 
-  return ret;
+  return ret;   // 梯度算完就是法向量
 }
 
 template <bool hasColor, class TVoxel, class TIndex> struct VoxelColorReader;
-
-template <class TVoxel, class TIndex> struct VoxelColorReader<false, TVoxel, TIndex> {
+/** 不带颜色的强行读取颜色都是0 */
+template <class TVoxel, class TIndex> struct VoxelColorReader<false, TVoxel, TIndex> {// TODO: 为啥突然搞个结构体？？？
   _CPU_AND_GPU_CODE_ static Vector4f interpolate(const CONSTPTR(TVoxel) * voxelData,
                                                  const CONSTPTR(typename TIndex::IndexData) * voxelIndex,
                                                  const THREADPTR(Vector3f) & point) {
     return Vector4f(0.0f, 0.0f, 0.0f, 0.0f);
   }
 };
-
+/** 插值地读取voxel坐标（带小数）的RGB */
 template <class TVoxel, class TIndex> struct VoxelColorReader<true, TVoxel, TIndex> {
   _CPU_AND_GPU_CODE_ static Vector4f interpolate(const CONSTPTR(TVoxel) * voxelData,
                                                  const CONSTPTR(typename TIndex::IndexData) * voxelIndex,

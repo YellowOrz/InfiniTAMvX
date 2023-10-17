@@ -233,13 +233,13 @@ castRay(DEVICEPTR(Vector4f) & pt_out, DEVICEPTR(uchar) * entriesVisibleType, int
 
     pt_found = true;
   } else
-    pt_found = false;
+    pt_found = false;  // TODO: 什么情况下会出现false？
 
   pt_out.x = pt_result.x;   // TODO: 为啥不放到if (pt_found)里面？？？难道pt_found=false也要用到？？？
   pt_out.y = pt_result.y;
   pt_out.z = pt_result.z;
   if (pt_found)
-    pt_out.w = confidence + 1.0f;
+    pt_out.w = confidence + 1.0f; // +1是为了防止置信度之前没设置过一直为0
   else
     pt_out.w = 0.0f;
 
@@ -261,23 +261,32 @@ _CPU_AND_GPU_CODE_ inline int forwardProjectPixel(Vector4f pixel, const CONSTPTR
 
   return (int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x;
 }
-
+/**
+ * 直接从TSDF中计算 单个voxel坐标（小数）的单位法向量
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] foundPoint      当前voxel坐标是否有有效数据
+ * @param[in] point           voxel坐标。注意是小数
+ * @param[in] voxelBlockData  voxel block array
+ * @param[in] indexData       hash table
+ * @param[in] lightSource     相机光心位置
+ * @param[out] outNormal      计算到的法向量
+ * @param[out] angle          法向量与相机光心的夹角
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(Vector3f) & point,
                                                      const CONSTPTR(TVoxel) * voxelBlockData,
                                                      const CONSTPTR(typename TIndex::IndexData) * indexData,
                                                      const THREADPTR(Vector3f) & lightSource,
                                                      THREADPTR(Vector3f) & outNormal, THREADPTR(float) & angle) {
-  if (!foundPoint)
-    return;
-
+  if (!foundPoint) return;
+  //! 计算单位法向量
   outNormal = computeSingleNormalFromSDF(voxelBlockData, indexData, point);
-
   float normScale = 1.0f / sqrt(outNormal.x * outNormal.x + outNormal.y * outNormal.y + outNormal.z * outNormal.z);
-  outNormal *= normScale;
-
+  outNormal *= normScale;   // 归一化
+  //! 计算夹角
   angle = outNormal.x * lightSource.x + outNormal.y * lightSource.y + outNormal.z * lightSource.z;
-  if (!(angle > 0.0))
+  if (!(angle > 0.0)) // 角度<0说明是从背面看过来的，丢弃
     foundPoint = false;
 }
 /**
@@ -388,7 +397,12 @@ _CPU_AND_GPU_CODE_ inline float baseCol(float val) {
   else
     return 0.0;
 }
-
+/**
+ * @brief 根据夹角将置信度转成伪彩色
+ * @param[out] dest       伪彩色。范围0-255 
+ * @param[in] angle       // TODO 下此从这儿开始
+ * @param[in] confidence  置信度
+ */
 _CPU_AND_GPU_CODE_ inline void drawPixelConfidence(DEVICEPTR(Vector4u) & dest, const THREADPTR(float) & angle,
                                                    const THREADPTR(float) & confidence) {
   // Vector4f color_red(255, 0, 0, 255), color_green(0, 255, 0, 255);
@@ -403,9 +417,13 @@ _CPU_AND_GPU_CODE_ inline void drawPixelConfidence(DEVICEPTR(Vector4u) & dest, c
   Vector4f outRes = (0.8f * angle + 0.2f) * color;
   dest = TO_UCHAR4(outRes);
 }
-
+/**
+ * @brief 将单位法向量转成伪彩色
+ * @param[out] dest        伪彩色。范围0-255 
+ * @param[in] normal_obj  单位法向量
+ */
 _CPU_AND_GPU_CODE_ inline void drawPixelNormal(DEVICEPTR(Vector4u) & dest, const THREADPTR(Vector3f) & normal_obj) {
-  dest.r = (uchar)((0.3f + (-normal_obj.r + 1.0f) * 0.35f) * 255.0f);
+  dest.r = (uchar)((0.3f + (-normal_obj.r + 1.0f) * 0.35f) * 255.0f); // TODO：找到公式来源
   dest.g = (uchar)((0.3f + (-normal_obj.g + 1.0f) * 0.35f) * 255.0f);
   dest.b = (uchar)((0.3f + (-normal_obj.b + 1.0f) * 0.35f) * 255.0f);
 }
@@ -414,10 +432,10 @@ _CPU_AND_GPU_CODE_ inline void drawPixelNormal(DEVICEPTR(Vector4u) & dest, const
  * 将单个三维点 投影成 彩色像素
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[out] dest           彩色像素
+ * @param[out] dest           彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
  * @param[in] point           三维点 
- * @param[in] voxelBlockData
- * @param[in] indexData
+ * @param[in] voxelBlockData  voxel block array
+ * @param[in] indexData       hash table
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void drawPixelColour(DEVICEPTR(Vector4u) & dest, const CONSTPTR(Vector3f) & point,
@@ -429,7 +447,7 @@ _CPU_AND_GPU_CODE_ inline void drawPixelColour(DEVICEPTR(Vector4u) & dest, const
   dest.x = (uchar)(clr.x * 255.0f);
   dest.y = (uchar)(clr.y * 255.0f);
   dest.z = (uchar)(clr.z * 255.0f);
-  dest.w = 255;
+  dest.w = 255;       // 不透明度
 }
 
 template <class TVoxel, class TIndex>
@@ -606,11 +624,11 @@ _CPU_AND_GPU_CODE_ inline void processPixelGrey(DEVICEPTR(Vector4u) & outRenderi
  * @brief 渲染彩色图片的单个像素
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param outRendering
- * @param point
- * @param foundPoint
- * @param voxelData
- * @param voxelIndex
+ * @param[out] outRendering 彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] point         三维点
+ * @param[in] foundPoint    三维点是否有效
+ * @param[in] voxelData     voxel block array
+ * @param[in] voxelIndex    hash table
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void processPixelColour(DEVICEPTR(Vector4u) & outRendering, const CONSTPTR(Vector3f) & point,
@@ -621,17 +639,28 @@ _CPU_AND_GPU_CODE_ inline void processPixelColour(DEVICEPTR(Vector4u) & outRende
   else
     outRendering = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 渲染法向量图的单个像素
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] outRendering 法向量信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] point         三维点
+ * @param[in] foundPoint    三维点是否有效
+ * @param[in] voxelData     voxel block array
+ * @param[in] voxelIndex    hash table
+ * @param[in] lightSource   相机光心位置
+ * @note 是单位法向量
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void processPixelNormal(DEVICEPTR(Vector4u) & outRendering, const CONSTPTR(Vector3f) & point,
                                                   bool foundPoint, const CONSTPTR(TVoxel) * voxelData,
                                                   const CONSTPTR(typename TIndex::IndexData) * voxelIndex,
                                                   Vector3f lightSource) {
+  //! 直接从TSDF中计算得到当前voxel坐标的单位法向量和夹角
   Vector3f outNormal;
   float angle;
-
   computeNormalAndAngle<TVoxel, TIndex>(foundPoint, point, voxelData, voxelIndex, lightSource, outNormal, angle);
-
+  //! 伪彩色渲染
   if (foundPoint)
     drawPixelNormal(outRendering, outNormal);
   else
