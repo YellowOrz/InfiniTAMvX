@@ -28,7 +28,7 @@ static const CONSTPTR(int) renderingBlockSizeX = 16;
 static const CONSTPTR(int) renderingBlockSizeY = 16;
 
 /** 
- * @details 计算相机内参的逆。
+ * @brief 计算相机内参的逆。
  * @note fx、fy取倒数，cx、cy取负
 */
 _CPU_AND_GPU_CODE_ inline Vector4f InvertProjectionParams(const THREADPTR(Vector4f) & projParams) {
@@ -233,7 +233,7 @@ castRay(DEVICEPTR(Vector4f) & pt_out, DEVICEPTR(uchar) * entriesVisibleType, int
 
     pt_found = true;
   } else
-    pt_found = false;  // TODO: 什么情况下会出现false？
+    pt_found = false;  // TODO: 什么情况下会出现false？？？或者说什么时候sdfValue会一直不小于0？？？
 
   pt_out.x = pt_result.x;   // TODO: 为啥不放到if (pt_found)里面？？？难道pt_found=false也要用到？？？
   pt_out.y = pt_result.y;
@@ -266,7 +266,7 @@ _CPU_AND_GPU_CODE_ inline int forwardProjectPixel(Vector4f pixel, const CONSTPTR
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[in] foundPoint      当前voxel坐标是否有有效数据
- * @param[in] point           voxel坐标。注意是小数
+ * @param[in] point           三维点（voxel坐标）。注意是小数
  * @param[in] voxelBlockData  voxel block array
  * @param[in] indexData       hash table
  * @param[in] lightSource     相机光心位置
@@ -284,7 +284,7 @@ _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoin
   outNormal = computeSingleNormalFromSDF(voxelBlockData, indexData, point);
   float normScale = 1.0f / sqrt(outNormal.x * outNormal.x + outNormal.y * outNormal.y + outNormal.z * outNormal.z);
   outNormal *= normScale;   // 归一化
-  //! 计算夹角
+  //! 计算夹角的cosine
   angle = outNormal.x * lightSource.x + outNormal.y * lightSource.y + outNormal.z * lightSource.z;
   if (!(angle > 0.0)) // 角度<0说明是从背面看过来的，丢弃
     foundPoint = false;
@@ -297,11 +297,11 @@ _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoin
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
  * @param[in] pointsRay 有序点云（voxel坐标）。第四个维度是权重
- * @param[in] lightSource 当前视角的相机 到 世界坐标系 的变换矩阵 的平移，用来判断法向量朝向
+ * @param[in] lightSource 相机光心位置。用来计算夹角
  * @param[in] voxelSize
  * @param[in] imgSize 有序点云对应的图像大小（x+y）
  * @param[out] outNormal 该点的法向量
- * @param[out] angle 该点的法向量与lightSource的夹角
+ * @param[out] angle 该点的法向量与lightSource的夹角的cosine。范围0-1
  */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
@@ -370,21 +370,25 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
 
   float normScale = 1.0f / sqrt(outNormal.x * outNormal.x + outNormal.y * outNormal.y + outNormal.z * outNormal.z);
   outNormal *= normScale;
-  //! 计算夹角
+  //! 计算夹角的cosine
   angle = outNormal.x * lightSource.x + outNormal.y * lightSource.y + outNormal.z * lightSource.z;
   if (!(angle > 0.0))
     foundPoint = false;
 }
-
+/**
+ * @brief 将夹角转成灰色
+ * @param[out] dest       灰色。范围0-255 
+ * @param[in] angle       当前像素法向量跟相机光心的夹角的cosine。范围0-1
+ */
 _CPU_AND_GPU_CODE_ inline void drawPixelGrey(DEVICEPTR(Vector4u) & dest, const THREADPTR(float) & angle) {
   float outRes = (0.8f * angle + 0.2f) * 255.0f;
   dest = Vector4u((uchar)outRes);
 }
-
+// TODO: ???
 _CPU_AND_GPU_CODE_ inline float interpolateCol(float val, float y0, float x0, float y1, float x1) {
   return (val - x0) * (y1 - y0) / (x1 - x0) + y0;
 }
-
+// TODO: ???
 _CPU_AND_GPU_CODE_ inline float baseCol(float val) {
   if (val <= -0.75f)
     return 0.0f;
@@ -400,7 +404,7 @@ _CPU_AND_GPU_CODE_ inline float baseCol(float val) {
 /**
  * @brief 根据夹角将置信度转成伪彩色
  * @param[out] dest       伪彩色。范围0-255 
- * @param[in] angle       // TODO 下此从这儿开始
+ * @param[in] angle       当前像素法向量跟相机光心的夹角的cosine。范围0-1
  * @param[in] confidence  置信度
  */
 _CPU_AND_GPU_CODE_ inline void drawPixelConfidence(DEVICEPTR(Vector4u) & dest, const THREADPTR(float) & angle,
@@ -414,7 +418,7 @@ _CPU_AND_GPU_CODE_ inline void drawPixelConfidence(DEVICEPTR(Vector4u) & dest, c
   color.b = (uchar)(baseCol(confidenceNorm + 0.5f) * 255.0f);
   color.a = 255;
 
-  Vector4f outRes = (0.8f * angle + 0.2f) * color;
+  Vector4f outRes = (0.8f * angle + 0.2f) * color;  // 夹角越小（cos越接近1），颜色越纯正
   dest = TO_UCHAR4(outRes);
 }
 /**
@@ -433,7 +437,7 @@ _CPU_AND_GPU_CODE_ inline void drawPixelNormal(DEVICEPTR(Vector4u) & dest, const
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[out] dest           彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
- * @param[in] point           三维点 
+ * @param[in] point           三维点（voxel坐标）
  * @param[in] voxelBlockData  voxel block array
  * @param[in] indexData       hash table
  */
@@ -449,7 +453,20 @@ _CPU_AND_GPU_CODE_ inline void drawPixelColour(DEVICEPTR(Vector4u) & dest, const
   dest.z = (uchar)(clr.z * 255.0f);
   dest.w = 255;       // 不透明度
 }
-
+/**
+ * 计算 voxel点云 中 单个像素的真实坐标 && 法向量
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[out] pointsMap 最终点云（真实坐标）
+ * @param[out] normalsMap 点云对应的法向量
+ * @param[in] pointsRay 有序点云（voxel坐标）。第四个维度是权重
+ * @param[in] imgSize 有序点云对应的图像大小（x+y）
+ * @param[in] x 像素坐标
+ * @param[in] y 像素坐标
+ * @param[in] voxelSize 
+ * @param[in] lightSource 相机光心位置。用来计算夹角
+ * @note 好像是raycasting专用的
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, DEVICEPTR(Vector4f) & normalsMap,
                                                const THREADPTR(Vector3f) & point, bool foundPoint,
@@ -460,7 +477,7 @@ _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, 
   float angle;
 
   computeNormalAndAngle<TVoxel, TIndex>(foundPoint, point, voxelData, voxelIndex, lightSource, outNormal, angle);
-
+  //! 转真实坐标 && 记录
   if (foundPoint) {
     Vector4f outPoint4;
     outPoint4.x = point.x * voxelSize;
@@ -487,7 +504,7 @@ _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, 
   }
 }
 /**
- * 计算有序点云中 单个像素的真实坐标 && 法向量
+ * 计算有序voxel点云中 单个像素的真实坐标 && 法向量
  * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[out] pointsMap 最终点云（真实坐标）
@@ -497,7 +514,7 @@ _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, 
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
  * @param[in] voxelSize 
- * @param[in] lightSource 当前视角的相机 到 世界坐标系 的变换矩阵 的平移，用来判断法向量朝向
+ * @param[in] lightSource 相机光心位置。用来计算夹角
  * @note 好像是raycasting专用的
  */
 template <bool useSmoothing, bool flipNormals>
@@ -505,9 +522,9 @@ _CPU_AND_GPU_CODE_ inline void
 processPixelICP(DEVICEPTR(Vector4f) * pointsMap, DEVICEPTR(Vector4f) * normalsMap, const CONSTPTR(Vector4f) * pointsRay,
                 const THREADPTR(Vector2i) & imgSize, const THREADPTR(int) & x, const THREADPTR(int) & y,
                 float voxelSize, const THREADPTR(Vector3f) & lightSource) {
-  //! 计算 normal && angle
+  //! 计算 normal && 夹角的cosine
   Vector3f outNormal;
-  float angle;  // TODO: 没有用到???
+  float angle;  // 没用到
 
   int locId = x + y * imgSize.x;
   Vector4f point = pointsRay[locId];
@@ -515,7 +532,7 @@ processPixelICP(DEVICEPTR(Vector4f) * pointsMap, DEVICEPTR(Vector4f) * normalsMa
 
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-  //! 记录：图像边缘的没有法向量
+  //! 转真实坐标 && 记录
   if (foundPoint) {
     Vector4f outPoint4;
     outPoint4.x = point.x * voxelSize;    // 真实坐标
@@ -541,12 +558,24 @@ processPixelICP(DEVICEPTR(Vector4f) * pointsMap, DEVICEPTR(Vector4f) * normalsMa
     normalsMap[locId] = out4;
   }
 }
-
+/**
+ * @brief 从有序点云中渲染 法向量夹角图 的单个像素（灰色）
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[out] outRendering 灰度信息。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
+ * @param[in] imgSize       图像分辨率
+ * @param[in] x             像素坐标
+ * @param[in] y             像素坐标
+ * @param[in] voxelSize     voxel的真实尺寸
+ * @param[in] lightSource   相机光心位置。用来计算夹角
+ */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
 processPixelGrey_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR(Vector4f) * pointsRay,
                               const THREADPTR(Vector2i) & imgSize, const THREADPTR(int) & x, const THREADPTR(int) & y,
                               float voxelSize, const THREADPTR(Vector3f) & lightSource) {
+  //! 计算法向量和夹角的cosine
   Vector3f outNormal;
   float angle;
 
@@ -556,18 +585,29 @@ processPixelGrey_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR
   bool foundPoint = point.w > 0.0f;
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-
+  //! 根据夹角伪彩色渲染
   if (foundPoint)
-    drawPixelGrey(outRendering[locId], angle);
+    drawPixelGrey(outRendering[locId], angle);  // 因为是有序点云（非三维场景），不会存在夹角>90的情况，所以用角度渲染就好灰度
   else
     outRendering[locId] = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 从有序点云中渲染 法向量图 的单个像素
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[out] outRendering 彩色信息。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
+ * @param[in] x             像素坐标
+ * @param[in] y             像素坐标
+ * @param[in] voxelSize     voxel的真实尺寸
+ * @param[in] lightSource   相机光心位置。用来计算夹角
+ */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
 processPixelNormals_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR(Vector4f) * pointsRay,
                                  const THREADPTR(Vector2i) & imgSize, const THREADPTR(int) & x,
                                  const THREADPTR(int) & y, float voxelSize, Vector3f lightSource) {
+  //! 计算法向量和夹角的cosine
   Vector3f outNormal;
   float angle;
 
@@ -577,13 +617,23 @@ processPixelNormals_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONST
   bool foundPoint = point.w > 0.0f;
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-
+  //! 根据法向量伪彩色渲染
   if (foundPoint)
     drawPixelNormal(outRendering[locId], outNormal);
   else
     outRendering[locId] = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 从有序点云中渲染 置信度图 的单个像素
+ * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
+ * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
+ * @param[out] outRendering 伪彩色信息。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
+ * @param[in] x             像素坐标
+ * @param[in] y             像素坐标
+ * @param[in] voxelSize     voxel的真实尺寸
+ * @param[in] lightSource   相机光心位置。用来计算夹角
+ */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
 processPixelConfidence_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR(Vector4f) * pointsRay,
@@ -600,11 +650,21 @@ processPixelConfidence_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CO
                                                    outNormal, angle);
 
   if (foundPoint)
-    drawPixelConfidence(outRendering[locId], angle, point.w - 1.0f);
+    drawPixelConfidence(outRendering[locId], angle, point.w - 1.0f);  // -1是因为raycast的时候+1，见castray()
   else
     outRendering[locId] = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 从三维场景中渲染 法向量夹角图 的单个像素（灰色）
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] outRendering 灰色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] point         三维点（voxel坐标）
+ * @param[in] foundPoint    三维点是否有效
+ * @param[in] voxelData     voxel block array
+ * @param[in] voxelIndex    hash table
+ * @param[in] lightSource   相机光心位置。用来计算夹角
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void processPixelGrey(DEVICEPTR(Vector4u) & outRendering, const CONSTPTR(Vector3f) & point,
                                                 bool foundPoint, const CONSTPTR(TVoxel) * voxelData,
@@ -621,11 +681,11 @@ _CPU_AND_GPU_CODE_ inline void processPixelGrey(DEVICEPTR(Vector4u) & outRenderi
     outRendering = Vector4u((uchar)0);
 }
 /**
- * @brief 渲染彩色图片的单个像素
+ * @brief 从三维场景渲染 彩色图 的单个像素
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[out] outRendering 彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
- * @param[in] point         三维点
+ * @param[in] point         三维点（voxel坐标）
  * @param[in] foundPoint    三维点是否有效
  * @param[in] voxelData     voxel block array
  * @param[in] voxelIndex    hash table
@@ -640,15 +700,15 @@ _CPU_AND_GPU_CODE_ inline void processPixelColour(DEVICEPTR(Vector4u) & outRende
     outRendering = Vector4u((uchar)0);
 }
 /**
- * @brief 渲染法向量图的单个像素
+ * @brief 从三维场景渲染 法向量图 的单个像素
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[out] outRendering 法向量信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
- * @param[in] point         三维点
+ * @param[out] outRendering 伪彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] point         三维点（voxel坐标）
  * @param[in] foundPoint    三维点是否有效
  * @param[in] voxelData     voxel block array
  * @param[in] voxelIndex    hash table
- * @param[in] lightSource   相机光心位置
+ * @param[in] lightSource   相机光心位置。用来计算夹角
  * @note 是单位法向量
  */
 template <class TVoxel, class TIndex>
@@ -658,7 +718,7 @@ _CPU_AND_GPU_CODE_ inline void processPixelNormal(DEVICEPTR(Vector4u) & outRende
                                                   Vector3f lightSource) {
   //! 直接从TSDF中计算得到当前voxel坐标的单位法向量和夹角
   Vector3f outNormal;
-  float angle;
+  float angle;    // 法向量与相机光心的夹角的cosine。范围0-1
   computeNormalAndAngle<TVoxel, TIndex>(foundPoint, point, voxelData, voxelIndex, lightSource, outNormal, angle);
   //! 伪彩色渲染
   if (foundPoint)
@@ -666,20 +726,30 @@ _CPU_AND_GPU_CODE_ inline void processPixelNormal(DEVICEPTR(Vector4u) & outRende
   else
     outRendering = Vector4u((uchar)0);
 }
-
+/**
+ * @brief 从三维场景中渲染 置信度图 的单个像素
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] outRendering 伪彩色信息。通过邻域voxel三线性插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[in] point         三维点（voxel坐标）
+ * @param[in] foundPoint    三维点是否有效
+ * @param[in] voxelData     voxel block array
+ * @param[in] voxelIndex    hash table
+ * @param[in] lightSource   相机光心位置。用来计算夹角
+ */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void
 processPixelConfidence(DEVICEPTR(Vector4u) & outRendering, const CONSTPTR(Vector4f) & point, bool foundPoint,
                        const CONSTPTR(TVoxel) * voxelData, const CONSTPTR(typename TIndex::IndexData) * voxelIndex,
                        Vector3f lightSource) {
+  //! 直接从TSDF中计算得到当前voxel坐标的单位法向量和夹角
   Vector3f outNormal;
-  float angle;
-
+  float angle;  // 法向量与相机光心的夹角的cosine。范围0-1
   computeNormalAndAngle<TVoxel, TIndex>(foundPoint, TO_VECTOR3(point), voxelData, voxelIndex, lightSource, outNormal,
-                                        angle);
-
+                                        angle); // 使用TO_VECTOR3是因为point是4个通道。其他的渲染函数是直接传入3个通道的point
+  //! 伪彩色渲染
   if (foundPoint)
-    drawPixelConfidence(outRendering, angle, point.w - 1.0f);
+    drawPixelConfidence(outRendering, angle, point.w - 1.0f);   // -1是因为raycast的时候+1，见castray()
   else
     outRendering = Vector4u((uchar)0);
 }
