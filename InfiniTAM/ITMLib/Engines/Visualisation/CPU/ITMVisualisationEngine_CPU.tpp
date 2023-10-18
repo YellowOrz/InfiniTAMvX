@@ -226,7 +226,7 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
 }
 
 /**
- * @brief 
+ * @brief // TODO: 下次从这儿开始
  * @tparam TVoxel 
  * @tparam TIndex 
  * @param[in] scene 
@@ -278,7 +278,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       processPixelColour<TVoxel, TIndex>(outRendering[locId], ptRay.toVector3(), ptRay.w > 0, voxelData, voxelIndex);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 法向量图（伪彩色）
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 单位法向量的伪彩色图
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -288,21 +288,21 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
                                          lightSource);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度图
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度的伪彩色图
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {     、、 TODO: 下次从这儿开始
+    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {     
       Vector4f ptRay = pointsRay[locId];
       processPixelConfidence<TVoxel, TIndex>(outRendering[locId], ptRay, ptRay.w > 0, voxelData, voxelIndex,
                                              lightSource);
     }
     break;
-  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS: //! 
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS: //! 有序点云的法向量夹角图（灰色）
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) { 
       int y = locId / imgSize.x;
       int x = locId - y * imgSize.x;
 
@@ -315,7 +315,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       }
     }
     break;
-  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:              //! 
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:              //! 法向量夹角图（灰度）
   default:
 #ifdef WITH_OPENMP
 #pragma omp parallel for
@@ -325,6 +325,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       processPixelGrey<TVoxel, TIndex>(outRendering[locId], ptRay.toVector3(), ptRay.w > 0, voxelData, voxelIndex,
                                        lightSource);
     }
+  // TODO: 为啥没有processPixelNormals_ImageNormals和processPixelConfidence_ImageNormals？？？
   }
 }
 
