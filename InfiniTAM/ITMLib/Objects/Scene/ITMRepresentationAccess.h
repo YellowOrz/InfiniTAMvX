@@ -477,12 +477,12 @@ readFromSDF_color4u_interpolated(const CONSTPTR(TVoxel) * voxelData, const CONST
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @tparam TCache 存放block信息的临时数据结构。用于voxel hashing，而ITMPlainVoxelArray中也有但为空
- * @param[in] voxelData voxel block array
+ * @param[in] voxelData   voxel block array
  * @param[in] voxelIndex  hash table
- * @param[in] point 要读取TSDF值的voxel坐标
- * @param[in] cache 之前找到的block的三维坐标和hash id
- * @param[out] maxW 观测次数。取相邻voxel中最大的观测次数
- * @return voxel坐标的RGB
+ * @param[in] point       要读取TSDF值的voxel坐标
+ * @param[in] cache       之前找到的block的三维坐标和hash id
+ * @param[out] maxW       观测次数。取相邻voxel中最大的观测次数
+ * @return voxel坐标的RGB（范围0-1）
  */
 template <class TVoxel, class TIndex, class TCache>
 _CPU_AND_GPU_CODE_ inline Vector4f
@@ -655,7 +655,7 @@ template <class TVoxel, class TIndex> struct VoxelColorReader<false, TVoxel, TIn
     return Vector4f(0.0f, 0.0f, 0.0f, 0.0f);
   }
 };
-/** 插值地读取voxel坐标（带小数）的RGB */
+/** 插值地读取voxel坐标（带小数）的RGB（范围0-1） */
 template <class TVoxel, class TIndex> struct VoxelColorReader<true, TVoxel, TIndex> {
   _CPU_AND_GPU_CODE_ static Vector4f interpolate(const CONSTPTR(TVoxel) * voxelData,
                                                  const CONSTPTR(typename TIndex::IndexData) * voxelIndex,

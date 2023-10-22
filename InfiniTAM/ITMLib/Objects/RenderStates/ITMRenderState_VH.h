@@ -57,6 +57,7 @@ public:
    * Get the list of "visible entries", that are currently processed by the tracker.
   */
   const int *GetVisibleEntryIDs(void) const { return visibleEntryIDs->GetData(memoryType); }
+  /** 获取可见entries列表（即正被tracker处理的）的id。*/ 
   int *GetVisibleEntryIDs(void) { return visibleEntryIDs->GetData(memoryType); }
 
   /** 获取entry的可见情况。

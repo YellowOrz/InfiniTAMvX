@@ -38,31 +38,32 @@ template <class TVoxel>
 void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::FindVisibleBlocks(
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
     ITMRenderState *renderState) const {
-  const ITMHashEntry *hashTable = scene->index.GetEntries();
-  int noTotalEntries = scene->index.noTotalEntries;
-  float voxelSize = scene->sceneParams->voxelSize;
-  Vector2i imgSize = renderState->renderingRangeImage->noDims;
+  //! 准备
+  const ITMHashEntry *hashTable = scene->index.GetEntries();      // hash table
+  int noTotalEntries = scene->index.noTotalEntries;               // 场景中entry总数
+  float voxelSize = scene->sceneParams->voxelSize;                // voxel size。单位米
+  Vector2i imgSize = renderState->renderingRangeImage->noDims;    // 渲染图片的尺寸
 
-  Matrix4f M = pose->GetM();
-  Vector4f projParams = intrinsics->projectionParamsSimple.all;
+  Matrix4f M = pose->GetM();                                      // 当前视角相机位姿
+  Vector4f projParams = intrinsics->projectionParamsSimple.all;   // 相机内参
 
-  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *)renderState;
+  ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *)renderState; // TODO: 父类转子类指针，最好用dynamic_cast
 
   int noVisibleEntries = 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs(); // 可见entries列表
 
-  // build visible list
+  //! 遍历场景中所有entry，构建可见列表。build visible list
   for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
-    unsigned char hashVisibleType = 0; // = entriesVisibleType[targetIdx];
+    unsigned char hashVisibleType = 0; // = entriesVisibleType[targetIdx]; // 只支持0、1两种可见类型。没有那么多花里胡哨的
     const ITMHashEntry &hashEntry = hashTable[targetIdx];
 
-    if (hashEntry.ptr >= 0) {
+    if (hashEntry.ptr >= 0) { // 对存在的block检查可见性（不将图片扩大尺寸）
       bool isVisible, isVisibleEnlarged;
       checkBlockVisibility<false>(isVisible, isVisibleEnlarged, hashEntry.pos, M, projParams, voxelSize, imgSize);
-      hashVisibleType = isVisible;
+      hashVisibleType = isVisible;  // TODO: 直接把hashVisibleType传入不就好了！
     }
 
-    if (hashVisibleType > 0) {
+    if (hashVisibleType > 0) {  // 可见的就记录一下
       visibleEntryIDs[noVisibleEntries] = targetIdx;
       noVisibleEntries++;
     }
@@ -84,13 +85,13 @@ int ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CountVisibleBlocks(
     int maxBlockId) const {
   const ITMRenderState_VH *renderState_vh = (const ITMRenderState_VH *)renderState;
 
-  int noVisibleEntries = renderState_vh->noVisibleEntries;
-  const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
+  int noVisibleEntries = renderState_vh->noVisibleEntries;            // 可见entries数量
+  const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();  // 可见entries列表
 
   int ret = 0;
   for (int i = 0; i < noVisibleEntries; ++i) {
     int blockID = scene->index.GetEntries()[visibleEntryIDs[i]].ptr;
-    if ((blockID >= minBlockId) && (blockID <= maxBlockId))
+    if ((blockID >= minBlockId) && (blockID <= maxBlockId)) // 只统计在指定范围内的可见entry数量
       ++ret;
   }
 
@@ -102,8 +103,8 @@ void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ITMS
                                                                       const ORUtils::SE3Pose *pose,
                                                                       const ITMIntrinsics *intrinsics,
                                                                       ITMRenderState *renderState) const {
-  //! 获取彩色图大小 && raycast得到的图片
-  Vector2i imgSize = renderState->renderingRangeImage->noDims;
+  //! 准备 获取彩色图大小 && raycast得到的图片
+  Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 渲染
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
   //! 给每个像素赋值最小和最大深度（0.2-3）
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
@@ -168,9 +169,9 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     // fill minmaxData
     const RenderingBlock &b(renderingBlocks[blockNo]);
 
-    for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) {
+    for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) { // TODO: 下次从这儿开始，搞明白x和y的取值范围
       for (int x = b.upperLeft.x; x <= b.lowerRight.x; ++x) {
-        Vector2f &pixel(minmaxData[x + y * imgSize.x]);
+        Vector2f &pixel(minmaxData[x + y * imgSize.x]);   // TODO: 为啥这里的x和y跟minmaximg_subsample没关系？？？
         if (pixel.x > b.zRange.x)   pixel.x = b.zRange.x;
         if (pixel.y < b.zRange.y)   pixel.y = b.zRange.y;
       }
@@ -213,7 +214,7 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
     // 图像上的坐标
     int y = locId / imgSize.x;
     int x = locId - y * imgSize.x;
-    // 计算 归属于哪个渲染小块的ID？？？但是渲染小块是16*16的，这里是按照8*8计算的？？？
+    // TODO：计算 归属于哪个渲染小块的ID？？？但是渲染小块是16*16的，这里是按照8*8计算的？？？只把结果存在渲染图片左上角的1/8的里面？？？
     int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
 
     if (entriesVisibleType != NULL)
@@ -226,16 +227,16 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
 }
 
 /**
- * @brief // TODO: 下次从这儿开始
- * @tparam TVoxel 
- * @tparam TIndex 
- * @param[in] scene 
- * @param[in] pose 
- * @param[in] intrinsics 
- * @param[in] renderState 
- * @param[in] outputImage 
- * @param[in] type 
- * @param[in] raycastType 
+ * @brief 根据渲染类型，从raycast得到的点云中得到图片
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] scene         三维场景
+ * @param[in] pose          当前视角的相机位姿。world to local
+ * @param[in] intrinsics    当前视角的相机参数，用于投影图片
+ * @param[in] renderState   raycast的结果，主要用到其中的raycastResult
+ * @param[out] outputImage  渲染得到的图片
+ * @param[in] type          渲染类型
+ * @param[in] raycastType   raycast的类型
  */
 template <class TVoxel, class TIndex>
 static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
@@ -260,7 +261,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
     }
   }
   //! 根据渲染类型，从点云得到图片
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列就行
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列的负数
   Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
   const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
@@ -330,26 +331,27 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
 }
 
 /**
- *
+ * 根据跟踪到的当前相机位姿，使用raycast从三维场景中抽取带RGB的点云（用于下一帧的跟踪？？？）
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param scene
- * @param view
- * @param trackingState
- * @param renderState
- * @param skipPoints
+ * @param[in] scene               三维场景
+ * @param[in] view                当前输入帧。主要用到其中的相机内外参
+ * @param[in, out] trackingState  跟踪状态。主要用到其中的相机位姿、点云
+ * @param[in, out] renderState    渲染结果。主要用到其中的raycastResult
+ * @param[in] skipPoints          抽取点云的时候要不要跳过。=true的话，只保留1/4的点云
  */
 template <class TVoxel, class TIndex>
 static void CreatePointCloud_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                     ITMTrackingState *trackingState, ITMRenderState *renderState, bool skipPoints) {
-  Vector2i imgSize = renderState->raycastResult->noDims;
-  Matrix4f invM = trackingState->pose_d->GetInvM() * view->calib.trafo_rgb_to_depth.calib;
+  Vector2i imgSize = renderState->raycastResult->noDims;                                    // 渲染图片大小
+  Matrix4f invM = trackingState->pose_d->GetInvM() * view->calib.trafo_rgb_to_depth.calib;  // RGB相机位姿。local 2 world
 
-  // this one is generally done for the colour tracker, so yes, update
-  // the list of visible blocks if possible
+  // this one is generally done for the colour tracker, so yes, update the list of visible blocks if possible
+  // TODO：用于带color的跟踪，∴可以的话，更新可见entry列表？？？
+  //! 在RGB相机的视角下，进行raycast
   GenericRaycast(scene, imgSize, invM, view->calib.intrinsics_rgb.projectionParamsSimple.all, renderState, true);
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
-
+  //! 将raycast的结果转成带RGB的三维点云
   trackingState->pointCloud->noTotalPoints = RenderPointCloud<TVoxel, TIndex>(
       trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU),
       trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CPU),
@@ -360,10 +362,10 @@ static void CreatePointCloud_common(const ITMScene<TVoxel, TIndex> *scene, const
  * voxel三维场景中，使用raycasting投影点云（只有几何，无纹理）？？？
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] scene 三维模型
- * @param[in] view 当前输入图像
+ * @param[in] scene         三维模型
+ * @param[in] view          当前输入图像
  * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
- * @param[out] renderState raycasting的结果
+ * @param[out] renderState  raycasting的结果
  */
 template <class TVoxel, class TIndex>
 static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
@@ -395,50 +397,58 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
       }
     }
 }
-
+/**
+ * @brief // TODO: 下次从这儿开始。搞懂minmaximg_subsample是啥
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] scene
+ * @param[in] view
+ * @param[in] trackingState 
+ * @param[in] renderState   
+ */
 template <class TVoxel, class TIndex>
 static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                  ITMTrackingState *trackingState, ITMRenderState *renderState) {
-  Vector2i imgSize = renderState->raycastResult->noDims;
-  Matrix4f M = trackingState->pose_d->GetM();
-  Matrix4f invM = trackingState->pose_d->GetInvM();
-  const Vector4f &projParams = view->calib.intrinsics_d.projectionParamsSimple.all;
+  //! 准备
+  Vector2i imgSize = renderState->raycastResult->noDims;  // 要渲染的图像大小
+  Matrix4f M = trackingState->pose_d->GetM();             // 当前帧的深度相机位姿
+  Matrix4f invM = trackingState->pose_d->GetInvM();       // 位姿的逆，方便后续计算
+  const Vector4f &projParams = view->calib.intrinsics_d.projectionParamsSimple.all; // 深度相机的内参
 
-  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
-  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);
-  float *currentDepth = view->depth->GetData(MEMORYDEVICE_CPU);
-  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CPU);
-  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
-  float voxelSize = scene->sceneParams->voxelSize;
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
-  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
+  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);        // raycast结果（voxel坐标）
+  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);  // ???
+  float *currentDepth = view->depth->GetData(MEMORYDEVICE_CPU);                             // 当前输入的深度图
+  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CPU); // ???
+  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 每条ray的最小、大深度
+  float voxelSize = scene->sceneParams->voxelSize;                                          // voxel size。单位米
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                               // voxel block array
+  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();               // hash table
 
   renderState->forwardProjection->Clear();
-
+  //! 遍历 raycast的每一个结果，记录成功投影到当前视角的成像平面
   for (int y = 0; y < imgSize.y; y++)
     for (int x = 0; x < imgSize.x; x++) {
       int locId = x + y * imgSize.x;
-      Vector4f pixel = pointsRay[locId];
+      Vector4f pixel = pointsRay[locId];  // .w是从voxel中顺带读出来的置信度
 
-      int locId_new = forwardProjectPixel(pixel * voxelSize, M, projParams, imgSize);
+      int locId_new = forwardProjectPixel(pixel * voxelSize, M, projParams, imgSize); // 将三维点投影，获取一维像素坐标
       if (locId_new >= 0)
         forwardProjection[locId_new] = pixel;
     }
-
+  //! 遍历 raycast的每一个结果，记录 没有成功投影的点
   int noMissingPoints = 0;
-  for (int y = 0; y < imgSize.y; y++)
+  for (int y = 0; y < imgSize.y; y++) // TODO: 为啥不跟上面的循环合并到一起？？？
     for (int x = 0; x < imgSize.x; x++) {
       int locId = x + y * imgSize.x;
-      int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
-
       Vector4f fwdPoint = forwardProjection[locId];
-      Vector2f minmaxval = minmaximg[locId2];
       float depth = currentDepth[locId];
-
+      // 获取当前像素对应ray 在之前获取的深度范围 // TODO: 这里有bug吧？？？为啥要用minmaximg_subsample？？？
+      int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
+      Vector2f minmaxval = minmaximg[locId2];  
+      // 没有成功投影的点 = 找不到voxel && (voxel坐标为0 或者 深度图中存在对应值)   // TODO: float不应该用==0
       if ((fwdPoint.w <= 0) && ((fwdPoint.x == 0 && fwdPoint.y == 0 && fwdPoint.z == 0) || (depth >= 0)) &&
-          (minmaxval.x < minmaxval.y))
+          (minmaxval.x < minmaxval.y))  { // NOTE：.w是voxel的置信度(<=0说明没有voxel），minmaxval.x < .y表示ray找到了表面
       // if ((fwdPoint.w <= 0) && (minmaxval.x < minmaxval.y))
-      {
         fwdProjMissingPoints[noMissingPoints] = locId;
         noMissingPoints++;
       }
@@ -446,7 +456,7 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
 
   renderState->noFwdProjMissingPoints = noMissingPoints;
   const Vector4f invProjParams = InvertProjectionParams(projParams);
-
+  //! 对于没有成功投影的，再次进行raycast
   for (int pointId = 0; pointId < noMissingPoints; pointId++) {
     int locId = fwdProjMissingPoints[pointId];
     int y = locId / imgSize.x, x = locId - y * imgSize.x;
@@ -478,8 +488,8 @@ void ITMVisualisationEngine_CPU<TVoxel, TIndex>::FindSurface(const ITMScene<TVox
                                                              const ORUtils::SE3Pose *pose,
                                                              const ITMIntrinsics *intrinsics,
                                                              const ITMRenderState *renderState) const {
-  // this one is generally done for freeview visualisation, so no, do not
-  // update the list of visible blocks
+  // this one is generally done for freeview visualisation, so no, do not update the list of visible blocks
+  // 用于UI界面的自由视角，不要更新可见列表，以免影响跟踪。
   GenericRaycast(scene, renderState->raycastResult->noDims, pose->GetInvM(), intrinsics->projectionParamsSimple.all,
                  renderState, false);
 }
@@ -488,8 +498,8 @@ template <class TVoxel>
 void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::FindSurface(
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
     const ITMRenderState *renderState) const {
-  // this one is generally done for freeview visualisation, so no, do not
-  // update the list of visible blocks
+  // this one is generally done for freeview visualisation, so no, do not update the list of visible blocks
+  // 用于UI界面的自由视角，不要更新可见列表，以免影响跟踪。
   GenericRaycast(scene, renderState->raycastResult->noDims, pose->GetInvM(), intrinsics->projectionParamsSimple.all,
                  renderState, false);
 }
@@ -508,15 +518,6 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreatePointCloud(
   CreatePointCloud_common(scene, view, trackingState, renderState, skipPoints);
 }
 
-/**
- * voxel三维场景中，使用raycasting投影点云（只有几何，无纹理）？？？
- * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] scene 三维模型
- * @param[in] view 当前输入图像
- * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
- * @param[out] renderState raycasting的结果
- */
 template <class TVoxel, class TIndex>
 void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateICPMaps(const ITMScene<TVoxel, TIndex> *scene,
                                                                const ITMView *view, ITMTrackingState *trackingState,
@@ -524,15 +525,7 @@ void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateICPMaps(const ITMScene<TV
   CreateICPMaps_common(scene, view, trackingState, renderState);
 }
 
-/**
- * 使用voxel+哈希的三维场景下，使用raycasting投影点云（只有几何，无纹理）？？？
- * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
- * @param[in] scene 三维模型
- * @param[in] view 当前输入图像
- * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
- * @param[out] renderState raycasting的结果
- * @note 为啥要单独再弄一个函数呢？？？
- */
+
 template <class TVoxel>
 void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateICPMaps(
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view, ITMTrackingState *trackingState,
@@ -553,38 +546,53 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::ForwardRender(
     ITMRenderState *renderState) const {
   ForwardRender_common(scene, view, trackingState, renderState);
 }
-
+/**
+ * @brief 将raycast的结果转成三维点云  // TODO: 下次从这儿开始
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] locations  三维点云
+ * @param[out] colours    三维点云对应的颜色信息
+ * @param[in] ptsRay      raycast的结果
+ * @param[in] voxelData   voxel block array
+ * @param[in] voxelIndex  hash table
+ * @param[in] skipPoints  是否只渲染1/4的像素
+ * @param[in] voxelSize   voxel size。单位米
+ * @param[in] imgSize     渲染图片的
+ * @param[in] lightSource 相机光心位置。取位姿的最后一列的负数
+ * @return int 三维点云中的总点数
+ */
 template <class TVoxel, class TIndex>
 static int RenderPointCloud(Vector4f *locations, Vector4f *colours, const Vector4f *ptsRay, const TVoxel *voxelData,
                             const typename TIndex::IndexData *voxelIndex, bool skipPoints, float voxelSize,
                             Vector2i imgSize, Vector3f lightSource) {
   int noTotalPoints = 0;
-
+  // 遍历每个要渲染的像素
   for (int y = 0, locId = 0; y < imgSize.y; y++)
     for (int x = 0; x < imgSize.x; x++, locId++) {
-      Vector3f outNormal;
+      //! 计算法向量 && 跟相机光心的夹角
+      Vector3f outNormal;   // TODO：没用到哇？？？难道只是为了保证foundPoint的准确性？？？这样的话不用算法向和角度吧？
       float angle;
       Vector4f pointRay = ptsRay[locId];
       Vector3f point = pointRay.toVector3();
       bool foundPoint = pointRay.w > 0;
 
       computeNormalAndAngle<TVoxel, TIndex>(foundPoint, point, voxelData, voxelIndex, lightSource, outNormal, angle);
-
+      //! 【可选】只渲染1/4的像素
       if (skipPoints && ((x % 2 == 0) || (y % 2 == 0)))
         foundPoint = false;
-
+      //! 只对有效点 获取带RGB的三维点
       if (foundPoint) {
-        Vector4f tmp;
+        Vector4f tmp;       
         tmp = VoxelColorReader<TVoxel::hasColorInformation, TVoxel, TIndex>::interpolate(voxelData, voxelIndex, point);
-        if (tmp.w > 0.0f) {
+        if (tmp.w > 0.0f) { // NOTE：上面读出来都保证w==1
           tmp.x /= tmp.w;
           tmp.y /= tmp.w;
           tmp.z /= tmp.w;
           tmp.w = 1.0f;
         }
-        colours[noTotalPoints] = tmp;
+        colours[noTotalPoints] = tmp; // RGB信息(0-1)
 
-        Vector4f pt_ray_out;
+        Vector4f pt_ray_out;  // 真实坐标
         pt_ray_out.x = point.x * voxelSize;
         pt_ray_out.y = point.y * voxelSize;
         pt_ray_out.z = point.z * voxelSize;

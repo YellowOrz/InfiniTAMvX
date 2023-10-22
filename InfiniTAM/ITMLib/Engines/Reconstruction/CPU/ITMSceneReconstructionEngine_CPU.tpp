@@ -59,9 +59,9 @@ void ITMSceneReconstructionEngine_CPU<TVoxel, ITMVoxelBlockHash>::IntegrateIntoS
   float voxelSize = scene->sceneParams->voxelSize;
 
   Matrix4f M_d = trackingState->pose_d->GetM();             // 当前帧中深度图的位姿（word to local）
-  Matrix4f M_rgb;
+  Matrix4f M_rgb;                                           // 当前帧中RGB图的位姿（word to local）
   if (TVoxel::hasColorInformation)
-    M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d; // 当前帧中RGB图的位姿（word to local）
+    M_rgb = view->calib.trafo_rgb_to_depth.calib_inv * M_d; 
 
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *) renderState;  // TODO: 父类转子类指针，最好用dynamic_cast
 
