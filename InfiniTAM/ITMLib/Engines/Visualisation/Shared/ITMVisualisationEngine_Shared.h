@@ -6,7 +6,7 @@
 
 static const CONSTPTR(int) MAX_RENDERING_BLOCKS = 65536 * 4;
 // static const int MAX_RENDERING_BLOCKS = 16384;
-static const CONSTPTR(int) minmaximg_subsample = 8;
+static const CONSTPTR(int) minmaximg_subsample = 8; // 对ray深度范围图的下采样倍数，为了节省计算量
 
 #if !(defined __METALC__)
 /** raycasting中用来确定搜索深度范围的小块*/
@@ -245,21 +245,28 @@ castRay(DEVICEPTR(Vector4f) & pt_out, DEVICEPTR(uchar) * entriesVisibleType, int
 
   return pt_found;
 }
-
+/**
+ * 将三维点（真实坐标）投影到成像平面
+ * @param[in] pixel       三维点（真实世界坐标）
+ * @param[in] M           当前相机的位姿
+ * @param[in] projParams  相机内参
+ * @param[in] imgSize     图像大小
+ * @return 三维点在图像中的像素坐标（从二维转成一维）
+ */
 _CPU_AND_GPU_CODE_ inline int forwardProjectPixel(Vector4f pixel, const CONSTPTR(Matrix4f) & M,
                                                   const CONSTPTR(Vector4f) & projParams,
                                                   const THREADPTR(Vector2i) & imgSize) {
   pixel.w = 1;
-  pixel = M * pixel;
+  pixel = M * pixel;  // 从世界坐标 到 相机的局部坐标
 
   Vector2f pt_image;
-  pt_image.x = projParams.x * pixel.x / pixel.z + projParams.z;
+  pt_image.x = projParams.x * pixel.x / pixel.z + projParams.z; // 投影
   pt_image.y = projParams.y * pixel.y / pixel.z + projParams.w;
 
   if ((pt_image.x < 0) || (pt_image.x > imgSize.x - 1) || (pt_image.y < 0) || (pt_image.y > imgSize.y - 1))
     return -1;
 
-  return (int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x;
+  return (int)(pt_image.x + 0.5f) + (int)(pt_image.y + 0.5f) * imgSize.x; // +0.5是为了四舍五入
 }
 /**
  * 直接从TSDF中计算 单个voxel坐标（小数）的单位法向量

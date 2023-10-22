@@ -397,7 +397,8 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
 /**
  * 查看三维点（真实坐标）在图像上是否可见
  * @details 将三维点投影到成像平面，在图像范围内就可见
- * @tparam useSwapping 是否支持交换内存-显存数据。C++的非类型模板参数https://blog.csdn.net/lanchunhui/article/details/49634077
+ * @tparam useSwapping 是否支持交换内存-显存数据。=true则将图像尺寸扩大1/8查看可加性。
+ *                     C++的非类型模板参数https://blog.csdn.net/lanchunhui/article/details/49634077
  * @param[out] isVisible 在imgSize内是否可见
  * @param[out] isVisibleEnlarged 在扩大1/8后的imgSize内否可见
  * @param[in] pt_image 三维点
@@ -433,16 +434,17 @@ checkPointVisibility(THREADPTR(bool) & isVisible, THREADPTR(bool) & isVisibleEnl
 }
 
 /**
- * 检查单个block是否可见
+ * 检查单个block在当前相机视角下是否可见
  * @details 将block的8个顶点一次投影到成像平面，只要有一个顶点投影在图片范围内，就可见
- * @tparam useSwapping 是否支持交换内存-显存数据。C++的非类型模板参数https://blog.csdn.net/lanchunhui/article/details/49634077
- * @param[out] isVisible 在imgSize内是否可见
- * @param[out] isVisibleEnlarged 在扩大1/8后的imgSize内否可见
- * @param[in] hashPos block坐标（不是真实坐标）
- * @param[in] M_d world to local的变换矩阵
- * @param[in] projParams_d 投影的相机内参
- * @param[in] voxelSize voxel的实际尺寸。单位米
- * @param[in] imgSize 图像大小
+ * @tparam useSwapping 是否支持交换内存-显存数据。=true则将图像尺寸扩大1/8查看可加性。
+ *                     C++的非类型模板参数https://blog.csdn.net/lanchunhui/article/details/49634077
+ * @param[out] isVisible          在imgSize内是否可见
+ * @param[out] isVisibleEnlarged  在扩大1/8后的imgSize内否可见
+ * @param[in] hashPos             block坐标（不是真实坐标）
+ * @param[in] M_d                 world to local的变换矩阵
+ * @param[in] projParams_d        相机内参。用于投影三维点到相机平面
+ * @param[in] voxelSize           voxel的实际尺寸。单位米
+ * @param[in] imgSize             图像大小
  */
 template <bool useSwapping>
 _CPU_AND_GPU_CODE_ inline void checkBlockVisibility(THREADPTR(bool) & isVisible, THREADPTR(bool) & isVisibleEnlarged,

@@ -110,7 +110,8 @@ class MemoryBlock {
     Clear();
   }
 
-  /** Set all image data to the given @p defaultValue. */
+  /** 将图片中每个像素置为 @param defaultValue。
+   * Set all image data to the given @param defaultValue. */
   void Clear(unsigned char defaultValue = 0) {
     if (isAllocated_CPU) memset(data_cpu, defaultValue, dataSize * sizeof(T));
 #ifndef COMPILE_WITHOUT_CUDA
@@ -118,9 +119,7 @@ class MemoryBlock {
 #endif
   }
 
-  /** Resize a memory block, losing all old data.
-  Essentially any previously allocated data is
-  released, new memory is allocated.
+  /** Resize a memory block, losing all old data. Essentially any previously allocated data is released, new memory is allocated.
   */
   void Resize(size_t newDataSize, bool forceReallocation = true) {
     if (newDataSize == dataSize) return;

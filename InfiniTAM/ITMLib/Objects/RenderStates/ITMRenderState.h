@@ -31,7 +31,7 @@ class ITMRenderState {
   */
   ORUtils::Image<Vector4f> *raycastResult;
 
-  ORUtils::Image<Vector4f> *forwardProjection;
+  ORUtils::Image<Vector4f> *forwardProjection;  // ???
   ORUtils::Image<int> *fwdProjMissingPoints;
   int noFwdProjMissingPoints;
 
