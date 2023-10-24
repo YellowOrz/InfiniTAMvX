@@ -13,9 +13,10 @@ namespace ITMLib {
 */
 class ITMRenderState {
  public:
-  /** 记录raycating中每条ray的最小和最大深度。
+  /** 深度范围图：记录raycating中每条ray的最小和最大深度。
    * 从而在raycasting中更快搜索ray跟三维模型的交点。
    * 应该在 raycasting之前更新。  // TODO:可以设置成private吗？
+   * 虽然 分配内存的时候 分配了跟渲染图片一样大的空间，但是实际中只用了左上角的一小块（通过变量minmaximg_subsample下采样）
    * Gives the raycasting operations an idea of the depth range to cover
    * Each pixel contains an expected minimum and maximum depth. The raycasting step would use this information to 
    *    reduce the range for searching an intersection with the actual surface. Should be updated by a 

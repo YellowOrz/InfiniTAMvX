@@ -42,7 +42,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::FindVisibleBlocks(
   const ITMHashEntry *hashTable = scene->index.GetEntries();      // hash table
   int noTotalEntries = scene->index.noTotalEntries;               // 场景中entry总数
   float voxelSize = scene->sceneParams->voxelSize;                // voxel size。单位米
-  Vector2i imgSize = renderState->renderingRangeImage->noDims;    // 渲染图片的尺寸
+  Vector2i imgSize = renderState->renderingRangeImage->noDims;    // 深度范围图的尺寸。比渲染图片小 (见minmaximg_subsample)
 
   Matrix4f M = pose->GetM();                                      // 当前视角相机位姿
   Vector4f projParams = intrinsics->projectionParamsSimple.all;   // 相机内参
@@ -104,8 +104,8 @@ void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ITMS
                                                                       const ITMIntrinsics *intrinsics,
                                                                       ITMRenderState *renderState) const {
   //! 准备 获取彩色图大小 && raycast得到的图片
-  Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 渲染
-  Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
+  Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 深度范围图的尺寸。比渲染图片小 (见minmaximg_subsample)
+  Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU); // 深度范围图
   //! 给每个像素赋值最小和最大深度（0.2-3）
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
     // TODO : this could be improved a bit...
@@ -120,8 +120,8 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
     ITMRenderState *renderState) const {
   //! 获取彩色图大小 && raycast得到的图片
-  Vector2i imgSize = renderState->renderingRangeImage->noDims;
-  Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);
+  Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 深度范围图的尺寸。比渲染图片小 (见minmaximg_subsample)
+  Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU); // 深度范围图
   //! 给每个像素赋值初始的最小和最大深度
   for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
     Vector2f &pixel = minmaxData[locId];
@@ -169,9 +169,9 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     // fill minmaxData
     const RenderingBlock &b(renderingBlocks[blockNo]);
 
-    for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) { // TODO: 下次从这儿开始，搞明白x和y的取值范围
+    for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) { // NOTE：这里是 深度范围图 的坐标
       for (int x = b.upperLeft.x; x <= b.lowerRight.x; ++x) {
-        Vector2f &pixel(minmaxData[x + y * imgSize.x]);   // TODO: 为啥这里的x和y跟minmaximg_subsample没关系？？？
+        Vector2f &pixel(minmaxData[x + y * imgSize.x]);
         if (pixel.x > b.zRange.x)   pixel.x = b.zRange.x;
         if (pixel.y < b.zRange.y)   pixel.y = b.zRange.y;
       }
@@ -195,7 +195,7 @@ template <class TVoxel, class TIndex>
 static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i &imgSize, const Matrix4f &invM,
                            const Vector4f &projParams, const ITMRenderState *renderState, bool updateVisibleList) {
   
-  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 之前计算好的渲染小块
+  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 深度范围图
   float mu = scene->sceneParams->mu;                                              // SDF的截断值对应的距离
   float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;                  // voxel size的倒数
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点（voxel坐标）
@@ -398,13 +398,15 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
     }
 }
 /**
- * @brief // TODO: 下次从这儿开始。搞懂minmaximg_subsample是啥
+ * 增量式的raycasting
+ * @details 找出旧的raycast结果中在当前视角下找不到的，重新raycast
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] scene
- * @param[in] view
- * @param[in] trackingState 
- * @param[in] renderState   
+ * @param[in] scene             三维场景信息
+ * @param[in] view              当前帧。用到其中的深度图
+ * @param[in] trackingState     当前帧的跟踪结果。主要用到当前深度相机的位姿
+ * @param[in, out] renderState  渲染相关信息。主要用到其中的raycastResult、renderingRangeImage、forwardProjection、
+ *                              fwdProjMissingPoints。前俩是in，后俩是out
  */
 template <class TVoxel, class TIndex>
 static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
@@ -415,17 +417,17 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   Matrix4f invM = trackingState->pose_d->GetInvM();       // 位姿的逆，方便后续计算
   const Vector4f &projParams = view->calib.intrinsics_d.projectionParamsSimple.all; // 深度相机的内参
 
-  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);        // raycast结果（voxel坐标）
-  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);  // ???
+  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);        // 旧的raycast结果(voxel坐标)
+  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);  // 在当前帧能找到的（临时变量）
+  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CPU); // 在当前帧找不到的（临时变量）
   float *currentDepth = view->depth->GetData(MEMORYDEVICE_CPU);                             // 当前输入的深度图
-  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CPU); // ???
-  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 每条ray的最小、大深度
+  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU);  // 深度范围图
   float voxelSize = scene->sceneParams->voxelSize;                                          // voxel size。单位米
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                               // voxel block array
   const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();               // hash table
 
   renderState->forwardProjection->Clear();
-  //! 遍历 raycast的每一个结果，记录成功投影到当前视角的成像平面
+  //! 遍历 旧的raycast的每一个结果，记录成功投影到当前视角的成像平面
   for (int y = 0; y < imgSize.y; y++)
     for (int x = 0; x < imgSize.x; x++) {
       int locId = x + y * imgSize.x;
@@ -435,17 +437,17 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
       if (locId_new >= 0)
         forwardProjection[locId_new] = pixel;
     }
-  //! 遍历 raycast的每一个结果，记录 没有成功投影的点
+  //! 遍历 旧的raycast的每一个结果，记录 没有成功投影的点
   int noMissingPoints = 0;
   for (int y = 0; y < imgSize.y; y++) // TODO: 为啥不跟上面的循环合并到一起？？？
     for (int x = 0; x < imgSize.x; x++) {
       int locId = x + y * imgSize.x;
       Vector4f fwdPoint = forwardProjection[locId];
       float depth = currentDepth[locId];
-      // 获取当前像素对应ray 在之前获取的深度范围 // TODO: 这里有bug吧？？？为啥要用minmaximg_subsample？？？
+      // 获取当前像素对应ray 在之前获取的深度范围。注意：深度范围图 比 渲染图片 缩小了 minmaximg_subsample倍
       int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
       Vector2f minmaxval = minmaximg[locId2];  
-      // 没有成功投影的点 = 找不到voxel && (voxel坐标为0 或者 深度图中存在对应值)   // TODO: float不应该用==0
+      // 没有成功投影的点 = 找不到voxel && (voxel坐标为0 或者 深度图中存在对应值) && 存在表面   // TODO: float不应该用==0
       if ((fwdPoint.w <= 0) && ((fwdPoint.x == 0 && fwdPoint.y == 0 && fwdPoint.z == 0) || (depth >= 0)) &&
           (minmaxval.x < minmaxval.y))  { // NOTE：.w是voxel的置信度(<=0说明没有voxel），minmaxval.x < .y表示ray找到了表面
       // if ((fwdPoint.w <= 0) && (minmaxval.x < minmaxval.y))
@@ -456,7 +458,7 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
 
   renderState->noFwdProjMissingPoints = noMissingPoints;
   const Vector4f invProjParams = InvertProjectionParams(projParams);
-  //! 对于没有成功投影的，再次进行raycast
+  //! 对于 没有成功投影的，再次进行raycast
   for (int pointId = 0; pointId < noMissingPoints; pointId++) {
     int locId = fwdProjMissingPoints[pointId];
     int y = locId / imgSize.x, x = locId - y * imgSize.x;

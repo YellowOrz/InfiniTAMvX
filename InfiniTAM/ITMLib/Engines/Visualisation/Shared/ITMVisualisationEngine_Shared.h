@@ -42,8 +42,8 @@ _CPU_AND_GPU_CODE_ inline Vector4f InvertProjectionParams(const THREADPTR(Vector
  * @param[in] intrinsics    相机内参
  * @param[in] imgSize       图像大小
  * @param[in] voxelSize     voxel的实际尺寸
- * @param[out] upperLeft    block在当前帧投影的包围盒 左上角坐标
- * @param[out] lowerRight   block在当前帧投影的包围盒 右下角坐标
+ * @param[out] upperLeft    block在 深度范围图 投影的包围盒 左上角坐标
+ * @param[out] lowerRight   block在 深度范围图 投影的包围盒 右下角坐标
  * @param[out] zRange       block在当前帧坐标系下的 深度范围
  * @return                  是否投影成功。深度值为非正数 && 投影不到图像上，都为false
  */
@@ -51,7 +51,7 @@ _CPU_AND_GPU_CODE_ inline bool
 ProjectSingleBlock(const THREADPTR(Vector3s) & blockPos, const THREADPTR(Matrix4f) & pose,
                    const THREADPTR(Vector4f) & intrinsics, const THREADPTR(Vector2i) & imgSize, float voxelSize,
                    THREADPTR(Vector2i) & upperLeft, THREADPTR(Vector2i) & lowerRight, THREADPTR(Vector2f) & zRange) {
-  upperLeft = imgSize / minmaximg_subsample;
+  upperLeft = imgSize / minmaximg_subsample;    // NOTE: 这里从渲染图片的坐标 转换到了 深度范围图的坐标
   lowerRight = Vector2i(-1, -1);
   zRange = Vector2f(FAR_AWAY, VERY_CLOSE);
   //! 依次将block的8个顶点投影到二维平面上
