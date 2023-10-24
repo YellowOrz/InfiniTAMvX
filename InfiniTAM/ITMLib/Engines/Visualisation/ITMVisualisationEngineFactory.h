@@ -19,7 +19,7 @@ struct ITMVisualisationEngineFactory {
   //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief 构造可视化模块
+   * \brief 构造 渲染模块
    * Makes a visualisation engine.
    *
    * \param deviceType  The device on which the visualisation engine should operate.

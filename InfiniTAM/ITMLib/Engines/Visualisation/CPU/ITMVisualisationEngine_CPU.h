@@ -20,7 +20,7 @@ public:
    */
   void FindVisibleBlocks(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
                          const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const;
-    /**
+  /**
    * @brief 统计可见的entry列表中，block id在指定范围内的数量
    * @param[in] scene       三维场景信息。主要用到hash table
    * @param[in] renderState 渲染信息。主要用到GetVisibleEntryIDs
@@ -33,10 +33,10 @@ public:
                          int maxBlockId) const;
   /**
    * @brief 将raycasting中每条ray的最小和最大深度（即搜索范围）设置为常数。用来辅助后面 更快地投影 图像
-   * @param[in] scene 三维场景信息。主要用到其中的voxel size和hash table
-   * @param[in] pose 当前相机位姿。world to local
-   * @param[in] intrinsics 相机内参，用于投影图片
-   * @param[out] renderState 渲染相关变量。主要用到其中的renderingRangeImage，来记录raycasting中每条ray的深度范围
+   * @param[in] scene         三维场景信息。主要用到其中的voxel size和hash table
+   * @param[in] pose          当前相机位姿。world to local
+   * @param[in] intrinsics    相机内参，用于投影图片
+   * @param[out] renderState  渲染相关变量。主要用到其中的renderingRangeImage，来记录raycasting中每条ray的深度范围
    * @note 用于UI界面可视化（自由视角） && 跟踪投影的raycast
    */
   void CreateExpectedDepths(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
@@ -66,19 +66,40 @@ public:
    */
   void FindSurface(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
                    const ITMRenderState *renderState) const;
+  /**
+   * 根据跟踪到的当前相机位姿，使用raycast从三维场景中抽取带RGB的点云（用于下一帧的跟踪？？？）
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+   * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+   * @param[in] scene               三维场景
+   * @param[in] view                当前输入帧。主要用到其中的相机内外参
+   * @param[in, out] trackingState  跟踪状态。主要用到其中的相机位姿、点云
+   * @param[in, out] renderState    渲染结果。主要用到其中的raycastResult
+   * @param[in] skipPoints          抽取点云的时候要不要跳过。=true的话，只保留1/4的点云
+   */
   void CreatePointCloud(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view, ITMTrackingState *trackingState,
                         ITMRenderState *renderState, bool skipPoints) const;
   /**
    * voxel三维场景中，使用raycasting投影点云（只有几何，无纹理）？？？
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
-   * @param[in] scene 三维模型
-   * @param[in] view 当前输入图像
+   * @param[in] scene         三维场景信息
+   * @param[in] view          当前输入图像
    * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
-   * @param[out] renderState raycasting的结果
+   * @param[out] renderState  raycasting的结果
    */
   void CreateICPMaps(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view, ITMTrackingState *trackingState,
                      ITMRenderState *renderState) const;
+  /**
+   * 增量式的raycasting
+   * @details 找出旧的raycast结果中在当前视角下找不到的，重新raycast
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+   * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+   * @param[in] scene             三维场景信息
+   * @param[in] view              当前帧。用到其中的深度图
+   * @param[in] trackingState     当前帧的跟踪结果。主要用到当前深度相机的位姿
+   * @param[in, out] renderState  渲染相关信息。主要用到其中的raycastResult、renderingRangeImage、forwardProjection、
+   *                              fwdProjMissingPoints。前俩是in，后俩是out
+   */
   void ForwardRender(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view, ITMTrackingState *trackingState,
                      ITMRenderState *renderState) const;
 };
@@ -118,6 +139,7 @@ public:
    * @param[in] intrinsics 相机内参，用于投影图片
    * @param[out] renderState 渲染相关变量。主要用到其中的renderingRangeImage，来记录raycasting中每条ray的深度范围
    * @note 用于UI界面可视化（自由视角） && 跟踪投影的raycast
+   * @note renderingRangeImage（深度范围图）的尺寸比渲染图片小，相比之下缩小了minmaximg_subsample倍
    */
   void CreateExpectedDepths(const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose,
                             const ITMIntrinsics *intrinsics, ITMRenderState *renderState) const;
@@ -163,13 +185,24 @@ public:
    * voxel三维场景中，使用raycasting投影点云（只有几何，无纹理）？？？
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
-   * @param[in] scene 三维模型
-   * @param[in] view 当前输入图像
+   * @param[in] scene         三维场景信息
+   * @param[in] view          当前输入图像
    * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
-   * @param[out] renderState raycasting的结果
+   * @param[out] renderState  raycasting的结果
    */
   void CreateICPMaps(const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
                      ITMTrackingState *trackingState, ITMRenderState *renderState) const;
+  /**
+   * 增量式的raycasting
+   * @details 找出旧的raycast结果中在当前视角下找不到的，重新raycast
+   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+   * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+   * @param[in] scene             三维场景信息
+   * @param[in] view              当前帧。用到其中的深度图
+   * @param[in] trackingState     当前帧的跟踪结果。主要用到当前深度相机的位姿
+   * @param[in, out] renderState  渲染相关信息。主要用到其中的raycastResult、renderingRangeImage、forwardProjection、
+   *                              fwdProjMissingPoints。前俩是in，后俩是out
+   */
   void ForwardRender(const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ITMView *view,
                      ITMTrackingState *trackingState, ITMRenderState *renderState) const;
 };
