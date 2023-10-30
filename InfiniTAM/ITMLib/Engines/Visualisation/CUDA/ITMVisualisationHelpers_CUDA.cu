@@ -5,42 +5,45 @@
 using namespace ITMLib;
 
 //device implementations
-
-__global__ void ITMLib::countVisibleBlocks_device(const int *visibleEntryIDs,
-                                                  int noVisibleEntries,
-                                                  const ITMHashEntry *hashTable,
-                                                  uint *noBlocks,
-                                                  int minBlockId,
+/**
+ * @brief 统计可见的entry列表中，block id在指定范围内的数量
+ * @param[in] visibleEntryIDs   可见entry的id列表。
+ * @param[in] noVisibleEntries  可见entry数量
+ * @param[in] hashTable         hash table
+ * @param[out] noBlocks         指定范围内的entry数量
+ * @param[in] minBlockId        指定id范围
+ * @param[in] maxBlockId        定id范围
+ */
+__global__ void ITMLib::countVisibleBlocks_device(const int *visibleEntryIDs, int noVisibleEntries,
+                                                  const ITMHashEntry *hashTable, uint *noBlocks, int minBlockId,
                                                   int maxBlockId) {
   int globalIdx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (globalIdx >= noVisibleEntries) return;
+  if (globalIdx >= noVisibleEntries)
+    return;
 
   int entryId = visibleEntryIDs[globalIdx];
   int blockId = hashTable[entryId].ptr;
-  if ((blockId >= minBlockId) && (blockId <= maxBlockId)) atomicAdd(noBlocks, 1);
+  if ((blockId >= minBlockId) && (blockId <= maxBlockId)) // 只统计在指定范围内的可见entry数量
+    atomicAdd(noBlocks, 1); // TODO: 应该用归约的方式求和
 }
 
-__global__ void ITMLib::buildCompleteVisibleList_device(const ITMHashEntry *hashTable, /*ITMHashCacheState *cacheStates, bool useSwapping,*/
-                                                        int noTotalEntries,
-                                                        int *visibleEntryIDs,
-                                                        int *noVisibleEntries,
-                                                        uchar *entriesVisibleType,
-                                                        Matrix4f M,
-                                                        Vector4f projParams,
-                                                        Vector2i imgSize,
-                                                        float voxelSize) {
+__global__ void ITMLib::buildCompleteVisibleList_device(
+    const ITMHashEntry *hashTable, /*ITMHashCacheState *cacheStates, bool useSwapping,*/
+    int noTotalEntries, int *visibleEntryIDs, int *noVisibleEntries, uchar *entriesVisibleType, Matrix4f M,
+    Vector4f projParams, Vector2i imgSize, float voxelSize) {
   int targetIdx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (targetIdx > noTotalEntries - 1) return;
+  if (targetIdx > noTotalEntries - 1)
+    return;
 
   __shared__ bool shouldPrefix;
-
-  unsigned char hashVisibleType = 0; //entriesVisibleType[targetIdx];
+  // 只支持0、1两种可见类型。没有那么多花里胡哨的
+  unsigned char hashVisibleType = 0; // entriesVisibleType[targetIdx];
   const ITMHashEntry &hashEntry = hashTable[targetIdx];
 
   shouldPrefix = false;
   __syncthreads();
 
-  if (hashEntry.ptr >= 0) {
+  if (hashEntry.ptr >= 0) { // 对存在的voxel block检查可见性（不将图片扩大尺寸）
     shouldPrefix = true;
 
     bool isVisible, isVisibleEnlarged;
@@ -48,15 +51,16 @@ __global__ void ITMLib::buildCompleteVisibleList_device(const ITMHashEntry *hash
 
     hashVisibleType = isVisible;
   }
-
-  if (hashVisibleType > 0) shouldPrefix = true;
-
+  // 可见的就记录一下
+  if (hashVisibleType > 0)
+    shouldPrefix = true;  // 只要cuda block中有一个线程要记录，整个cuda block就参与后面的前缀和计算
   __syncthreads();
 
-  if (shouldPrefix) {
+  if (shouldPrefix) { // 通过前缀求和找到全局数组中的位置
     int offset =
         computePrefixSum_device<int>(hashVisibleType > 0, noVisibleEntries, blockDim.x * blockDim.y, threadIdx.x);
-    if (offset != -1) visibleEntryIDs[offset] = targetIdx;
+    if (offset != -1)
+      visibleEntryIDs[offset] = targetIdx;
   }
 }
 /**

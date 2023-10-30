@@ -4,27 +4,27 @@
 
 #include "../../../Objects/Scene/ITMRepresentationAccess.h"
 
-static const CONSTPTR(int) MAX_RENDERING_BLOCKS = 65536 * 4;
+static const CONSTPTR(int) MAX_RENDERING_BLOCKS = 65536 * 4;  // 单次渲染的最大块数。每块的大小为下面的renderingBlockSizeX/Y
 // static const int MAX_RENDERING_BLOCKS = 16384;
-static const CONSTPTR(int) minmaximg_subsample = 8; // 对ray深度范围图的下采样倍数，为了节省计算量
+static const CONSTPTR(int) minmaximg_subsample = 8; // 对ray深度范围图的下采样倍数 // TODO:为了节省计算量???
 
 #if !(defined __METALC__)
-/** raycasting中用来确定搜索深度范围的小块*/
+/** raycasting中用来确定搜索深度范围的小块 */
 struct RenderingBlock {
-  Vector2s upperLeft;
-  Vector2s lowerRight;
-  Vector2f zRange;
+  Vector2s upperLeft;   // 左上角在深度范围图上的像素坐标
+  Vector2s lowerRight;  // 右下角在深度范围图上的像素坐标
+  Vector2f zRange;      // 深度范围
 };
 
 #ifndef FAR_AWAY
-#define FAR_AWAY 999999.9f
+#define FAR_AWAY 999999.9f  // ray的搜索距离的默认最大值
 #endif
 
 #ifndef VERY_CLOSE
-#define VERY_CLOSE 0.05f
+#define VERY_CLOSE 0.05f    // ray的搜索距离的默认最小值
 #endif
 
-static const CONSTPTR(int) renderingBlockSizeX = 16;
+static const CONSTPTR(int) renderingBlockSizeX = 16;  // 渲染的时候的最小分块大小
 static const CONSTPTR(int) renderingBlockSizeY = 16;
 
 /** 
@@ -161,7 +161,7 @@ _CPU_AND_GPU_CODE_ inline void CreateRenderingBlocks(DEVICEPTR(RenderingBlock) *
  * @param[in] oneOverVoxelSize voxel size的倒数
  * @param[in] mu TSDF的截断值对应的距离
  * @param[in] viewFrustum_minmax ray的最大最小深度
- * @return
+ * @return  
  */
 template <class TVoxel, class TIndex, bool modifyVisibleEntries>
 _CPU_AND_GPU_CODE_ inline bool
@@ -470,7 +470,7 @@ _CPU_AND_GPU_CODE_ inline void drawPixelColour(DEVICEPTR(Vector4u) & dest, const
  * @param[in] imgSize 有序点云对应的图像大小（x+y）
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
- * @param[in] voxelSize 
+ * @param[in] voxelSize   voxel的真实尺寸
  * @param[in] lightSource 相机光心位置。用来计算夹角
  * @note 好像是raycasting专用的
  */
@@ -520,7 +520,7 @@ _CPU_AND_GPU_CODE_ inline void processPixelICP(DEVICEPTR(Vector4f) & pointsMap, 
  * @param[in] imgSize 有序点云对应的图像大小（x+y）
  * @param[in] x 像素坐标
  * @param[in] y 像素坐标
- * @param[in] voxelSize 
+ * @param[in] voxelSize   voxel的真实尺寸
  * @param[in] lightSource 相机光心位置。用来计算夹角
  * @note 好像是raycasting专用的
  */
@@ -602,7 +602,7 @@ processPixelGrey_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR
  * @brief 从有序点云中渲染 法向量图 的单个像素
  * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
- * @param[out] outRendering 彩色信息。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
+ * @param[out] outRendering 伪彩色信息。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
  * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
  * @param[in] x             像素坐标
  * @param[in] y             像素坐标

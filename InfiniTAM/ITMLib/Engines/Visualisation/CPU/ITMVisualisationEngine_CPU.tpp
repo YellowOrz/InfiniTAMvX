@@ -49,8 +49,8 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::FindVisibleBlocks(
 
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *)renderState; // TODO: 父类转子类指针，最好用dynamic_cast
 
-  int noVisibleEntries = 0;
-  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs(); // 可见entries列表
+  int noVisibleEntries = 0;                                     // 后面找到的可见entry的数量
+  int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();  // 后面找到的可见entries列表
 
   //! 遍历场景中所有entry，构建可见列表。build visible list
   for (int targetIdx = 0; targetIdx < noTotalEntries; targetIdx++) {
@@ -119,7 +119,7 @@ template <class TVoxel>
 void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths(
     const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
     ITMRenderState *renderState) const {
-  //! 获取彩色图大小 && raycast得到的图片
+  //! 准备
   Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 深度范围图的尺寸。比渲染图片小 (见minmaximg_subsample)
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU); // 深度范围图
   //! 给每个像素赋值初始的最小和最大深度
@@ -178,15 +178,14 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     }
   }
 }
-
 /**
  * @brief raycasting的核心部分，得到点云
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] scene 三维场景信息
- * @param[in] imgSize raycasting得到的图像大小（x+y）
- * @param[in] invM 当前视角的相机 到 世界坐标系 的变换矩阵？？？
- * @param[in] projParams 相机内参，即fx、fy、cx(px)、cy(py)
+ * @param[in] scene             三维场景信息
+ * @param[in] imgSize           raycasting得到的图像大小（x+y）
+ * @param[in] invM              当前视角的相机 到 世界坐标系 的变换矩阵？？？
+ * @param[in] projParams        相机内参，即fx、fy、cx(px)、cy(py)
  * @param[in, out] renderState 里面的renderingRangeImage给定ray的范围，raycastResult是结果点云（voxel坐标下）
  * @param[in] updateVisibleList 用于跟踪的话，=true来更新可见列表；用于UI界面的自由视角，=false不要更新，以免影响跟踪。
  *                              在CreatePointCloud_common和CreateICPMaps_common设为true，其余都是false
@@ -201,10 +200,10 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 后面要计算的ray的交点（voxel坐标）
   const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                     // device上的voxel block array
   const typename ITMVoxelBlockHash::IndexData *voxelIndex = scene->index.getIndexData();  // hash table
-  uchar *entriesVisibleType = NULL;
+  uchar *entriesVisibleType = NULL;                                               // visible entry列表
   if (updateVisibleList && (dynamic_cast<const ITMRenderState_VH *>(renderState) != NULL)) {  
     // TODO:上面用啥dynamic_cast？？？应该下面用吧？？？
-    entriesVisibleType = ((ITMRenderState_VH *)renderState)->GetEntriesVisibleType();   // visible entry列表
+    entriesVisibleType = ((ITMRenderState_VH *)renderState)->GetEntriesVisibleType();
   }
   //! 遍历每个像素，计算对应ray的值
 #ifdef WITH_OPENMP
@@ -217,7 +216,7 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
     // TODO：计算 归属于哪个渲染小块的ID？？？但是渲染小块是16*16的，这里是按照8*8计算的？？？只把结果存在渲染图片左上角的1/8的里面？？？
     int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
 
-    if (entriesVisibleType != NULL)
+    if (entriesVisibleType != NULL)   // 可见entry不为空的话，要顺带修改了
       castRay<TVoxel, TIndex, true>(pointsRay[locId], entriesVisibleType, x, y, voxelData, voxelIndex, invM,
                                     InvertProjectionParams(projParams), oneOverVoxelSize, mu, minmaximg[locId2]);
     else
@@ -262,9 +261,9 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
   }
   //! 根据渲染类型，从点云得到图片
   Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列的负数
-  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
-  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
+  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);  // 后面渲染得到的图片
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();   // voxel block array
+  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData(); // hash table
 
   if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))
     type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;  // 想要color但是没有，强制设为grey
