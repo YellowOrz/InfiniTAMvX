@@ -301,23 +301,34 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
     break;
   }
 }
-// TODO: 下次从这儿开始
+/**
+ * 根据跟踪到的当前相机位姿，使用raycast从三维场景中抽取带RGB的点云（用于下一帧的跟踪？？？）
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] scene                 三维场景
+ * @param[in] view                  当前输入帧。主要用到其中的相机内外参
+ * @param[in, out] trackingState    跟踪状态。主要用到其中的相机位姿、点云
+ * @param[in, out] renderState      渲染结果。主要用到其中的raycastResult
+ * @param[in] skipPoints            抽取点云的时候要不要跳过。=true的话，只保留1/4的点云
+ * @param[in, out] noTotalPoints_device  渲染像素的总数，临时存放在GPU上
+ */
 template <class TVoxel, class TIndex>
 static void CreatePointCloud_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                     ITMTrackingState *trackingState, ITMRenderState *renderState, bool skipPoints,
                                     uint *noTotalPoints_device) {
-  Vector2i imgSize = renderState->raycastResult->noDims;
-  Matrix4f invM = trackingState->pose_d->GetInvM() * view->calib.trafo_rgb_to_depth.calib;
-
+  Vector2i imgSize = renderState->raycastResult->noDims;                                    // 渲染图片大小
+  Matrix4f invM = trackingState->pose_d->GetInvM() * view->calib.trafo_rgb_to_depth.calib;  // RGB相机位姿。local 2 world
+  // TODO：用于带color的跟踪，∴可以的话，更新可见entry列表？？？
+  //! 在RGB相机的视角下，进行raycast
   GenericRaycast(scene, imgSize, invM, view->calib.intrinsics_rgb.projectionParamsSimple.all, renderState, true);
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
-
+  //! 将raycast的结果转成带RGB的三维点云
   ORcudaSafeCall(cudaMemsetAsync(noTotalPoints_device, 0, sizeof(uint)));
 
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));
-  Vector4f *locations = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *colours = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列的负数
+  Vector4f *locations = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CUDA); // 渲染得到的三维点云
+  Vector4f *colours = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CUDA);     // 三维点云对应的颜色信息
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);           // raycast的结果
 
   dim3 cudaBlockSize(16, 16);
   dim3 gridSize = getGridSize(imgSize, cudaBlockSize);
@@ -325,30 +336,38 @@ static void CreatePointCloud_common(const ITMScene<TVoxel, TIndex> *scene, const
       locations, colours, noTotalPoints_device, pointsRay, scene->localVBA.GetVoxelBlocks(),
       scene->index.getIndexData(), skipPoints, scene->sceneParams->voxelSize, imgSize, lightSource);
   ORcudaKernelCheck;
-
+  // 算完后 要像素总数 从GPU拷贝到CPU
   ORcudaSafeCall(cudaMemcpy(&trackingState->pointCloud->noTotalPoints, noTotalPoints_device, sizeof(uint),
                             cudaMemcpyDeviceToHost));
 }
-
+/**
+ * voxel三维场景中，使用raycasting投影点云（只有几何，无纹理）？？？
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] scene         三维模型
+ * @param[in] view          当前输入图像
+ * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
+ * @param[out] renderState  raycasting的结果
+ */
 template <class TVoxel, class TIndex>
 void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view, ITMTrackingState *trackingState,
                           ITMRenderState *renderState) {
-  Vector2i imgSize = renderState->raycastResult->noDims;
-  Matrix4f invM = trackingState->pose_d->GetInvM();
-
+  Vector2i imgSize = renderState->raycastResult->noDims;    // 渲染图片大小
+  Matrix4f invM = trackingState->pose_d->GetInvM();         // 深度相机（主相机）的位姿的逆，即local to world
+  //! 计算raycast得到的点云（voxel坐标） && 记录位姿
   GenericRaycast(scene, imgSize, invM, view->calib.intrinsics_d.projectionParamsSimple.all, renderState, true);
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
-
-  Vector4f *pointsMap = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *normalsMap = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));
+  //! 计算点云的真实坐标 && 法向量
+  Vector4f *pointsMap = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CUDA); // 最终的点云
+  Vector4f *normalsMap = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CUDA);  // 最终点云的法向量
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);           // raycast的结果
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));    // 相机光心位置。取位姿的最后一列的负数
 
   dim3 cudaBlockSize(16, 12);
   dim3 gridSize((int)ceil((float)imgSize.x / (float)cudaBlockSize.x),
                 (int)ceil((float)imgSize.y / (float)cudaBlockSize.y));
 
-  if (view->calib.intrinsics_d.FocalLengthSignsDiffer()) {
+  if (view->calib.intrinsics_d.FocalLengthSignsDiffer()) {  // 特殊的数据集（焦距为负），计算出来的法向量要翻转
     renderICP_device<true><<<gridSize, cudaBlockSize>>>(pointsMap, normalsMap, pointsRay, scene->sceneParams->voxelSize,
                                                         imgSize, lightSource);
   } else {
@@ -357,44 +376,52 @@ void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *
   }
   ORcudaKernelCheck;
 }
-
+/**
+ * 增量式的raycasting
+ * @details 找出旧的raycast结果中在当前视角下找不到的，重新raycast
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] scene             三维场景信息
+ * @param[in] view              当前帧。用到其中的深度图
+ * @param[in] trackingState     当前帧的跟踪结果。主要用到当前深度相机的位姿
+ * @param[in, out] renderState  渲染相关信息。主要用到其中的raycastResult、renderingRangeImage、forwardProjection、
+ *                              fwdProjMissingPoints。前俩是in，后俩是out
+ * @param[in, out] noTotalPoints_device  渲染像素的总数，临时存放在GPU上
+ */
 template <class TVoxel, class TIndex>
 static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,
                                  ITMTrackingState *trackingState, ITMRenderState *renderState,
                                  uint *noTotalPoints_device) {
-  Vector2i imgSize = renderState->raycastResult->noDims;
-  Matrix4f M = trackingState->pose_d->GetM();
-  Matrix4f invM = trackingState->pose_d->GetInvM();
-  const Vector4f &projParams = view->calib.intrinsics_d.projectionParamsSimple.all;
+  //! 准备
+  Vector2i imgSize = renderState->raycastResult->noDims;    // 渲染图片大小
+  Matrix4f M = trackingState->pose_d->GetM();               // 当前帧的深度相机位姿
+  Matrix4f invM = trackingState->pose_d->GetInvM();         // 位姿的逆，方便后续计算
+  const Vector4f &projParams = view->calib.intrinsics_d.projectionParamsSimple.all; // 深度相机的内参
 
-  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);
-  float *currentDepth = view->depth->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CUDA);
-  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CUDA);
-  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CUDA);
-  float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;
-  float voxelSize = scene->sceneParams->voxelSize;
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();
-  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();
+  const Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);     // 旧的raycast结果(voxel坐标)
+  float *currentDepth = view->depth->GetData(MEMORYDEVICE_CUDA);                          // 当前输入的深度图
+  Vector4f *forwardProjection = renderState->forwardProjection->GetData(MEMORYDEVICE_CUDA); // 在当前帧能找到的（临时变量）
+  int *fwdProjMissingPoints = renderState->fwdProjMissingPoints->GetData(MEMORYDEVICE_CUDA);// 在当前帧找不到的（临时变量）
+  const Vector2f *minmaximg = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CUDA); // 深度范围图
+  float oneOverVoxelSize = 1.0f / scene->sceneParams->voxelSize;                            // voxel size的倒数
+  float voxelSize = scene->sceneParams->voxelSize;                                          // voxel size
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();                               // voxel block array
+  const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData();               // hash table
 
   renderState->forwardProjection->Clear();
-
+  //! 遍历 旧的raycast的每一个结果，记录 可以成功投影到当前视角成像平面的
   dim3 blockSize, gridSize;
-
   { // forward projection
     blockSize = dim3(16, 16);
     gridSize = dim3((int)ceil((float)imgSize.x / (float)blockSize.x), (int)ceil((float)imgSize.y / (float)blockSize.y));
-
     forwardProject_device<<<gridSize, blockSize>>>(forwardProjection, pointsRay, imgSize, M, projParams, voxelSize);
     ORcudaKernelCheck;
   }
-
-  ORcudaSafeCall(cudaMemset(noTotalPoints_device, 0, sizeof(uint)));
-
+  //! 找到所有需要重新raycast的像素
+  ORcudaSafeCall(cudaMemset(noTotalPoints_device, 0, sizeof(uint)));  // TODO: 为啥不跟上面的循环合并到一起？？？
   { // find missing points
     blockSize = dim3(16, 16);
     gridSize = dim3((int)ceil((float)imgSize.x / (float)blockSize.x), (int)ceil((float)imgSize.y / (float)blockSize.y));
-
     findMissingPoints_device<<<gridSize, blockSize>>>(fwdProjMissingPoints, noTotalPoints_device, minmaximg,
                                                       forwardProjection, currentDepth, imgSize);
     ORcudaKernelCheck;
@@ -403,10 +430,9 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   ORcudaSafeCall(
       cudaMemcpy(&renderState->noFwdProjMissingPoints, noTotalPoints_device, sizeof(uint), cudaMemcpyDeviceToHost));
 
-  { // render missing points
+  { //! 对需要的像素进行raycast
     blockSize = dim3(256);
     gridSize = dim3((int)ceil((float)renderState->noFwdProjMissingPoints / blockSize.x));
-
     genericRaycastMissingPoints_device<TVoxel, TIndex, false><<<gridSize, blockSize>>>(
         forwardProjection, NULL, voxelData, voxelIndex, imgSize, invM, InvertProjectionParams(projParams),
         oneOverVoxelSize, fwdProjMissingPoints, renderState->noFwdProjMissingPoints, minmaximg, scene->sceneParams->mu);

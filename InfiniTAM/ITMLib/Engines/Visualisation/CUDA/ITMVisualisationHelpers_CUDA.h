@@ -102,7 +102,7 @@ __global__ void genericRaycast_device(Vector4f *out_ptsRay, uchar *entriesVisibl
   castRay<TVoxel, TIndex, modifyVisibleEntries>(out_ptsRay[locId], entriesVisibleType, x, y, voxelData, voxelIndex,
                                                 invM, invProjParams, oneOverVoxelSize, mu, minmaximg[locId2]);
 }
-
+// TODO: 下次从这儿开始
 template <class TVoxel, class TIndex, bool modifyVisibleEntries>
 __global__ void
 genericRaycastMissingPoints_device(Vector4f *forwardProjection, uchar *entriesVisibleType, const TVoxel *voxelData,
@@ -124,7 +124,6 @@ genericRaycastMissingPoints_device(Vector4f *forwardProjection, uchar *entriesVi
 }
 /**
  * 计算 voxel点云 中 单个像素的真实坐标 && 法向量
- * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[out] pointsMap 最终点云（真实坐标）
  * @param[out] normalsMap 点云对应的法向量
@@ -132,7 +131,7 @@ genericRaycastMissingPoints_device(Vector4f *forwardProjection, uchar *entriesVi
  * @param[in] imgSize 有序点云对应的图像大小（x+y）
  * @param[in] voxelSize   voxel的真实尺寸
  * @param[in] lightSource 相机光心位置。用来计算夹角
- * @note 好像是raycasting专用的
+ * @note 好像是raycasting专用的。对应CPU版本中有参数useSmoothing，可以使用更大的范围计算，从而达到平滑的目的
  */
 template<bool flipNormals>
 __global__ void renderICP_device(Vector4f *pointsMap, Vector4f *normalsMap, const Vector4f *pointsRay,
@@ -145,13 +144,13 @@ __global__ void renderICP_device(Vector4f *pointsMap, Vector4f *normalsMap, cons
 }
 /**
  * @brief 从有序点云中渲染 法向量夹角图 的所有像素（灰色）
- * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[out] outRendering 灰度图。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
  * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
  * @param[in] voxelSize     voxel的真实尺寸
  * @param[in] imgSize       渲染图片的大小
  * @param[in] lightSource   相机光心位置。用来计算夹角
+ * @note 对应CPU版本中有参数useSmoothing，可以使用更大的范围计算，从而达到平滑的目的
  */
 template <bool flipNormals>
 __global__ void renderGrey_ImageNormals_device(Vector4u *outRendering, const Vector4f *pointsRay, float voxelSize,
@@ -165,13 +164,13 @@ __global__ void renderGrey_ImageNormals_device(Vector4u *outRendering, const Vec
 }
 /**
  * @brief 从有序点云中渲染 法向量图 的所有像素
- * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[out] outRendering 伪彩色图。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
- * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
+ * @param[in] ptsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
  * @param[in] imgSize       渲染图片的大小
  * @param[in] voxelSize     voxel的真实尺寸
  * @param[in] lightSource   相机光心位置。用来计算夹角
+ * @note 对应CPU版本中有参数useSmoothing，可以使用更大的范围计算，从而达到平滑的目的
  */
 template <bool flipNormals>
 __global__ void renderNormals_ImageNormals_device(Vector4u *outRendering, const Vector4f *ptsRay, Vector2i imgSize,
@@ -185,13 +184,13 @@ __global__ void renderNormals_ImageNormals_device(Vector4u *outRendering, const 
 }
 /**
  * @brief 从有序点云中渲染 置信度图 的所有像素
- * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[out] outRendering 伪彩色图。通过邻域像素插值得到，范围0-255。第四个通道应该是不透明度???
- * @param[in] pointsRay     有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
+ * @param[in] ptsRay        有序点云投影到的三维点（voxel坐标）。第4个通道是有效性？？？
  * @param[in] imgSize       渲染图片的大小
  * @param[in] voxelSize     voxel的真实尺寸
  * @param[in] lightSource   相机光心位置。用来计算夹角
+ * @note 对应CPU版本中有参数useSmoothing，可以使用更大的范围计算，从而达到平滑的目的
  */
 template <bool flipNormals>
 __global__ void renderConfidence_ImageNormals_device(Vector4u *outRendering, const Vector4f *ptsRay, Vector2i imgSize,
@@ -281,7 +280,21 @@ __global__ void renderColourFromConfidence_device(Vector4u *outRendering, const 
 
   processPixelConfidence<TVoxel, TIndex>(outRendering[locId], ptRay, ptRay.w > 0, voxelData, voxelIndex, lightSource);
 }
-
+/**
+ * @brief 将raycast的结果转成三维点云
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[out] locations      三维点云
+ * @param[out] colours        三维点云对应的颜色信息
+ * @param[out] noTotalPoints  三维点云总数
+ * @param[in] ptsRay          raycast的结果
+ * @param[in] voxelData       voxel block array
+ * @param[in] voxelIndex      hash table
+ * @param[in] skipPoints      是否只渲染1/4的像素
+ * @param[in] voxelSize       voxel size。单位米
+ * @param[in] imgSize         渲染图片的
+ * @param[in] lightSource     相机光心位置。取位姿的最后一列的负数
+ */
 template <class TVoxel, class TIndex>
 __global__ void renderPointCloud_device(/*Vector4u *outRendering, */ Vector4f *locations, Vector4f *colours,
                                         uint *noTotalPoints, const Vector4f *ptsRay, const TVoxel *voxelData,
@@ -297,40 +310,41 @@ __global__ void renderPointCloud_device(/*Vector4u *outRendering, */ Vector4f *l
   int x = (threadIdx.x + blockIdx.x * blockDim.x), y = (threadIdx.y + blockIdx.y * blockDim.y);
 
   if (x < imgSize.x && y < imgSize.y) { // TODO: 超过图像范围的不能return？？？ why???
+    //! 计算法向量 && 跟相机光心的夹角
     int locId = x + y * imgSize.x;
     Vector3f outNormal;
     float angle;
     Vector4f pointRay = ptsRay[locId];
     point = pointRay.toVector3();
     foundPoint = pointRay.w > 0;
-
     computeNormalAndAngle<TVoxel, TIndex>(foundPoint, point, voxelData, voxelIndex, lightSource, outNormal, angle);
-
+    //! 【可选】只渲染1/4的像素
     if (skipPoints && ((x % 2 == 0) || (y % 2 == 0)))
       foundPoint = false;
 
-    if (foundPoint)
+    if (foundPoint)   // 只要有一个cuda thread找到了，整个cuda block都要参与前缀和计算
       shouldPrefix = true;
   }
 
   __syncthreads();
 
   if (shouldPrefix) {
+    //! 通过前缀和找到当前block在最终结果中的全局位置
     int offset = computePrefixSum_device<uint>(foundPoint, noTotalPoints, blockDim.x * blockDim.y,
                                                threadIdx.x + threadIdx.y * blockDim.x);
-
+    //! 只对有效点 获取带RGB的三维点
     if (offset != -1) {
       Vector4f tmp;
       tmp = VoxelColorReader<TVoxel::hasColorInformation, TVoxel, TIndex>::interpolate(voxelData, voxelIndex, point);
-      if (tmp.w > 0.0f) {
+      if (tmp.w > 0.0f) { // NOTE：上面读出来都保证w==1
         tmp.x /= tmp.w;
         tmp.y /= tmp.w;
         tmp.z /= tmp.w;
         tmp.w = 1.0f;
       }
-      colours[offset] = tmp;
+      colours[offset] = tmp;  // RGB信息(0-1)
 
-      Vector4f pt_ray_out;
+      Vector4f pt_ray_out;  // 真实坐标
       pt_ray_out.x = point.x * voxelSize;
       pt_ray_out.y = point.y * voxelSize;
       pt_ray_out.z = point.z * voxelSize;

@@ -378,10 +378,10 @@ static void CreateICPMaps_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
 
   //! 计算点云的真实坐标 && 法向量
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));    // 取平移，用来判断法向量朝向
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));    // 相机光心位置。取位姿的最后一列的负数
   Vector4f *pointsMap = trackingState->pointCloud->locations->GetData(MEMORYDEVICE_CPU);  // 最终的点云
   Vector4f *normalsMap = trackingState->pointCloud->colours->GetData(MEMORYDEVICE_CPU);   // 最终点云的法向量
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);    // 上面raycast的点云
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);            // raycast的结果
   float voxelSize = scene->sceneParams->voxelSize;
 
 #ifdef WITH_OPENMP
@@ -430,13 +430,13 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
   for (int y = 0; y < imgSize.y; y++)
     for (int x = 0; x < imgSize.x; x++) {
       int locId = x + y * imgSize.x;
-      Vector4f pixel = pointsRay[locId];  // .w是从voxel中顺带读出来的置信度
+      Vector4f pixel = pointsRay[locId];  // 第四个维度是从voxel中顺带读出来的置信度
 
       int locId_new = forwardProjectPixel(pixel * voxelSize, M, projParams, imgSize); // 将三维点投影，获取一维像素坐标
       if (locId_new >= 0)
         forwardProjection[locId_new] = pixel;
     }
-  //! 遍历 旧的raycast的每一个结果，记录 没有成功投影的点
+  //! 找到所有需要重新raycast的像素
   int noMissingPoints = 0;
   for (int y = 0; y < imgSize.y; y++) // TODO: 为啥不跟上面的循环合并到一起？？？
     for (int x = 0; x < imgSize.x; x++) {
@@ -446,7 +446,7 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
       // 获取当前像素对应ray 在之前获取的深度范围。注意：深度范围图 比 渲染图片 缩小了 minmaximg_subsample倍
       int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
       Vector2f minmaxval = minmaximg[locId2];  
-      // 没有成功投影的点 = 找不到voxel && (voxel坐标为0 或者 深度图中存在对应值) && 存在表面   // TODO: float不应该用==0
+      // 需要重新raycast的像素 = 找不到voxel && (旧的raycast中没有能投影到 || 深度值有效) && 存在表面   // TODO: float不应该用==0
       if ((fwdPoint.w <= 0) && ((fwdPoint.x == 0 && fwdPoint.y == 0 && fwdPoint.z == 0) || (depth >= 0)) &&
           (minmaxval.x < minmaxval.y))  { // NOTE：.w是voxel的置信度(<=0说明没有voxel），minmaxval.x < .y表示ray找到了表面
       // if ((fwdPoint.w <= 0) && (minmaxval.x < minmaxval.y))
@@ -457,7 +457,7 @@ static void ForwardRender_common(const ITMScene<TVoxel, TIndex> *scene, const IT
 
   renderState->noFwdProjMissingPoints = noMissingPoints;
   const Vector4f invProjParams = InvertProjectionParams(projParams);
-  //! 对于 没有成功投影的，再次进行raycast
+  //! 对需要的像素进行raycast
   for (int pointId = 0; pointId < noMissingPoints; pointId++) {
     int locId = fwdProjMissingPoints[pointId];
     int y = locId / imgSize.x, x = locId - y * imgSize.x;
@@ -548,7 +548,7 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::ForwardRender(
   ForwardRender_common(scene, view, trackingState, renderState);
 }
 /**
- * @brief 将raycast的结果转成三维点云  // TODO: 下次从这儿开始
+ * @brief 将raycast的结果转成三维点云
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
  * @param[out] locations  三维点云
