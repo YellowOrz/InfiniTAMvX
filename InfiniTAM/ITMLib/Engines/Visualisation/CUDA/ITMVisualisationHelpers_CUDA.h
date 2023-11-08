@@ -28,45 +28,69 @@ buildCompleteVisibleList_device(const ITMHashEntry *hashTable, /*ITMHashCacheSta
                                 int noTotalEntries, int *visibleEntryIDs, int *noVisibleEntries,
                                 uchar *entriesVisibleType, Matrix4f M, Vector4f projParams, Vector2i imgSize,
                                 float voxelSize);
-
-__global__ void countVisibleBlocks_device(const int *visibleEntryIDs,
-                                          int noVisibleEntries,
-                                          const ITMHashEntry *hashTable,
-                                          uint *noBlocks,
-                                          int minBlockId,
-                                          int maxBlockId);
-
-__global__ void projectAndSplitBlocks_device(const ITMHashEntry *hashEntries,
-                                             const int *visibleEntryIDs,
-                                             int noVisibleEntries,
-                                             const Matrix4f pose_M,
-                                             const Vector4f intrinsics,
-                                             const Vector2i imgSize,
-                                             float voxelSize,
-                                             RenderingBlock *renderingBlocks,
-                                             uint *noTotalBlocks);
-
-__global__ void checkProjectAndSplitBlocks_device(const ITMHashEntry *hashEntries,
-                                                  int noHashEntries,
-                                                  const Matrix4f pose_M,
-                                                  const Vector4f intrinsics,
-                                                  const Vector2i imgSize,
-                                                  float voxelSize,
-                                                  RenderingBlock *renderingBlocks,
-                                                  uint *noTotalBlocks);
 /**
- * 遍历小块，确定最后raycasting像素的最大和最小深度值
- * @param[in] noTotalBlocks     需要渲染的小块数量
- * @param[in] renderingBlocks   渲染小块。是单次渲染的最小单元
- * @param[in] imgSize           深度范围图的大小
- * @param[out] minmaxData       深度范围图
+ * @brief 统计可见的entry列表中，block id在指定范围内的数量
+ * @param[in] visibleEntryIDs   可见entry的id列表。
+ * @param[in] noVisibleEntries  可见entry数量
+ * @param[in] hashTable         hash table
+ * @param[out] noBlocks         指定范围内的entry数量
+ * @param[in] minBlockId        指定id范围
+ * @param[in] maxBlockId        定id范围
+ */
+__global__ void countVisibleBlocks_device(const int *visibleEntryIDs, int noVisibleEntries,
+                                          const ITMHashEntry *hashTable, uint *noBlocks, int minBlockId,
+                                          int maxBlockId);
+/**
+ * @brief 将可见的voxel block投影到当前相机视角 && 分小块记录最大最小深度。用来辅助后续raycast
+ * @param[in] hashEntries hash table
+ * @param[in] visibleEntryIDs 所有可见的entry的id
+ * @param[in] noVisibleEntries 所有可见的entry的总数
+ * @param[in] pose_M 当前相机位姿。world to local
+ * @param[in] intrinsics 相机内参
+ * @param[in] imgSize 成像的图片大小
+ * @param[in] voxelSize 真实的voxel size。单位米
+ * @param[out] renderingBlocks voxel block投影到成像平面后的分块
+ * @param[out] noTotalBlocks 上面分块的总数。
+ * @note 这里找到的最大最小深度就是后面raycast的搜索范围。分块可以更加精细地确定深度范围，从而减少后面raycast的搜索
+ */
+__global__ void projectAndSplitBlocks_device(const ITMHashEntry *hashEntries, const int *visibleEntryIDs,
+                                             int noVisibleEntries, const Matrix4f pose_M, const Vector4f intrinsics,
+                                             const Vector2i imgSize, float voxelSize, RenderingBlock *renderingBlocks,
+                                             uint *noTotalBlocks);
+/** 暂时没有地方用到 */
+__global__ void checkProjectAndSplitBlocks_device(const ITMHashEntry *hashEntries, int noHashEntries,
+                                                  const Matrix4f pose_M, const Vector4f intrinsics,
+                                                  const Vector2i imgSize, float voxelSize,
+                                                  RenderingBlock *renderingBlocks, uint *noTotalBlocks);
+/**
+ * 根据渲染小块，确定深度范围图
+ * @param[in] noTotalBlocks   渲染小块数量
+ * @param[in] renderingBlocks 渲染小块。是单次渲染的最小单元，默认大小16x16像素，分块是为了减少计算量
+ * @param[in] imgSize         深度范围图的大小
+ * @param[in, out] minmaxData 深度范围图
  */
 __global__ void fillBlocks_device(uint noTotalBlocks, const RenderingBlock *renderingBlocks,
                                   Vector2i imgSize, Vector2f *minmaxData);
-
+/**
+ * 找到渲染图片中需要重新raycast的像素
+ * @param[out] fwdProjMissingPoints 所有需要重新raycast的像素的一维坐标
+ * @param[out] noMissingPoints      重新raycast的像素总数
+ * @param[in] minmaximg             深度范围图。判断是否需要重新raycast的条件之一
+ * @param[in] forwardProjection     旧的raycast在当前视角下的投影
+ * @param[in] currentDepth          当前深度图。判断是否需要重新raycast的条件之一
+ * @param[in] imgSize               图像大小
+ */
 __global__ void findMissingPoints_device(int *fwdProjMissingPoints, uint *noMissingPoints, const Vector2f *minmaximg,
                                          Vector4f *forwardProjection, float *currentDepth, Vector2i imgSize);
-
+/**
+ * 获取 在当前帧能找到的 上一帧raycast结果
+ * @param[out] forwardProjection  在当前帧能找到的
+ * @param[in] pointsRay           上一帧的raycast结果(voxel坐标)
+ * @param[in] imgSize             图像大小
+ * @param[in] M                   当前帧的位姿
+ * @param[in] projParams          相机内参
+ * @param[in] voxelSize           voxel size
+ */
 __global__ void forwardProject_device(Vector4f *forwardProjection, const Vector4f *pointsRay, Vector2i imgSize,
                                       Matrix4f M, Vector4f projParams, float voxelSize);
 /**
@@ -102,7 +126,24 @@ __global__ void genericRaycast_device(Vector4f *out_ptsRay, uchar *entriesVisibl
   castRay<TVoxel, TIndex, modifyVisibleEntries>(out_ptsRay[locId], entriesVisibleType, x, y, voxelData, voxelIndex,
                                                 invM, invProjParams, oneOverVoxelSize, mu, minmaximg[locId2]);
 }
-// TODO: 下次从这儿开始
+/**
+ * @brief 增量式raycast中，只对增量计算raycast的结果
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @tparam modifyVisibleEntries 是否要顺带修改visile entry列表。为啥弄成模板参数、不弄成函数参数？？？
+ * @param[out] forwardProjection    渲染结果。即ray跟三维场景表面的交点。最后一位是权重
+ * @param[out] entriesVisibleType   visible entry列表。如果modifyVisibleEntries为true，则顺带更新
+ * @param[in] voxelData             voxel block array
+ * @param[in] voxelIndex            hash table
+ * @param[in] imgSize               渲染的图像尺寸
+ * @param[in] invM                  相机位姿的逆。即 local to world
+ * @param[in] invProjParams         相机内参的逆。fx、fy取倒数，cx、cy取负
+ * @param[in] oneOverVoxelSize      voxel size的倒数
+ * @param[in] fwdProjMissingPoints  需要进行raycast的像素的一维坐标，即增量
+ * @param[in] noMissingPoints       需要raycast的像素总数
+ * @param[in] minmaximg             深度范围图
+ * @param[in] mu                    TSDF的截断值对应的距离
+ */
 template <class TVoxel, class TIndex, bool modifyVisibleEntries>
 __global__ void
 genericRaycastMissingPoints_device(Vector4f *forwardProjection, uchar *entriesVisibleType, const TVoxel *voxelData,
@@ -116,7 +157,8 @@ genericRaycastMissingPoints_device(Vector4f *forwardProjection, uchar *entriesVi
 
   int locId = fwdProjMissingPoints[pointId];
   int y = locId / imgSize.x, x = locId - y * imgSize.x;
-  int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
+  int locId2 = (int)floor((float)x / minmaximg_subsample) + 
+               (int)floor((float)y / minmaximg_subsample) * imgSize.x;  // 深度范围图上的一维坐标
 
   castRay<TVoxel, TIndex, modifyVisibleEntries>(forwardProjection[locId], entriesVisibleType, x, y, voxelData,
                                                 voxelIndex, invM, invProjParams, oneOverVoxelSize, mu,
