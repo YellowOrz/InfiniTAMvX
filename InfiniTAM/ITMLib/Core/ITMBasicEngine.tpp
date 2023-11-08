@@ -15,7 +15,7 @@
 //#define OUTPUT_TRAJECTORY_QUATERNIONS
 
 using namespace ITMLib;
-
+// TODO: 下次从这儿开始
 template <typename TVoxel, typename TIndex>
 ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, const ITMRGBDCalib &calib,
                                                Vector2i imgSize_rgb, Vector2i imgSize_d) {

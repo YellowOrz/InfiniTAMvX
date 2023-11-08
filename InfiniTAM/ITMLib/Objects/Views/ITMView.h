@@ -21,7 +21,7 @@ class ITMView {
   /// RGB colour image for the previous frame.
   ITMUChar4Image *rgb_prev;
 
-  /// Float valued depth image, if available according to @ref inputImageType.
+  /// Float valued depth image, if available according to @ref inputImageType.  // TODO: 为啥没有depth_prev
   ITMFloatImage *depth;
 
   /// surface normal of depth image allocated when needed

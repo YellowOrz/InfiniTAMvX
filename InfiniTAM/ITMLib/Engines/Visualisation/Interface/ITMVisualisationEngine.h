@@ -11,11 +11,11 @@ namespace ITMLib {
 class IITMVisualisationEngine {
 public:
   enum RenderImageType {
-    RENDER_SHADED_GREYSCALE,
+    RENDER_SHADED_GREYSCALE,              // 渲染三维场景的法向量夹角图（灰度）
     RENDER_SHADED_GREYSCALE_IMAGENORMALS, // 渲染有序点云的法向量夹角图（灰色）
-    RENDER_COLOUR_FROM_VOLUME,            // 渲染几何场景的灰度图
-    RENDER_COLOUR_FROM_NORMAL,            // 渲染单位法向量的为彩色图
-    RENDER_COLOUR_FROM_CONFIDENCE         // 渲染置信度的为彩色图
+    RENDER_COLOUR_FROM_VOLUME,            // 渲染三维场景的彩色图
+    RENDER_COLOUR_FROM_NORMAL,            // 渲染三维场景的单位法向量的伪彩色图
+    RENDER_COLOUR_FROM_CONFIDENCE         // 渲染三维场景的置信度的伪彩色图
   };
 
   enum RenderRaycastSelection { RENDER_FROM_NEW_RAYCAST, RENDER_FROM_OLD_RAYCAST, RENDER_FROM_OLD_FORWARDPROJ };
