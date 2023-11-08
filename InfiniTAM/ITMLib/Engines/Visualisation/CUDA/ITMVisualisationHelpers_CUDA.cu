@@ -5,15 +5,6 @@
 using namespace ITMLib;
 
 //device implementations
-/**
- * @brief 统计可见的entry列表中，block id在指定范围内的数量
- * @param[in] visibleEntryIDs   可见entry的id列表。
- * @param[in] noVisibleEntries  可见entry数量
- * @param[in] hashTable         hash table
- * @param[out] noBlocks         指定范围内的entry数量
- * @param[in] minBlockId        指定id范围
- * @param[in] maxBlockId        定id范围
- */
 __global__ void ITMLib::countVisibleBlocks_device(const int *visibleEntryIDs, int noVisibleEntries,
                                                   const ITMHashEntry *hashTable, uint *noBlocks, int minBlockId,
                                                   int maxBlockId) {
@@ -63,19 +54,7 @@ __global__ void ITMLib::buildCompleteVisibleList_device(
       visibleEntryIDs[offset] = targetIdx;
   }
 }
-/**
- * @brief 将可见的voxel block投影到当前相机视角 && 分小块记录最大最小深度。用来辅助后续raycast
- * @param[in] hashEntries hash table
- * @param[in] visibleEntryIDs 所有可见的entry的id
- * @param[in] noVisibleEntries 所有可见的entry的总数
- * @param[in] pose_M 当前相机位姿。world to local
- * @param[in] intrinsics 相机内参
- * @param[in] imgSize 成像的图片大小
- * @param[in] voxelSize 真实的voxel size。单位米
- * @param[out] renderingBlocks voxel block投影到成像平面后的分块
- * @param[out] noTotalBlocks 上面分块的总数。
- * @note 这里找到的最大最小深度就是后面raycast的搜索范围。分块可以更加精细地确定深度范围，从而减少后面raycast的搜索
- */
+
 __global__ void ITMLib::projectAndSplitBlocks_device(const ITMHashEntry *hashEntries, const int *visibleEntryIDs,
                                                      int noVisibleEntries, const Matrix4f pose_M,
                                                      const Vector4f intrinsics, const Vector2i imgSize, float voxelSize,
@@ -111,7 +90,8 @@ __global__ void ITMLib::checkProjectAndSplitBlocks_device(const ITMHashEntry *ha
                                                           const Vector2i imgSize, float voxelSize,
                                                           RenderingBlock *renderingBlocks, uint *noTotalBlocks) {
   int targetIdx = threadIdx.x + blockDim.x * blockIdx.x;
-  if (targetIdx >= noHashEntries) return;
+  if (targetIdx >= noHashEntries)
+    return;
 
   const ITMHashEntry &hashEntry = hashEntries[targetIdx];
 
@@ -119,23 +99,20 @@ __global__ void ITMLib::checkProjectAndSplitBlocks_device(const ITMHashEntry *ha
   Vector2f zRange;
   bool validProjection = false;
   if (hashEntry.ptr >= 0)
-    validProjection = ProjectSingleBlock(hashEntry.pos,
-                                         pose_M,
-                                         intrinsics,
-                                         imgSize,
-                                         voxelSize,
-                                         upperLeft,
-                                         lowerRight,
-                                         zRange);
+    validProjection =
+        ProjectSingleBlock(hashEntry.pos, pose_M, intrinsics, imgSize, voxelSize, upperLeft, lowerRight, zRange);
 
   Vector2i requiredRenderingBlocks(ceilf((float)(lowerRight.x - upperLeft.x + 1) / renderingBlockSizeX),
-  ceilf((float) (lowerRight.y - upperLeft.y + 1) / renderingBlockSizeY));
+                                   ceilf((float)(lowerRight.y - upperLeft.y + 1) / renderingBlockSizeY));
   size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;
-  if (!validProjection) requiredNumBlocks = 0;
+  if (!validProjection)
+    requiredNumBlocks = 0;
 
   int out_offset = computePrefixSum_device<uint>(requiredNumBlocks, noTotalBlocks, blockDim.x, threadIdx.x);
-  if (requiredNumBlocks == 0) return;
-  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS)) return;
+  if (requiredNumBlocks == 0)
+    return;
+  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS))
+    return;
 
   CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);
 }
@@ -144,28 +121,20 @@ __global__ void ITMLib::fillBlocks_device(uint noTotalBlocks, const RenderingBlo
                                           Vector2i imgSize, Vector2f *minmaxData) {
   int x = threadIdx.x;
   int y = threadIdx.y;
-  int block = blockIdx.x * 4 + blockIdx.y;
+  int block = blockIdx.x * 4 + blockIdx.y;  // TODO: 把4换成blockDim.y
   if (block >= noTotalBlocks) return;
 
   const RenderingBlock &b(renderingBlocks[block]);
-  int xpos = b.upperLeft.x + x;
+  int xpos = b.upperLeft.x + x;       // NOTE：这里是 深度范围图 的坐标
   if (xpos > b.lowerRight.x) return;
   int ypos = b.upperLeft.y + y;
   if (ypos > b.lowerRight.y) return;
 
   Vector2f &pixel(minmaxData[xpos + ypos * imgSize.x]);
-  atomicMin(&pixel.x, b.zRange.x);
+  atomicMin(&pixel.x, b.zRange.x);  // 取最大的深度范围
   atomicMax(&pixel.y, b.zRange.y);
 }
-/**
- * 找到渲染图片中需要重新raycast的像素
- * @param[out] fwdProjMissingPoints 所有需要重新raycast的像素的一维坐标
- * @param[out] noMissingPoints      重新raycast的像素总数
- * @param[in] minmaximg             深度范围图。判断是否需要重新raycast的条件之一
- * @param[in] forwardProjection     旧的raycast在当前视角下的投影
- * @param[in] currentDepth          当前深度图。判断是否需要重新raycast的条件之一
- * @param[in] imgSize               图像大小
- */
+
 __global__ void ITMLib::findMissingPoints_device(int *fwdProjMissingPoints, uint *noMissingPoints,
                                                  const Vector2f *minmaximg, Vector4f *forwardProjection,
                                                  float *currentDepth, Vector2i imgSize) {
@@ -203,15 +172,7 @@ __global__ void ITMLib::findMissingPoints_device(int *fwdProjMissingPoints, uint
       fwdProjMissingPoints[offset] = locId;
   }
 }
-/**
- * 获取 在当前帧能找到的 上一帧raycast结果
- * @param[out] forwardProjection  在当前帧能找到的
- * @param[in] pointsRay           上一帧的raycast结果(voxel坐标)
- * @param[in] imgSize             图像大小
- * @param[in] M                   当前帧的位姿
- * @param[in] projParams          相机内参
- * @param[in] voxelSize           voxel size
- */
+
 __global__ void ITMLib::forwardProject_device(Vector4f *forwardProjection, const Vector4f *pointsRay, Vector2i imgSize,
                                               Matrix4f M, Vector4f projParams, float voxelSize) {
   int x = (threadIdx.x + blockIdx.x * blockDim.x), y = (threadIdx.y + blockIdx.y * blockDim.y);
