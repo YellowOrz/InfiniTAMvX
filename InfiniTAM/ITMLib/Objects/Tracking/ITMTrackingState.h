@@ -24,8 +24,7 @@ class ITMTrackingState {
   /// The pose used to generate the point cloud.
   ORUtils::SE3Pose *pose_pointCloud;  // raycasting的点云的位姿
 
-  /// Frames processed from start of tracking
-  /// Used as weight in the extended tracker
+  /// Frames processed from start of tracking. Used as weight in the extended tracker
   int framesProcessed;          // 已经跟踪的帧数。在extended track中作为权重
 
   int age_pointCloud;           // 增量更新raycasting得到的点云的年龄（类似视频中P帧到前面第一个I帧的帧数

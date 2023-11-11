@@ -247,7 +247,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
   Matrix4f invM = pose->GetInvM();        // 相机位姿的逆
 
   Vector4f *pointsRay;  // raycast的结果
-  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST) {  // TODO：啥时候会 取旧的raycast结果？？？
+  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST) {  // age_pointCloud <= 0会 取旧的raycast结果
     pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);
   } else if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ) {
     pointsRay = renderState->forwardProjection->GetData(MEMORYDEVICE_CUDA);

@@ -10,8 +10,7 @@
 #include "../Utils/ITMLibSettings.h"
 
 namespace ITMLib {
-/** \brief 调用tracking模块的模块？？？
-*/
+/** 控制跟踪的进度。包含调用tracking模块 && 为下次跟踪做准备 */
 class ITMTrackingController {
  private:
   const ITMLibSettings *settings;
@@ -82,16 +81,18 @@ class ITMTrackingController {
       // raycasting
       visualisationEngine->CreatePointCloud(scene, view, trackingState, renderState, settings->skipPoints);
       trackingState->age_pointCloud = 0;
-    } else {                        //! 不带彩色图的raycasting
+    } else {
       // 估计raycasting的深度范围
       visualisationEngine->CreateExpectedDepths(scene, trackingState->pose_d, &(view->calib.intrinsics_d), renderState);
       // raycasting
-      if (requiresFullRendering) {  // 普通的raycasting
+      if (requiresFullRendering) {  //! 普通的raycasting
         visualisationEngine->CreateICPMaps(scene, view, trackingState, renderState);
         trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
-        if (trackingState->age_pointCloud == -1) trackingState->age_pointCloud = -2;
-        else trackingState->age_pointCloud = 0;
-    } else {                      // 增量式的raycasting // TODO
+        if (trackingState->age_pointCloud == -1)
+          trackingState->age_pointCloud = -2;
+        else
+          trackingState->age_pointCloud = 0;
+      } else {                      //! 增量式的raycasting
         visualisationEngine->ForwardRender(scene, view, trackingState, renderState);
         trackingState->age_pointCloud++;
       }

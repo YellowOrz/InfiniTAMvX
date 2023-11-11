@@ -40,11 +40,11 @@ class UIEngine {
 //  ITMLib::ITMLibSettings internalSettings;      // 没用到
   ITMLib::ITMMainEngine *mainEngine;            // 主引擎
 
-  StopWatchInterface *timer_instant;
-  StopWatchInterface *timer_average;
+  StopWatchInterface *timer_instant;    // 单帧耗时
+  StopWatchInterface *timer_average;    // 平均耗时
 
  private: // For UI layout
-  /* UI布局 */
+  /** UI布局 */
   static const int NUM_WIN = 3;     // 子窗口数量
   Vector4f winReg[NUM_WIN];         // 子窗口范围。(x1, y1, x2, y2)，取值范围0-1
   Vector2i winSize;                 // 整个窗口的尺寸
@@ -84,6 +84,7 @@ class UIEngine {
    * @param y 没用到。因为OpenGL要求这么写
    */
   static void glutKeyUpFunction(unsigned char key, int x, int y);
+  // TODO: 下次从这儿开始
   static void glutMouseButtonFunction(int button, int state, int x, int y);
   static void glutMouseMoveFunction(int x, int y);
   static void glutMouseWheelFunction(int button, int dir, int x, int y);
@@ -106,12 +107,8 @@ class UIEngine {
    * @param[in] outFolder   输出文件夹
    * @param[in] deviceType  设备类型
    */
-  void Initialise(int &argc,
-                  char **argv,
-                  InputSource::ImageSourceEngine *imageSource,
-                  InputSource::IMUSourceEngine *imuSource,
-                  ITMLib::ITMMainEngine *mainEngine,
-                  const char *outFolder,
+  void Initialise(int &argc, char **argv, InputSource::ImageSourceEngine *imageSource,
+                  InputSource::IMUSourceEngine *imuSource, ITMLib::ITMMainEngine *mainEngine, const char *outFolder,
                   ITMLib::ITMLibSettings::DeviceType deviceType);
   void Shutdown();
 

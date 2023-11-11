@@ -30,17 +30,17 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, c
                                              memoryType);
   // 设备类型
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
-  // 底层的图像处理模块（拷贝、彩色转灰色等操作）
+  // 底层的图像处理模块（拷贝、彩色转灰色等操作，不是预处理）
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
-  // 可视化窗口   TODO(xzf)
+  // 输入图像 && 预处理
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
-  // 可视化（渲染）
+  // 渲染（可视化）
   visualisationEngine = ITMVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
   // mesh
   meshingEngine = NULL;
   if (settings->createMeshingEngine)
     meshingEngine = ITMMeshingEngineFactory::MakeMeshingEngine<TVoxel, TIndex>(deviceType);
-  // TODO(xzf)
+  // 负责 场景三维模型的融合 && swap in/out
   denseMapper = new ITMDenseMapper<TVoxel, TIndex>(settings);
   denseMapper->ResetScene(scene);
   // 初始化IMU预积分器和跟踪器
@@ -53,12 +53,12 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, c
   // 初始哈跟踪状态和位姿
   trackingState = new ITMTrackingState(trackedImageSize, memoryType);
   tracker->UpdateInitialPose(trackingState);
-  // 渲染
+  // 渲染结果：固定视角 && 自由视角
   renderState_live = ITMRenderStateFactory<TIndex>::CreateRenderState(trackedImageSize, scene->sceneParams, memoryType);
   renderState_freeview = NULL; //will be created if needed
 
-  view = NULL; // will be allocated by the view builder
-  kfRaycast = new ITMUChar4Image(imgSize_d, memoryType);
+  view = NULL;                                              // 当前输入图像。will be allocated by the view builder
+  kfRaycast = new ITMUChar4Image(imgSize_d, memoryType);    // raycast图片
 
   // 重定位
   if (settings->behaviourOnFailure == settings->FAILUREMODE_RELOCALISE)
@@ -67,12 +67,12 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, c
   else relocaliser = NULL;
 
   // 各模块状态
-  trackingActive = true; 
-  fusionActive = true;    
-  mainProcessingActive = true;  // 主线程，包含跟踪、融合？？？
-  trackingInitialised = false;
-  relocalisationCount = 0;
-  framesProcessed = 0;
+  trackingActive = true;        // 开启跟踪
+  fusionActive = true;          // 开启三维场景的融合
+  mainProcessingActive = true;  // 主线程。主要在移动端会关闭
+  trackingInitialised = false;  // 跟踪未初始化
+  relocalisationCount = 0;      // 重定位后要求的连续跟踪成功帧数
+  framesProcessed = 0;          // 跟踪成功帧数
 }
 
 template<typename TVoxel, typename TIndex>
@@ -142,7 +142,7 @@ void ITMBasicEngine<TVoxel, TIndex>::LoadFromFile() {
 
   this->resetAll();
 
-  try { // load relocaliser
+  try { // 读取重定位的信息。load relocaliser
     FernRelocLib::Relocaliser<float> *relocaliser_temp = new FernRelocLib::Relocaliser<float>(
         view->depth->noDims, Vector2f(settings->sceneParams.viewFrustum_min, settings->sceneParams.viewFrustum_max),
         0.2f, 500, 4);
@@ -155,7 +155,7 @@ void ITMBasicEngine<TVoxel, TIndex>::LoadFromFile() {
     throw std::runtime_error("Could not load relocaliser: " + std::string(e.what()));
   }
 
-  try { // load scene
+  try { // 读取三维场景的信息。load scene
     scene->LoadFromDirectory(sceneInputDirectory);
   } catch (std::runtime_error &e) {
     denseMapper->ResetScene(scene);
@@ -279,8 +279,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
     break;
   }
 
-  //relocalisation
-  //! 如果需要重定位
+  //! 如果需要重定位。relocalisation
   int addKeyframeIdx = -1;  // 添加Keyframe的ID？？？
   if (settings->behaviourOnFailure == ITMLibSettings::FAILUREMODE_RELOCALISE) {
     if (trackerResult == ITMTrackingState::TRACKING_GOOD && relocalisationCount > 0) relocalisationCount--;
@@ -289,16 +288,17 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
     float distances;
     view->depth->UpdateHostFromDevice();
 
-    //find and add keyframe, if necessary
+    // 查看是否需要添加关键帧。find and add keyframe, if necessary
     bool hasAddedKeyframe =
         relocaliser->ProcessFrame(view->depth, trackingState->pose_d, 0, 1, &NN, &distances,
                                   trackerResult == ITMTrackingState::TRACKING_GOOD && relocalisationCount == 0);
 
-    //frame not added and tracking failed -> we need to relocalise
+    // 添加失败 && 跟踪失败，正式进入重定位。frame not added and tracking failed -> we need to relocalise
     if (!hasAddedKeyframe && trackerResult == ITMTrackingState::TRACKING_FAILED) {
       relocalisationCount = 10;
 
       // Reset previous rgb frame since the rgb image is likely different than the one acquired when setting the keyframe
+      // 删除输入的彩色图，因为可能与设置关键帧时获得的图像不同
       view->rgb_prev->Clear();
 
       const FernRelocLib::PoseDatabase::PoseInScene &keyframe = relocaliser->RetrievePose(NN);
@@ -313,7 +313,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
   }
   //! 将当前帧融合进三维模型
   bool didFusion = false;   // 是否融合成功
-  // fusion同时满足条件：① 跟踪good or 不是刚刚初始化；② 开启fusion；③ 没有重定位失败
+  // fusion同时满足条件：① 跟踪good or 不是刚刚初始化；② 开启fusion；③ 重定位后连续跟踪成功的帧数足够
   if ((trackerResult == ITMTrackingState::TRACKING_GOOD || !trackingInitialised) && (fusionActive)
       && (relocalisationCount == 0)) {
     denseMapper->ProcessFrame(view, trackingState, scene, renderState_live);
@@ -328,9 +328,9 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
     if (!didFusion) denseMapper->UpdateVisibleList(view, trackingState, scene, renderState_live);
 
     // raycast to renderState_live for tracking and free visualisation
-    // raycasting，存在renderState_live，给后面的跟踪和可视化窗口用
+    // 为下一帧的跟踪和可视化做准备。raycast结果存在renderState_live
     trackingController->Prepare(trackingState, scene, view, visualisationEngine, renderState_live);
-
+    // 添加关键帧 // TODO: 不可能>=0
     if (addKeyframeIdx >= 0) {
       ORUtils::MemoryBlock<Vector4u>::MemoryCopyDirection memoryCopyDirection =
           settings->deviceType == ITMLibSettings::DEVICE_CUDA ? ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CUDA
@@ -367,60 +367,61 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
     return;
 
   out->Clear();
-
+  //! 根据所需的图片类型不同，渲染不同的图片
   switch (getImageType) {
-  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_RGB:
+  // NOTE: 以下都是直接来自输入图片
+  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_RGB:                            // 输入的彩色图
     out->ChangeDims(view->rgb->noDims);
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
     else
       out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
     break;
-  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH:
+  case ITMBasicEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH:                          // 输入的深度图
     out->ChangeDims(view->depth->noDims);
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       view->depth->UpdateHostFromDevice();
     ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
 
     break;
+  // NOTE: 以下都是固定视角的图片
   case ITMBasicEngine::InfiniTAM_IMAGE_SCENERAYCAST:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
     // use current raycast or forward projection?
     IITMVisualisationEngine::RenderRaycastSelection raycastType;
-    if (trackingState->age_pointCloud <= 0)
+    if (trackingState->age_pointCloud <= 0) // 直接使用旧的普通raycast结果
       raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
-    else
+    else                                    // 直接使用旧的增量raycat结果
       raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
 
-    // what sort of image is it?
-    //! 设置渲染图片类型
+    // 设置渲染图片类型。what sort of image is it?
     IITMVisualisationEngine::RenderImageType imageType;
     switch (getImageType) {
-    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:
+    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:                // 三维场景的置信度的伪彩色图
       imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
       break;
-    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
+    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:                    // 三维场景的单位法向量的伪彩色图
       imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
       break;
-    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
+    case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:                    // 三维场景的彩色图
       imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
       break;
-    default:
+    default:                                                                    // 有序点云的法向量夹角图（灰色）
       imageType = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS;
     }
-
+    // 渲染图片
     visualisationEngine->RenderImage(scene, trackingState->pose_d, &view->calib.intrinsics_d, renderState_live,
                                      renderState_live->raycastImage, imageType, raycastType);
-
+    // 把渲染的结果转移到out
     ORUtils::Image<Vector4u> *srcImage = NULL;
     if (relocalisationCount != 0)
       srcImage = kfRaycast;
     else
       srcImage = renderState_live->raycastImage;
 
-    out->ChangeDims(srcImage->noDims);
+    out->ChangeDims(srcImage->noDims);  // 修改图片大小
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
     else
@@ -428,16 +429,18 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
 
     break;
   }
+  // NOTE: 以下都是自由视角的图片
   case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED:
   case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME:
   case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL:
   case ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE: {
+    // 默认是法向量夹角图（灰度）
     IITMVisualisationEngine::RenderImageType type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
-    if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)
+    if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)          // 三维场景的彩色图
       type = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
-    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)
+    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)     // 单位法向量的伪彩色图
       type = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
-    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE)
+    else if (getImageType == ITMBasicEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE) // 置信度的伪彩色图
       type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
 
     if (renderState_freeview == NULL) {
@@ -473,9 +476,9 @@ void ITMBasicEngine<TVoxel, TIndex>::turnOnIntegration() { fusionActive = true; 
 
 template<typename TVoxel, typename TIndex>
 void ITMBasicEngine<TVoxel, TIndex>::turnOffIntegration() { fusionActive = false; }
-
+/** 主要在移动端使用 */
 template<typename TVoxel, typename TIndex>
 void ITMBasicEngine<TVoxel, TIndex>::turnOnMainProcessing() { mainProcessingActive = true; }
-
+/** 主要在移动端使用 */
 template<typename TVoxel, typename TIndex>
 void ITMBasicEngine<TVoxel, TIndex>::turnOffMainProcessing() { mainProcessingActive = false; }

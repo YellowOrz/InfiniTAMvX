@@ -119,8 +119,13 @@ class MemoryBlock {
 #endif
   }
 
-  /** Resize a memory block, losing all old data. Essentially any previously allocated data is released, new memory is allocated.
-  */
+  /**
+   * @brief 重置数据块的大小
+   * @details Resize a memory block, losing all old data. Essentially any previously allocated data is released, new memory is allocated.
+   * @param[in] newDataSize 新的大小
+   * @param[in] forceReallocation 是否强制重新分配内存
+   * @note 如果 新的大小 > 老的，强制重新分配内存
+   */
   void Resize(size_t newDataSize, bool forceReallocation = true) {
     if (newDataSize == dataSize) return;
 

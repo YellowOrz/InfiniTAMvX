@@ -18,7 +18,11 @@ public:
     RENDER_COLOUR_FROM_CONFIDENCE         // 渲染三维场景的置信度的伪彩色图
   };
 
-  enum RenderRaycastSelection { RENDER_FROM_NEW_RAYCAST, RENDER_FROM_OLD_RAYCAST, RENDER_FROM_OLD_FORWARDPROJ };
+  enum RenderRaycastSelection { 
+    RENDER_FROM_NEW_RAYCAST,              // 新生成raycast结果
+    RENDER_FROM_OLD_RAYCAST,              // 使用旧的普通raycast结果
+    RENDER_FROM_OLD_FORWARDPROJ           // 使用旧的增量raycat结果
+  };
 
   virtual ~IITMVisualisationEngine(void) {}
 

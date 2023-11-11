@@ -57,10 +57,14 @@ class Image : private MemoryBlock<T> {
     this->noDims = noDims;
   }
 
-  /** Resize an image, losing all old image data.
-  Essentially any previously allocated data is
-  released, new memory is allocated.
-  */
+  /**
+   * @brief 调整图像大小
+   * @param[in] newDims           新的图像大小
+   * @param[in] forceReallocation 是否强制重新分配内存。
+   * @note  如果新的图像大小比原来大，一定会重新分配内存
+   *        Resize an image, losing all old image data. 
+   *        Essentially any previously allocated data is released, new memory is allocated.
+   */
   void ChangeDims(Vector2<int> newDims, bool forceReallocation = true) {
     MemoryBlock<T>::Resize(newDims.x * newDims.y, forceReallocation);
     noDims = newDims;
