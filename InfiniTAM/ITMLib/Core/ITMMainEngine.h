@@ -47,39 +47,51 @@ class ITMMainEngine {
  public:
   /** 图片类型 */
   enum GetImageType {
-    InfiniTAM_IMAGE_ORIGINAL_RGB,             /**< 原始彩色图 */
-    InfiniTAM_IMAGE_ORIGINAL_DEPTH,           /**< 原始深度图 */
+    InfiniTAM_IMAGE_ORIGINAL_RGB,             /**< 输入的彩色图 */
+    InfiniTAM_IMAGE_ORIGINAL_DEPTH,           /**< 输入的深度图 */
     InfiniTAM_IMAGE_SCENERAYCAST,             /**< 场景raycast */
-    InfiniTAM_IMAGE_COLOUR_FROM_VOLUME,       /**< 固定视角下， */    // TODO(xzf):?
-    InfiniTAM_IMAGE_COLOUR_FROM_NORMAL,       /**< 固定视角下，法向量的伪彩色渲染图 */
-    InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE,   /**< 固定视角下，置信度的伪彩色渲染图 */
-    InfiniTAM_IMAGE_FREECAMERA_SHADED,                  /**< 自由视角下， */    // TODO(xzf):?
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME,      /**< 自由视角下， */     // TODO(xzf):?
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL,      /**< 自由视角下，法向量的伪彩色渲染图 */
-    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE,  /**< 自由视角下，置信度的伪彩色渲染图 */
+    InfiniTAM_IMAGE_COLOUR_FROM_VOLUME,       /**< 固定视角下，三维场景的彩色图 */
+    InfiniTAM_IMAGE_COLOUR_FROM_NORMAL,       /**< 固定视角下，三维场景的单位法向量的伪彩色图 */
+    InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE,   /**< 固定视角下，三维场景的置信度的伪彩色图 */
+    InfiniTAM_IMAGE_FREECAMERA_SHADED,                  /**< 自由视角下，三维场景的法向量夹角图（灰度） */
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME,      /**< 自由视角下，三维场景的彩色图 */
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL,      /**< 自由视角下，三维场景的单位法向量的伪彩色图 */
+    InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE,  /**< 自由视角下，三维场景的置信度的伪彩色图 */
     InfiniTAM_IMAGE_UNKNOWN                   /**< 未知 */
   };
 
-  /// Gives access to the current input frame
+  /** 获取当前输入图片。Gives access to the current input frame */
   virtual ITMView *GetView(void) = 0;
 
-  /// Gives access to the current camera pose and additional tracking information
+  /** 获取当前跟踪状态（比如相机位姿等）。Gives access to the current camera pose and additional tracking information */
   virtual ITMTrackingState *GetTrackingState(void) = 0;
 
-  /// Process a frame with rgb and depth images and optionally a corresponding imu measurement
+  /**
+   * @brief 跟踪单帧
+   * @param[in] rgbImage 输入的彩色图
+   * @param[in] rawDepthImage 输入的深度图
+   * @param[in] imuMeasurement 输入的IMU数据（可选）
+   * @return ITMTrackingState::TrackingResult 
+   * @note Process a frame with rgb and depth images and optionally a corresponding imu measurement
+   */
   virtual ITMTrackingState::TrackingResult ProcessFrame(ITMUChar4Image *rgbImage,
                                                         ITMShortImage *rawDepthImage,
                                                         ITMIMUMeasurement *imuMeasurement = NULL) = 0;
 
-  /// Get a result image as output
+  /** 获取raycast图片的尺寸。Get a result image as output */
   virtual Vector2i GetImageSize(void) const = 0;
-
-  virtual void GetImage(ITMUChar4Image *out,
-                        GetImageType getImageType,
-                        ORUtils::SE3Pose *pose = NULL,
+  /**
+   * @brief 获取要显示的图片（基本上就是raycast）
+   * @param[out] out          要显示的图片
+   * @param[in] getImageType  图片类型
+   * @param[in] pose          相机位姿
+   * @param[in] intrinsics    相机内参
+   */
+  virtual void GetImage(ITMUChar4Image *out, GetImageType getImageType, ORUtils::SE3Pose *pose = NULL,
                         ITMIntrinsics *intrinsics = NULL) = 0;
 
-  /// Extracts a mesh from the current scene and saves it to the model file specified by the file name
+  /** 使用marching cube从当前场景中导出mesh三维模型
+      Extracts a mesh from the current scene and saves it to the model file specified by the file name */
   virtual void SaveSceneToMesh(const char *fileName) {};
 
   /// save and load the full scene and relocaliser (if any) to/from file

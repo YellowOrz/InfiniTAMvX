@@ -247,17 +247,15 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
   Matrix4f invM = pose->GetInvM();          // 相机位姿的逆
 
   Vector4f *pointsRay;  // raycast的结果
-  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)  // TODO：啥时候会 取旧的raycast结果？？？
+  if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST)        // 取旧的普通raycast结果(age_pointCloud<=0)
     pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
-  else {
-    if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ)
+  else if (raycastType == IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ) // 取旧的增量raycast结果
       pointsRay = renderState->forwardProjection->GetData(MEMORYDEVICE_CPU);
-    else {
-      // this one is generally done for freeview visualisation, so no, do not update the list of visible blocks
-      // 用于UI界面的自由视角，不要更新可见列表，以免影响跟踪。
-      GenericRaycast(scene, imgSize, invM, intrinsics->projectionParamsSimple.all, renderState, false);
-      pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
-    }
+  else {
+    // this one is generally done for freeview visualisation, so no, do not update the list of visible blocks
+    // 用于UI界面的自由视角，不要更新可见列表，以免影响跟踪。
+    GenericRaycast(scene, imgSize, invM, intrinsics->projectionParamsSimple.all, renderState, false);
+    pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
   }
   //! 根据渲染类型，从点云得到图片
   Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列的负数

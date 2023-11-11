@@ -22,20 +22,19 @@ using namespace InfiniTAM::Engine;
 using namespace InputSource;
 using namespace ITMLib;
 
-/** Create a default source of depth images from a list of command line
-    arguments. Typically, @para arg1 would identify the calibration file to
-    use, @para arg2 the colour images, @para arg3 the depth images and
-    @para arg4 the IMU images. If images are omitted, some live sources will
-    be tried.
-*/
 /**
  * 创建图像数据源
- * @param[out] imageSource
+ * @param[out] imageSource 
  * @param[out] imuSource
  * @param[in] arg1 相机标定文件路径
  * @param[in] arg2 彩色图所在文件夹路径
  * @param[in] arg3 深度图所在文件夹路径
  * @param[in] arg4 IMU文件路径
+ * @details Create a default source of depth images from a list of command line
+    arguments. Typically, @para arg1 would identify the calibration file to
+    use, @para arg2 the colour images, @para arg3 the depth images and
+    @para arg4 the IMU images. If images are omitted, some live sources will
+    be tried.
  */
 static void CreateDefaultImageSource(ImageSourceEngine *&imageSource, IMUSourceEngine *&imuSource, const char *arg1,
                                      const char *arg2, const char *arg3, const char *arg4) {

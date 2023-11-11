@@ -55,7 +55,7 @@ public:
    * @param[in] renderState   raycast的结果，主要用到其中的raycastResult
    * @param[out] outputImage  渲染得到的图片
    * @param[in] type          渲染类型
-   * @param[in] raycastType   raycast的类型
+   * @param[in] raycastType   raycast的类型。默认要生成新的，也可以使用旧的普通raycast or 增量racast的结果
    */
   void RenderImage(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics,
                    const ITMRenderState *renderState, ITMUChar4Image *outputImage,
@@ -162,7 +162,7 @@ public:
    * @param[in] renderState   raycast的结果，主要用到其中的raycastResult
    * @param[out] outputImage  渲染得到的图片
    * @param[in] type          渲染类型
-   * @param[in] raycastType   raycast的类型
+   * @param[in] raycastType   raycast的类型。默认要生成新的，也可以使用旧的普通raycast or 增量racast的结果
    */
   void RenderImage(const ITMScene<TVoxel, ITMVoxelBlockHash> *scene, const ORUtils::SE3Pose *pose,
                    const ITMIntrinsics *intrinsics, const ITMRenderState *renderState, ITMUChar4Image *outputImage,
