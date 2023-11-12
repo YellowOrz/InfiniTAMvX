@@ -24,7 +24,7 @@ int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Ma
   Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;           // 当前帧相机内参
   Vector2i viewImageSize = viewHierarchyLevel->data->noDims;          // 当前帧图像大小
 
-  if (iterationType == TRACKER_ITERATION_NONE) return 0;      // 应该放到这个函数的第一行？？？
+  if (iterationType == TRACKER_ITERATION_NONE) return 0;      // TODO: 应该放到这个函数的第一行？？？
 
   //! 参数准备
   bool shortIteration = (iterationType == TRACKER_ITERATION_ROTATION) ||  // 只有旋转or平移，则Hessian、Nabla只算一半
