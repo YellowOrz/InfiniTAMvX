@@ -30,19 +30,23 @@ using namespace InputSource;
 using namespace ITMLib;
 
 UIEngine *UIEngine::instance;
-
+/**
+ * @brief 在UI界面上显示字符串
+ * @param[in] font  字体格式
+ * @param[in] str   字符串
+ */
 static void safe_glutBitmapString(void *font, const char *str) {
   size_t len = strlen(str);
+  // 遍历每个字符
   for (size_t x = 0; x < len; ++x) {
-    glutBitmapCharacter(font, str[x]);
+    glutBitmapCharacter(font, str[x]);  // 绘制到UI界面中
   }
 }
 
 void UIEngine::glutDisplayFunction() {
   UIEngine *uiEngine = UIEngine::Instance();
 
-  // get updated images from processing thread
-  //! 获取待会儿要显示的图像
+  //! 获取待会儿要显示的图像。get updated images from processing thread
   // 大窗口的图像：从重建好的三维模型上来
   uiEngine->mainEngine->GetImage(uiEngine->outImage[0], uiEngine->outImageType[0], &uiEngine->freeviewPose,
                                  &uiEngine->freeviewIntrinsics);
@@ -50,8 +54,7 @@ void UIEngine::glutDisplayFunction() {
   for (int w = 1; w < NUM_WIN; w++)
     uiEngine->mainEngine->GetImage(uiEngine->outImage[w], uiEngine->outImageType[w]);
 
-  // do the actual drawing
-  //! 子窗口显示画面
+  //! 子窗口显示画面。do the actual drawing
   glClear(GL_COLOR_BUFFER_BIT);
   glColor3f(1.0f, 1.0f, 1.0f);
   glEnable(GL_TEXTURE_2D);
@@ -96,19 +99,19 @@ void UIEngine::glutDisplayFunction() {
   glPopMatrix();
   //! 右下角显示单帧处理时间
   switch (uiEngine->trackingResult) {   // 用不同颜色表示跟踪结果
-    case 0: glColor3f(1.0f, 0.0f, 0.0f);
-      break; // failure
-    case 1: glColor3f(1.0f, 1.0f, 0.0f);
-      break; // poor
-    case 2: glColor3f(0.0f, 1.0f, 0.0f);
-      break; // good
-    default: glColor3f(1.0f, 1.0f, 1.0f);
-      break; // relocalising
+    case 0: glColor3f(1.0f, 0.0f, 0.0f);  // failure
+      break; 
+    case 1: glColor3f(1.0f, 1.0f, 0.0f);  // poor
+      break; 
+    case 2: glColor3f(0.0f, 1.0f, 0.0f);  // good
+      break; 
+    default: glColor3f(1.0f, 1.0f, 1.0f); // relocalising
+      break; 
   }
   glRasterPos2f(0.85f, -0.962f);
   char str[200];
   sprintf(str, "%04.2lf", uiEngine->processedTime);
-  safe_glutBitmapString(GLUT_BITMAP_HELVETICA_18, (const char *) str);
+  safe_glutBitmapString(GLUT_BITMAP_HELVETICA_18, (const char *) str);  // 在UI界面上显示字符串
   //! 左下角显示按键提示信息
   glColor3f(1.0f, 0.0f, 0.0f);
   glRasterPos2f(-0.98f, -0.95f);
@@ -125,9 +128,9 @@ void UIEngine::glutDisplayFunction() {
             uiEngine->colourModes_main[uiEngine->currentColourMode].name,
             uiEngine->integrationActive ? "off" : "on");
   }
-  safe_glutBitmapString(GLUT_BITMAP_HELVETICA_12, (const char *) str);
+  safe_glutBitmapString(GLUT_BITMAP_HELVETICA_12, (const char *) str);  // 在UI界面上显示字符串
 
-  glutSwapBuffers();
+  glutSwapBuffers();    // 显示后台渲染好的图片。∵ OpenGL 进行图形渲染时，有两个缓冲区：一个前缓冲区和一个后缓冲区
   uiEngine->needsRefresh = false;
 }
 
@@ -135,40 +138,43 @@ void UIEngine::glutIdleFunction() {
   UIEngine *uiEngine = UIEngine::Instance();
 
   switch (uiEngine->mainLoopAction) {
-    case PROCESS_FRAME: uiEngine->ProcessFrame();
-      uiEngine->processedFrameNo++;
-      uiEngine->mainLoopAction = PROCESS_PAUSED;
-      uiEngine->needsRefresh = true;
-      break;
-    case PROCESS_VIDEO: uiEngine->ProcessFrame();
-      uiEngine->processedFrameNo++;
-      uiEngine->needsRefresh = true;
-      break;
-      //case SAVE_TO_DISK:
-      //	if (!uiEngine->actionDone) {
-      //		char outFile[255];
+  case PROCESS_FRAME:     //! 处理单帧
+    uiEngine->ProcessFrame();
+    uiEngine->processedFrameNo++;
+    uiEngine->mainLoopAction = PROCESS_PAUSED;  // 一帧处理完后要暂停
+    uiEngine->needsRefresh = true;              // 刷新UI界面
+    break;
+  case PROCESS_VIDEO:     //! 处理视频流
+    uiEngine->ProcessFrame();
+    uiEngine->processedFrameNo++;
+    uiEngine->needsRefresh = true;
+    break;
+    // case SAVE_TO_DISK:     //! 保存到硬盘
+    //	if (!uiEngine->actionDone) {
+    //		char outFile[255];
 
-      //		ITMUChar4Image *saveImage = uiEngine->saveImage;
+    //		ITMUChar4Image *saveImage = uiEngine->saveImage;
 
-      //		glReadBuffer(GL_BACK);
-      //		glReadPixels(0, 0, saveImage->noDims.x, saveImage->noDims.x, GL_RGBA, GL_UNSIGNED_BYTE,
-      //                     (unsigned char*)saveImage->GetData(false));
-      //		sprintf(outFile, "%s/out_%05d.ppm", uiEngine->outFolder, uiEngine->processedFrameNo);
+    //		glReadBuffer(GL_BACK);
+    //		glReadPixels(0, 0, saveImage->noDims.x, saveImage->noDims.x, GL_RGBA, GL_UNSIGNED_BYTE,
+    //                     (unsigned char*)saveImage->GetData(false));
+    //		sprintf(outFile, "%s/out_%05d.ppm", uiEngine->outFolder, uiEngine->processedFrameNo);
 
-      //		SaveImageToFile(saveImage, outFile, true);
+    //		SaveImageToFile(saveImage, outFile, true);
 
-      //		uiEngine->actionDone = true;
-      //	}
-      //	break;
-    case EXIT:
+    //		uiEngine->actionDone = true;
+    //	}
+    //	break;
+  case EXIT:              //! 退出
 #ifdef FREEGLUT
-      glutLeaveMainLoop();
+    glutLeaveMainLoop();
 #else
-      exit(0);
+    exit(0);
 #endif
-      break;
-    case PROCESS_PAUSED:
-    default: break;
+    break;
+  case PROCESS_PAUSED:    //! 暂停
+  default:
+    break;
   }
 
   if (uiEngine->needsRefresh)
@@ -254,7 +260,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
     break;
   case 't': { //! 切换 是否要融合（integration）三维模型
     uiEngine->integrationActive = !uiEngine->integrationActive;
-
+    // voxel的
     ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *basicEngine =
         dynamic_cast<ITMBasicEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
     if (basicEngine != NULL) {
@@ -263,7 +269,7 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
       else
         basicEngine->turnOffIntegration();
     }
-
+    // surfel的
     ITMBasicSurfelEngine<ITMSurfelT> *basicSurfelEngine =
         dynamic_cast<ITMBasicSurfelEngine<ITMSurfelT> *>(uiEngine->mainEngine);
     if (basicSurfelEngine != NULL) {
@@ -310,8 +316,8 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
     }
   } break;
   case '[':
-  case ']': { //! ？？？
-    ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *multiEngine =
+  case ']': { //! 在使用子图的情况下，切换要显示的子图  
+    ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *multiEngine =  // TODO: 对吗？？？
         dynamic_cast<ITMMultiEngine<ITMVoxel, ITMVoxelIndex> *>(uiEngine->mainEngine);
     if (multiEngine != NULL) {
       int idx = multiEngine->getFreeviewLocalMapIdx();
@@ -335,26 +341,38 @@ void UIEngine::glutKeyUpFunction(unsigned char key, int x, int y) {
 void UIEngine::glutMouseButtonFunction(int button, int state, int x, int y) {
   UIEngine *uiEngine = UIEngine::Instance();
 
-  if (state == GLUT_DOWN) {
+  if (state == GLUT_DOWN) {     //! 鼠标按下
     switch (button) {
-      case GLUT_LEFT_BUTTON: uiEngine->mouseState = 1;
-        break;
-      case GLUT_MIDDLE_BUTTON: uiEngine->mouseState = 3;
-        break;
-      case GLUT_RIGHT_BUTTON: uiEngine->mouseState = 2;
-        break;
-      default: break;
+    case GLUT_LEFT_BUTTON:      // 鼠标左键
+      uiEngine->mouseState = 1;
+      break;
+    case GLUT_MIDDLE_BUTTON:    // 鼠标中键
+      uiEngine->mouseState = 3;
+      break;
+    case GLUT_RIGHT_BUTTON:     // 鼠标右键
+      uiEngine->mouseState = 2;
+      break;
+    default:
+      break;
     }
+    // 记录鼠标位置
     uiEngine->mouseLastClick.x = x;
     uiEngine->mouseLastClick.y = y;
 
-    glutSetCursor(GLUT_CURSOR_NONE);
-  } else if (state == GLUT_UP && !uiEngine->mouseWarped) {
+    glutSetCursor(GLUT_CURSOR_NONE);  // 设置光标
+  } else if (state == GLUT_UP && !uiEngine->mouseWarped) {  //! 鼠标弹起 && 无拖动
     uiEngine->mouseState = 0;
     glutSetCursor(GLUT_CURSOR_INHERIT);
   }
 }
 
+/**
+ * @brief 根据旋转轴和旋转角构建旋转矩阵
+ * @param[in] _axis 旋转轴
+ * @param[in] angle 旋转角
+ * @return Matrix3f 旋转矩阵
+ * @note 具体公式见https://wikimedia.org/api/rest_v1/media/math/render/svg/f259f80a746ee20d481f9b7f600031084358a27c
+ */
 static inline Matrix3f createRotation(const Vector3f &_axis, float angle) {
   Vector3f axis = normalize(_axis);
   float si = sinf(angle);
@@ -364,7 +382,9 @@ static inline Matrix3f createRotation(const Vector3f &_axis, float angle) {
   ret.setIdentity();
 
   ret *= co;
-  for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) ret.at(c, r) += (1.0f - co) * axis[c] * axis[r];
+  for (int r = 0; r < 3; ++r)
+    for (int c = 0; c < 3; ++c)
+      ret.at(c, r) += (1.0f - co) * axis[c] * axis[r];
 
   Matrix3f skewmat;
   skewmat.setZeros();
@@ -375,33 +395,34 @@ static inline Matrix3f createRotation(const Vector3f &_axis, float angle) {
   skewmat.at(2, 1) = axis.x;
   skewmat.at(1, 2) = -axis.x;
   skewmat *= si;
-  ret += skewmat;
 
+  ret += skewmat;
   return ret;
 }
 
 void UIEngine::glutMouseMoveFunction(int x, int y) {
-  UIEngine *uiEngine = UIEngine::Instance();
-
+  UIEngine *uiEngine = UIEngine::Instance(); // TODO: 为啥要new一个？？？
+  // 鼠标没有拖动，直接return
   if (uiEngine->mouseWarped) {
     uiEngine->mouseWarped = false;
     return;
   }
+  // 非自由视角 or 鼠标没按键，直接return
+  if (!uiEngine->freeviewActive || uiEngine->mouseState == 0)
+    return;
 
-  if (!uiEngine->freeviewActive || uiEngine->mouseState == 0) return;
-
-  Vector2i movement;
+  Vector2i movement;    // 鼠标移动距离
   movement.x = x - uiEngine->mouseLastClick.x;
   movement.y = y - uiEngine->mouseLastClick.y;
 
-  Vector2i realWinSize(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+  Vector2i realWinSize(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));    // 窗口大小（必须>=40x40）
   // Does not work if the window is smaller than 40x40
-  Vector2i activeWinTopLeft(20, 20);
-  Vector2i activeWinBottomRight(realWinSize.width - 20, realWinSize.height - 20);
+  Vector2i activeWinTopLeft(20, 20);                                                // 鼠标在窗口上边、左边的活动范围
+  Vector2i activeWinBottomRight(realWinSize.width - 20, realWinSize.height - 20);   // 鼠标在窗口下边、右边的活动范围
   Vector2i activeWinSize(realWinSize.width - 40, realWinSize.height - 40);
 
+  // 检测鼠标有没有超出活动范围
   bool warpNeeded = false;
-
   if (x < activeWinTopLeft.x) {
     x += activeWinSize.x;
     warpNeeded = true;
@@ -409,7 +430,6 @@ void UIEngine::glutMouseMoveFunction(int x, int y) {
     x -= activeWinSize.x;
     warpNeeded = true;
   }
-
   if (y < activeWinTopLeft.y) {
     y += activeWinSize.y;
     warpNeeded = true;
@@ -417,53 +437,51 @@ void UIEngine::glutMouseMoveFunction(int x, int y) {
     y -= activeWinSize.y;
     warpNeeded = true;
   }
-
+  // 超出范围，将鼠标光标移回窗口内部
   if (warpNeeded) {
     glutWarpPointer(x, y);
     uiEngine->mouseWarped = true;
   }
-
+  // 记录鼠标位置
   uiEngine->mouseLastClick.x = x;
   uiEngine->mouseLastClick.y = y;
-
-  if ((movement.x == 0) && (movement.y == 0)) return;
-
-  static const float scale_rotation = 0.005f;
-  static const float scale_translation = 0.0025f;
-
+  // 如果鼠标的移动位置没变化，直接return，不用修改相机位姿
+  if ((movement.x == 0) && (movement.y == 0))
+    return;
+  // 根据鼠标的按键&&移动，修改相机位姿，进而改变窗口画面
+  static const float scale_rotation = 0.005f;       // 鼠标移动时，旋转的变化步长
+  static const float scale_translation = 0.0025f;   // 鼠标移动时，平移的变化步长
   switch (uiEngine->mouseState) {
-    case 1: {
-      // left button: rotation
-      Vector3f axis((float) -movement.y, (float) -movement.x, 0.0f);
-      float angle = scale_rotation * sqrt((float) (movement.x * movement.x + movement.y * movement.y));
-      Matrix3f rot = createRotation(axis, angle);
-      uiEngine->freeviewPose.SetRT(rot * uiEngine->freeviewPose.GetR(), rot * uiEngine->freeviewPose.GetT());
-      uiEngine->freeviewPose.Coerce();
-      uiEngine->needsRefresh = true;
-      break;
-    }
-    case 2: {
-      // right button: translation in x and y direction
-      uiEngine->freeviewPose.SetT(
-          uiEngine->freeviewPose.GetT() + scale_translation * Vector3f((float) movement.x, (float) movement.y, 0.0f));
-      uiEngine->needsRefresh = true;
-      break;
-    }
-    case 3: {
-      // middle button: translation along z axis
-      uiEngine->freeviewPose.SetT(
-          uiEngine->freeviewPose.GetT() + scale_translation * Vector3f(0.0f, 0.0f, (float) movement.y));
-      uiEngine->needsRefresh = true;
-      break;
-    }
-    default: break;
+  case 1: {   // 鼠标左键负责旋转。left button: rotation
+    Vector3f axis((float)-movement.y, (float)-movement.x, 0.0f);
+    float angle = scale_rotation * sqrt((float)(movement.x * movement.x + movement.y * movement.y));
+    Matrix3f rot = createRotation(axis, angle);
+    uiEngine->freeviewPose.SetRT(rot * uiEngine->freeviewPose.GetR(), rot * uiEngine->freeviewPose.GetT());
+    uiEngine->freeviewPose.Coerce();
+    uiEngine->needsRefresh = true;    // 刷新UI界面的画面
+    break;
+  }
+  case 2: {   // 鼠标右键负责x、y方向的平移。right button: translation in x and y direction
+    uiEngine->freeviewPose.SetT(uiEngine->freeviewPose.GetT() +
+                                scale_translation * Vector3f((float)movement.x, (float)movement.y, 0.0f));
+    uiEngine->needsRefresh = true;
+    break;
+  }
+  case 3: {   // 鼠标中键负责z方向的平移。middle button: translation along z axis
+    uiEngine->freeviewPose.SetT(uiEngine->freeviewPose.GetT() +
+                                scale_translation * Vector3f(0.0f, 0.0f, (float)movement.y));
+    uiEngine->needsRefresh = true;
+    break;
+  }
+  default:
+    break;
   }
 }
 
 void UIEngine::glutMouseWheelFunction(int button, int dir, int x, int y) {
   UIEngine *uiEngine = UIEngine::Instance();
 
-  static const float scale_translation = 0.05f;
+  static const float scale_translation = 0.05f;   // 鼠标滚轮时，平移的变化步长
 
   uiEngine->freeviewPose.SetT(
       uiEngine->freeviewPose.GetT() + scale_translation * Vector3f(0.0f, 0.0f, (dir > 0) ? -1.0f : 1.0f));
@@ -475,13 +493,13 @@ void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource
   this->freeviewActive = false;
   this->integrationActive = true;
   this->currentColourMode = 0;
-  // 设定固定视角下，可视化界面可以使用的色彩模式
+  //! 设定固定视角下，可视化界面可以使用的色彩模式
   this->colourModes_main.push_back(UIColourMode("shaded greyscale", ITMMainEngine::InfiniTAM_IMAGE_SCENERAYCAST));
   this->colourModes_main.push_back(UIColourMode("integrated colours",
                                                 ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME));
   this->colourModes_main.push_back(UIColourMode("surface normals", ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL));
   this->colourModes_main.push_back(UIColourMode("confidence", ITMMainEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE));
-  // 设定自由视角下，可视化界面可以使用的色彩模式
+  //! 设定自由视角下，可视化界面可以使用的色彩模式
   this->colourModes_freeview.push_back(UIColourMode("shaded greyscale",
                                                     ITMMainEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED));
   this->colourModes_freeview.push_back(UIColourMode("integrated colours",
@@ -511,7 +529,7 @@ void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource
   //winReg[3] = Vector4f(0.5, h1, 0.75, h2); // Side sub window 2
   //winReg[4] = Vector4f(0.75, h1, 1, h2); // Side sub window 3
 
-  // 设定可视化窗口尺寸
+  //! 设定可视化窗口尺寸
   int textHeight = 30; // Height of text area
   //winSize.x = (int)(1.5f * (float)MAX(imageSource->getImageSize().x, imageSource->getDepthImageSize().x));
   //winSize.y = MAX(imageSource->getRGBImageSize().y, imageSource->getDepthImageSize().y) + textHeight;
@@ -526,13 +544,13 @@ void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource
   this->currentFrameNo = 0;
   this->rgbVideoWriter = NULL;
   this->depthVideoWriter = NULL;
-  // 创建可视化窗口
+  //! 创建可视化窗口
   glutInit(&argc, argv);                          // 初始化glut
   glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);   // 指定glut显示模式的类型 https://blog.csdn.net/yangyong0717/article/details/78003913
   glutInitWindowSize(winSize.x, winSize.y);
   glutCreateWindow("InfiniTAM");
   glGenTextures(NUM_WIN, textureId);              // 生成纹理 并 返回纹理索引 https://blog.csdn.net/haiping1224746757/article/details/107251237
-  // 绑定可视化窗口的操作
+  //! 绑定可视化窗口的操作
   glutDisplayFunc(UIEngine::glutDisplayFunction);
   glutKeyboardUpFunc(UIEngine::glutKeyUpFunction);    // 键盘按键操作
   glutMouseFunc(UIEngine::glutMouseButtonFunction);   // 鼠标按键操作
@@ -540,9 +558,9 @@ void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource
   glutIdleFunc(UIEngine::glutIdleFunction);           // 空闲时间进行的操作
 #ifdef FREEGLUT
   glutMouseWheelFunc(UIEngine::glutMouseWheelFunction);  // 鼠标滚轮操作
-  glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, 1);
+  glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, 1);      // 确保glutMainLoop函数在main结束时将其清除
 #endif
-
+  //! 设置各种默认参数
   bool allocateGPU = false;
   if (deviceType == ITMLibSettings::DEVICE_CUDA) allocateGPU = true;
 
@@ -570,9 +588,9 @@ void UIEngine::Initialise(int &argc, char **argv, ImageSourceEngine *imageSource
   processedTime = 0.0f;
 
 #ifndef COMPILE_WITHOUT_CUDA
-  ORcudaSafeCall(cudaThreadSynchronize());
+  ORcudaSafeCall(cudaThreadSynchronize());  // TODO: 换成cudaDeviceSynchronize
 #endif
-
+  //! 准备计时器
   sdkCreateTimer(&timer_instant);
   sdkCreateTimer(&timer_average);
 
