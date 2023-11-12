@@ -1,3 +1,18 @@
+# InfiniTAM vX
+这是一个非官方的InfiniTAM项目。
+
+旨在InfiniTAM的基础上继续开发三维重建算法。
+
+目前正在进行的开发工作有：
+
+- 代码注释：对原有的InfiniTAM代码进行详尽的注释，作为整个项目的起点。已经完成InfiniTAMv3中基础模式的注释，见分支`InfiniTAMv3_comments`
+
+
+
+以下是原始README
+
+
+-----------------
 # InfiniTAM v3
 
 This is the main branch of the software bundle "InfiniTAM", the current version is actively maintained by:
@@ -7,7 +22,7 @@ This is the main branch of the software bundle "InfiniTAM", the current version 
   Stuart Golodetz <smg@robots.ox.ac.uk>  
   Michael Sapienza <michael.sapienza@eng.ox.ac.uk>  
   Tommaso Cavallari <tommaso.cavallari@unibo.it>
-  
+
 Previous maintainers and contributors are:
 
   Carl Yuheng Ren <carl@robots.ox.ac.uk>  
