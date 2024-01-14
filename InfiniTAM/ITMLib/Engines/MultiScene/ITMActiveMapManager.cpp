@@ -187,8 +187,7 @@ int ITMActiveMapManager::findBestVisualisationLocalMapIdx(void) const {
   return activeData[id].localMapIndex;
 }
 
-void ITMActiveMapManager::recordTrackingResult(int dataID,
-                                               ITMTrackingState::TrackingResult trackingResult,
+void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult,
                                                bool primaryTrackingSuccess) {
   ActiveDataDescriptor &data = activeData[dataID];
 

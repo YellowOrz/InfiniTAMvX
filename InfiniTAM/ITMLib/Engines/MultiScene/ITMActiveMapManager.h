@@ -9,11 +9,18 @@ namespace ITMLib {
 */
 class ITMActiveMapManager {
  public:
-  typedef enum { PRIMARY_LOCAL_MAP, NEW_LOCAL_MAP, LOOP_CLOSURE, RELOCALISATION, LOST, LOST_NEW } LocalMapActivity;
+   typedef enum { 
+    PRIMARY_LOCAL_MAP, 
+    NEW_LOCAL_MAP, 
+    LOOP_CLOSURE, 
+    RELOCALISATION, 
+    LOST, 
+    LOST_NEW 
+  } LocalMapActivity;
 
  private:
   struct ActiveDataDescriptor {
-    int localMapIndex;
+    int localMapIndex;    // ??? 全局子图id
     LocalMapActivity type;
     std::vector<Matrix4f> constraints;
     ORUtils::SE3Pose estimatedPose;
@@ -47,6 +54,11 @@ class ITMActiveMapManager {
   int findBestVisualisationLocalMapIdx(void) const;
 
   int numActiveLocalMaps(void) const { return static_cast<int>(activeData.size()); }
+  /**
+   * @brief 获取指定活跃子图的全局子图id
+   * @param[in] dataIdx   活跃子图id
+   * @return int          全局子图id
+   */
   int getLocalMapIndex(int dataIdx) const { return activeData[dataIdx].localMapIndex; }
   LocalMapActivity getLocalMapType(int dataIdx) const { return activeData[dataIdx].type; }
 

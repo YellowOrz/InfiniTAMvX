@@ -35,7 +35,7 @@ struct ITMPoseConstraint {
 };
 
 typedef std::map<int, ITMPoseConstraint> ConstraintList;
-
+/** 子图 */
 template<class TVoxel, class TIndex>
 class ITMLocalMap {
  public:

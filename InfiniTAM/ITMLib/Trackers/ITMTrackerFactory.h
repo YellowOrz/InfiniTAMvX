@@ -5,16 +5,16 @@
 #include <stdexcept>
 #include <vector>
 
+#include "../Engines/LowLevel/Interface/ITMLowLevelEngine.h"
+#include "../Utils/ITMLibSettings.h"
 #include "CPU/ITMColorTracker_CPU.h"
 #include "CPU/ITMDepthTracker_CPU.h"
 #include "CPU/ITMExtendedTracker_CPU.h"
 #include "Interface/ITMCompositeTracker.h"
-#include "Interface/ITMIMUTracker.h"
 #include "Interface/ITMFileBasedTracker.h"
 #include "Interface/ITMForceFailTracker.h"
+#include "Interface/ITMIMUTracker.h"
 #include "Interface/ITMTracker.h"
-#include "../Engines/LowLevel/Interface/ITMLowLevelEngine.h"
-#include "../Utils/ITMLibSettings.h"
 
 #ifndef COMPILE_WITHOUT_CUDA
 #include "CUDA/ITMColorTracker_CUDA.h"
@@ -30,54 +30,55 @@
 
 namespace ITMLib {
 /**
- * \brief An instance of this class can be used to construct trackers.
+ * track的工厂类。An instance of this class can be used to construct trackers.
  */
 class ITMTrackerFactory {
- private:
-  //#################### TYPEDEFS ####################
-  typedef ITMTracker *MakerFunc(const Vector2i &,
-                                const Vector2i &,
-                                ITMLibSettings::DeviceType,
-                                const ORUtils::KeyValueConfig &,
-                                const ITMLowLevelEngine *,
-                                ITMIMUCalibrator *,
+private:
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      TYPEDEFS                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
+
+  /** 定义tracker产品线？？？这是啥语法？？？应该是typedef A B，B是A的别名吧？？？ */
+  typedef ITMTracker *MakerFunc(const Vector2i &, const Vector2i &, ITMLibSettings::DeviceType,
+                                const ORUtils::KeyValueConfig &, const ITMLowLevelEngine *, ITMIMUCalibrator *,
                                 const ITMSceneParams *);
 
-  /// Tracker types
+  // 跟踪的类型。Tracker types
   typedef enum {
-    //! Identifies a tracker based on colour image
-    TRACKER_COLOR,
-    //! Identifies a tracker based on depth image
-    TRACKER_ICP,
-    //! Identifies a tracker based on depth and color image with various extensions
-    TRACKER_EXTENDED,
-    //! Identifies a tracker reading poses from text files
-    TRACKER_FILE,
-    //! Identifies a tracker based on depth image and IMU measurement
-    TRACKER_IMU,
-    //! Identifies a tracker based on depth and colour images and IMU measurement
-    TRACKER_EXTENDEDIMU,
-    //! Identifies a tracker that forces tracking to fail
-    TRACKER_FORCEFAIL,
+    TRACKER_COLOR,       // 基于RGB图的跟踪。Identifies a tracker based on colour image
+    TRACKER_ICP,         // 基于深度图的跟踪。Identifies a tracker based on depth image
+    TRACKER_EXTENDED,    // 基于深度图、RGB图的跟踪。
+                         // Identifies a tracker based on depth and color image with various extensions
+    TRACKER_FILE,        // 从文件中读取位姿。Identifies a tracker reading poses from text files
+    TRACKER_IMU,         // 基于深度图+IMU的跟踪。Identifies a tracker based on depth image and IMU measurement
+    TRACKER_EXTENDEDIMU, // 基于深度图+RGB图+IMU的跟踪。
+                         // Identifies a tracker based on depth and colour images and IMU measurement
+    TRACKER_FORCEFAIL,   // ???强制跟踪失败。Identifies a tracker that forces tracking to fail
   } TrackerType;
-
+  
+  /** 产品线 */
   struct Maker {
-    const char *id;
-    const char *description;
-    TrackerType type;
-    MakerFunc *make;
+    const char *id;           // tracker的名字。可选rgb、icp、extended、file、imuicp、extendedimu、forcefail
+    const char *description;  // tracker的描述
+    TrackerType type;         // tracker的种类。见上面的TrackerType
+    MakerFunc *make;          // tracker的函数指针
 
     Maker(const char *_id, const char *_desc, TrackerType _type, MakerFunc *_make)
         : id(_id), description(_desc), type(_type), make(_make) {}
   };
 
-  //#################### PRIVATE VARIABLES ####################
-  /** A list of maker functions for the various tracker types. */
-  std::vector<Maker> makers;
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                  PRIVATE VARIABLES                                                 */
+/* ------------------------------------------------------------------------------------------------------------------ */
+  std::vector<Maker> makers;  // 各种各样的tracker产品线。A list of maker functions for the various tracker types.
 
-  //################## SINGLETON IMPLEMENTATION ##################
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                              SINGLETON IMPLEMENTATION                                              */
+/* ------------------------------------------------------------------------------------------------------------------ */
+
   /**
-   * \brief Constructs a tracker factory.
+   * @brief 准备工厂中的各类tracker产品线。Constructs a tracker factory.
+   * @note 单例模式，这个构造函数是private的
    */
   ITMTrackerFactory(void) {
     makers.push_back(Maker("rgb", "Colour based tracker", TRACKER_COLOR, &MakeColourTracker));
@@ -85,55 +86,63 @@ class ITMTrackerFactory {
     makers.push_back(Maker("extended", "Depth + colour based tracker", TRACKER_EXTENDED, &MakeExtendedTracker));
     makers.push_back(Maker("file", "File based tracker", TRACKER_FILE, &MakeFileBasedTracker));
     makers.push_back(Maker("imuicp", "Combined IMU and depth based ICP tracker", TRACKER_IMU, &MakeIMUTracker));
-    makers.push_back(Maker("extendedimu",
-                           "Combined IMU and depth + colour ICP tracker",
-                           TRACKER_EXTENDEDIMU,
+    makers.push_back(Maker("extendedimu", "Combined IMU and depth + colour ICP tracker", TRACKER_EXTENDEDIMU,
                            &MakeExtendedIMUTracker));
     makers.push_back(Maker("forcefail", "Force fail tracker", TRACKER_FORCEFAIL, &MakeForceFailTracker));
   }
 
- public:
-  /**
-   * \brief Gets the singleton instance for the current set of template parameters.
-   */
+public:
+  /** 构建单例模式中的唯一实例。Gets the singleton instance for the current set of template parameters. */
   static ITMTrackerFactory &Instance() {
     static ITMTrackerFactory s_instance;
     return s_instance;
   }
 
-  //################## PUBLIC MEMBER FUNCTIONS ##################
- public:
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                               PUBLIC MEMBER FUNCTIONS                                              */
+/* ------------------------------------------------------------------------------------------------------------------ */
+public:
   /**
-   * \brief Makes a tracker of the type specified in the trackerConfig string.
+   * @brief 根据字符串配置要求 生产tracker。Makes a tracker of the type specified in the trackerConfig string.
+   * @param[in] deviceType      设备类型。CPU、GPU or Apple
+   * @param[in] trackerConfig   跟踪配置的字符串。来自ITMLib/Utils/ITMLibSettings.cpp
+   * @param[in] imgSize_rgb     RGB图尺寸
+   * @param[in] imgSize_d       深度图尺寸
+   * @param[in] lowLevelEngine  负责图片预处理
+   * @param[in] imuCalibrator   IMU
+   * @param[in] sceneParams     三维场景的参数
+   * @return ITMTracker*        track类的指针
    */
-  ITMTracker *Make(ITMLibSettings::DeviceType deviceType,
-                   const char *trackerConfig,
-                   const Vector2i &imgSize_rgb,
-                   const Vector2i &imgSize_d,
-                   const ITMLowLevelEngine *lowLevelEngine,
-                   ITMIMUCalibrator *imuCalibrator,
+  ITMTracker *Make(ITMLibSettings::DeviceType deviceType, const char *trackerConfig, const Vector2i &imgSize_rgb,
+                   const Vector2i &imgSize_d, const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                    const ITMSceneParams *sceneParams) const {
+    //! 解析配置
     ORUtils::KeyValueConfig cfg(trackerConfig);
     int verbose = 0;
-    if (cfg.getProperty("help") != NULL) if (verbose < 10) verbose = 10;
-
+    if (cfg.getProperty("help") != NULL)
+      if (verbose < 10)
+        verbose = 10;
+    //! 遍历工厂中的所有track产品，记录产品信息
     ORUtils::KeyValueConfig::ChoiceList trackerOptions;
-    for (int i = 0; (unsigned) i < makers.size(); ++i) {
+    for (int i = 0; (unsigned)i < makers.size(); ++i) {
       trackerOptions.addChoice(makers[i].id, makers[i].type);
     }
+    //! 根据配置找到所需产品的信息
     int type = TRACKER_ICP;
     cfg.parseChoiceProperty("type", "type of tracker", type, trackerOptions, verbose);
+    //! 根据所需产品信息 获取产品线
     const Maker *maker = NULL;
-    for (int i = 0; (unsigned) i < makers.size(); ++i) {
+    for (int i = 0; (unsigned)i < makers.size(); ++i) {
       if (makers[i].type == type) {
         maker = &(makers[i]);
         break;
       }
     }
-    if (maker == NULL) DIEWITHEXCEPTION("Unknown tracker type");
-
-    ITMTracker
-        *ret = (*(maker->make))(imgSize_rgb, imgSize_d, deviceType, cfg, lowLevelEngine, imuCalibrator, sceneParams);
+    if (maker == NULL)
+      DIEWITHEXCEPTION("Unknown tracker type");
+    //! 产品线 生产 tracker
+    ITMTracker *ret =
+        (*(maker->make))(imgSize_rgb, imgSize_d, deviceType, cfg, lowLevelEngine, imuCalibrator, sceneParams);
     if (ret->requiresColourRendering()) {
       printf("Assuming a voxel type with colour information!");
     }
@@ -142,49 +151,53 @@ class ITMTrackerFactory {
   }
 
   /**
-   * \brief Makes a tracker of the type specified in the settings.
+   * @brief 根据InfiniTAM参数 生产tracker。Makes a tracker of the type specified in the settings.
+   * @param[in] imgSize_rgb     RGB图尺寸
+   * @param[in] imgSize_d       深度图尺寸
+   * @param[in] settings        InfiniTAM参数
+   * @param[in] lowLevelEngine  负责图片预处理
+   * @param[in] imuCalibrator   IMU
+   * @param[in] sceneParams     三维场景的参数
+   * @return ITMTracker*        track类的指针
    */
-  ITMTracker *Make(const Vector2i &imgSize_rgb,
-                   const Vector2i &imgSize_d,
-                   const ITMLibSettings *settings,
-                   const ITMLowLevelEngine *lowLevelEngine,
-                   ITMIMUCalibrator *imuCalibrator,
+  ITMTracker *Make(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d, const ITMLibSettings *settings,
+                   const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                    const ITMSceneParams *sceneParams) const {
-    return Make(settings->deviceType,
-                settings->trackerConfig,
-                imgSize_rgb,
-                imgSize_d,
-                lowLevelEngine,
-                imuCalibrator,
+    return Make(settings->deviceType, settings->trackerConfig, imgSize_rgb, imgSize_d, lowLevelEngine, imuCalibrator,
                 sceneParams);
   }
 
-  //#################### PUBLIC STATIC MEMBER FUNCTIONS ####################
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                           PUBLIC STATIC MEMBER FUNCTIONS                                           */
+/* ------------------------------------------------------------------------------------------------------------------ */
+  /** 从字符串配置中解析 金字塔迭代的跟踪类型 */
   static std::vector<TrackerIterationType> parseLevelConfig(const char *str) {
     bool parseError = false;
     std::vector<TrackerIterationType> ret;
     for (int i = static_cast<int>(strlen(str)) - 1; i >= 0; --i) {
       switch (str[i]) {
-        case 'r': ret.push_back(TRACKER_ITERATION_ROTATION);
-          break;
-        case 't': ret.push_back(TRACKER_ITERATION_TRANSLATION);
-          break;
-        case 'b': ret.push_back(TRACKER_ITERATION_BOTH);
-          break;
-        case 'n': ret.push_back(TRACKER_ITERATION_NONE);
-          break;
-        default: parseError = true;
-          break;
+      case 'r':   // 只有旋转
+        ret.push_back(TRACKER_ITERATION_ROTATION);
+        break;
+      case 't':   // 只有平移
+        ret.push_back(TRACKER_ITERATION_TRANSLATION);
+        break;
+      case 'b':   // 旋转+平移
+        ret.push_back(TRACKER_ITERATION_BOTH);
+        break;
+      case 'n':   // 都没有
+        ret.push_back(TRACKER_ITERATION_NONE);
+        break;
+      default:
+        parseError = true;
+        break;
       }
     }
 
     if (parseError) {
       fprintf(stderr, "error parsing level configuration '%s'\n", str);
-      for (int i = 0; (unsigned) i < ret.size(); ++i)
-        fprintf(stderr,
-                "level %i: %i\n",
-                (int) ret.size() - i,
-                (int) (ret[ret.size() - i]));
+      for (int i = 0; (unsigned)i < ret.size(); ++i)
+        fprintf(stderr, "level %i: %i\n", (int)ret.size() - i, (int)(ret[ret.size() - i]));
     }
     return ret;
   }
@@ -192,15 +205,14 @@ class ITMTrackerFactory {
   /**
    * \brief Makes a colour tracker.
    */
-  static ITMTracker *MakeColourTracker(const Vector2i &imgSize_rgb,
-                                       const Vector2i &imgSize_d,
-                                       ITMLibSettings::DeviceType deviceType,
-                                       const ORUtils::KeyValueConfig &cfg,
-                                       const ITMLowLevelEngine *lowLevelEngine,
-                                       ITMIMUCalibrator *imuCalibrator,
+  static ITMTracker *MakeColourTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                       ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                       const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                        const ITMSceneParams *sceneParams) {
     int verbose = 0;
-    if (cfg.getProperty("help") != NULL) if (verbose < 10) verbose = 10;
+    if (cfg.getProperty("help") != NULL)
+      if (verbose < 10)
+        verbose = 10;
 
     const char *levelSetup = "rrrbb";
     cfg.parseStrProperty("levels", "resolution hierarchy levels", levelSetup, verbose);
@@ -208,37 +220,32 @@ class ITMTrackerFactory {
 
     ITMColorTracker *ret = NULL;
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU:
-        ret = new ITMColorTracker_CPU(imgSize_rgb,
-                                      &(levels[0]),
-                                      static_cast<int>(levels.size()),
-                                      lowLevelEngine);
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      ret = new ITMColorTracker_CPU(imgSize_rgb, &(levels[0]), static_cast<int>(levels.size()), lowLevelEngine);
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        ret = new ITMColorTracker_CUDA(imgSize_rgb, &(levels[0]), static_cast<int>(levels.size()), lowLevelEngine);
+      ret = new ITMColorTracker_CUDA(imgSize_rgb, &(levels[0]), static_cast<int>(levels.size()), lowLevelEngine);
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        ret = new ITMColorTracker_CPU(imgSize_rgb, &(levels[0]), static_cast<int>(levels.size()), lowLevelEngine);
+      ret = new ITMColorTracker_CPU(imgSize_rgb, &(levels[0]), static_cast<int>(levels.size()), lowLevelEngine);
 #endif
-        break;
+      break;
     }
 
-    if (ret == NULL) DIEWITHEXCEPTION("Failed to make colour tracker");
+    if (ret == NULL)
+      DIEWITHEXCEPTION("Failed to make colour tracker");
     return ret;
   }
 
   /**
    * \brief Makes an ICP tracker.
    */
-  static ITMTracker *MakeICPTracker(const Vector2i &imgSize_rgb,
-                                    const Vector2i &imgSize_d,
-                                    ITMLibSettings::DeviceType deviceType,
-                                    const ORUtils::KeyValueConfig &cfg,
-                                    const ITMLowLevelEngine *lowLevelEngine,
-                                    ITMIMUCalibrator *imuCalibrator,
+  static ITMTracker *MakeICPTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                    ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                    const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                     const ITMSceneParams *sceneParams) {
     const char *levelSetup = "rrrbb";
     float smallStepSizeCriterion = 1e-3f;
@@ -249,7 +256,9 @@ class ITMTrackerFactory {
     int numIterationsFine = 2;
 
     int verbose = 0;
-    if (cfg.getProperty("help") != NULL) if (verbose < 10) verbose = 10;
+    if (cfg.getProperty("help") != NULL)
+      if (verbose < 10)
+        verbose = 10;
     cfg.parseStrProperty("levels", "resolution hierarchy levels", levelSetup, verbose);
     std::vector<TrackerIterationType> levels = parseLevelConfig(levelSetup);
 
@@ -262,41 +271,36 @@ class ITMTrackerFactory {
 
     ITMDepthTracker *ret = NULL;
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU:
-        ret = new ITMDepthTracker_CPU(imgSize_d,
-                                      &(levels[0]),
-                                      static_cast<int>(levels.size()),
-                                      smallStepSizeCriterion,
-                                      failureDetectorThd,
-                                      lowLevelEngine);
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      ret = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion,
+                                    failureDetectorThd, lowLevelEngine);
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        ret = new ITMDepthTracker_CUDA(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
+      ret = new ITMDepthTracker_CUDA(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion,
+                                     failureDetectorThd, lowLevelEngine);
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        ret = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
+      ret = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion,
+                                    failureDetectorThd, lowLevelEngine);
 #endif
-        break;
+      break;
     }
 
-    if (ret == NULL) DIEWITHEXCEPTION("Failed to make ICP tracker");
-    ret->SetupLevels(numIterationsCoarse, numIterationsFine,
-                     outlierDistanceCoarse, outlierDistanceFine);
+    if (ret == NULL)
+      DIEWITHEXCEPTION("Failed to make ICP tracker");
+    ret->SetupLevels(numIterationsCoarse, numIterationsFine, outlierDistanceCoarse, outlierDistanceFine);
     return ret;
   }
 
   /**
-  * \brief Makes an Extended tracker.
-  */
-  static ITMTracker *MakeExtendedTracker(const Vector2i &imgSize_rgb,
-                                         const Vector2i &imgSize_d,
-                                         ITMLibSettings::DeviceType deviceType,
-                                         const ORUtils::KeyValueConfig &cfg,
-                                         const ITMLowLevelEngine *lowLevelEngine,
-                                         ITMIMUCalibrator *imuCalibrator,
+   * \brief Makes an Extended tracker.
+   */
+  static ITMTracker *MakeExtendedTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                         ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                         const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                          const ITMSceneParams *sceneParams) {
     const char *levelSetup = "rrbb";
     bool useDepth = true;
@@ -316,7 +320,9 @@ class ITMTrackerFactory {
     int numIterationsFine = 20;
 
     int verbose = 0;
-    if (cfg.getProperty("help") != NULL) if (verbose < 10) verbose = 10;
+    if (cfg.getProperty("help") != NULL)
+      if (verbose < 10)
+        verbose = 10;
     cfg.parseStrProperty("levels", "resolution hierarchy levels", levelSetup, verbose);
     std::vector<TrackerIterationType> levels = parseLevelConfig(levelSetup);
 
@@ -324,106 +330,65 @@ class ITMTrackerFactory {
     cfg.parseBoolProperty("useColour", "use colour based tracking", useColour, verbose);
     cfg.parseFltProperty("colourWeight",
                          "weight used to scale colour errors and jacobians when both useColour and useWeights are set",
-                         colourWeight,
-                         verbose);
+                         colourWeight, verbose);
     cfg.parseFltProperty("minstep", "step size threshold for convergence", smallStepSizeCriterion, verbose);
-    cfg.parseFltProperty("outlierSpaceC",
-                         "space outlier threshold at coarsest level",
-                         outlierSpaceDistanceCoarse,
+    cfg.parseFltProperty("outlierSpaceC", "space outlier threshold at coarsest level", outlierSpaceDistanceCoarse,
                          verbose);
     cfg.parseFltProperty("outlierSpaceF", "space outlier threshold at finest level", outlierSpaceDistanceFine, verbose);
-    cfg.parseFltProperty("outlierColourC",
-                         "colour outlier threshold at coarsest level",
-                         outlierColourDistanceCoarse,
+    cfg.parseFltProperty("outlierColourC", "colour outlier threshold at coarsest level", outlierColourDistanceCoarse,
                          verbose);
-    cfg.parseFltProperty("outlierColourF",
-                         "colour outlier threshold at finest level",
-                         outlierColourDistanceFine,
+    cfg.parseFltProperty("outlierColourF", "colour outlier threshold at finest level", outlierColourDistanceFine,
                          verbose);
-    cfg.parseFltProperty("minColourGradient",
-                         "minimum colour gradient for a pixel to be used in the tracking",
-                         minColourGradient,
-                         verbose);
+    cfg.parseFltProperty("minColourGradient", "minimum colour gradient for a pixel to be used in the tracking",
+                         minColourGradient, verbose);
     cfg.parseIntProperty("numiterC", "maximum number of iterations at coarsest level", numIterationsCoarse, verbose);
     cfg.parseIntProperty("numiterF", "maximum number of iterations at finest level", numIterationsFine, verbose);
     cfg.parseFltProperty("tukeyCutOff", "cutoff for the tukey m-estimator", tukeyCutOff, verbose);
-    cfg.parseIntProperty("framesToSkip",
-                         "number of frames to skip before depth pixel is used for tracking",
-                         framesToSkip,
-                         verbose);
-    cfg.parseIntProperty("framesToWeight",
-                         "number of frames to weight each depth pixel for before using it fully",
-                         framesToWeight,
-                         verbose);
+    cfg.parseIntProperty("framesToSkip", "number of frames to skip before depth pixel is used for tracking",
+                         framesToSkip, verbose);
+    cfg.parseIntProperty("framesToWeight", "number of frames to weight each depth pixel for before using it fully",
+                         framesToWeight, verbose);
     cfg.parseFltProperty("failureDec", "threshold for the failure detection", failureDetectorThd, verbose);
 
     ITMExtendedTracker *ret = NULL;
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU:
-        ret = new ITMExtendedTracker_CPU(imgSize_d,
-                                         imgSize_rgb,
-                                         useDepth,
-                                         useColour,
-                                         colourWeight,
-                                         &(levels[0]),
-                                         static_cast<int>(levels.size()),
-                                         smallStepSizeCriterion,
-                                         failureDetectorThd,
-                                         sceneParams->viewFrustum_min,
-                                         sceneParams->viewFrustum_max,
-                                         minColourGradient,
-                                         tukeyCutOff,
-                                         framesToSkip,
-                                         framesToWeight,
-                                         lowLevelEngine);
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      ret = new ITMExtendedTracker_CPU(imgSize_d, imgSize_rgb, useDepth, useColour, colourWeight, &(levels[0]),
+                                       static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd,
+                                       sceneParams->viewFrustum_min, sceneParams->viewFrustum_max, minColourGradient,
+                                       tukeyCutOff, framesToSkip, framesToWeight, lowLevelEngine);
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        ret = new ITMExtendedTracker_CUDA(imgSize_d,
-                                            imgSize_rgb,
-                                            useDepth,
-                                            useColour,
-                                            colourWeight,
-                                            &(levels[0]),
-                                            static_cast<int>(levels.size()),
-                                            smallStepSizeCriterion,
-                                            failureDetectorThd,
-                                            sceneParams->viewFrustum_min,
-                                            sceneParams->viewFrustum_max,
-                                            minColourGradient,
-                                            tukeyCutOff,
-                                            framesToSkip,
-                                            framesToWeight,
-                                            lowLevelEngine);
+      ret = new ITMExtendedTracker_CUDA(imgSize_d, imgSize_rgb, useDepth, useColour, colourWeight, &(levels[0]),
+                                        static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd,
+                                        sceneParams->viewFrustum_min, sceneParams->viewFrustum_max, minColourGradient,
+                                        tukeyCutOff, framesToSkip, framesToWeight, lowLevelEngine);
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        ret = new ITMExtendedTracker_Metal(imgSize_d, imgSize_rgb, useDepth, useColour, colourWeight, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd,
-            scene->sceneParams->viewFrustum_min, scene->sceneParams->viewFrustum_max, tukeyCutOff, framesToSkip, framesToWeight, lowLevelEngine);
+      ret = new ITMExtendedTracker_Metal(imgSize_d, imgSize_rgb, useDepth, useColour, colourWeight, &(levels[0]),
+                                         static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd,
+                                         scene->sceneParams->viewFrustum_min, scene->sceneParams->viewFrustum_max,
+                                         tukeyCutOff, framesToSkip, framesToWeight, lowLevelEngine);
 #endif
-        break;
+      break;
     }
 
-    if (ret == NULL) DIEWITHEXCEPTION("Failed to make extended tracker");
-    ret->SetupLevels(numIterationsCoarse,
-                     numIterationsFine,
-                     outlierSpaceDistanceCoarse,
-                     outlierSpaceDistanceFine,
-                     outlierColourDistanceCoarse,
-                     outlierColourDistanceFine);
+    if (ret == NULL)
+      DIEWITHEXCEPTION("Failed to make extended tracker");
+    ret->SetupLevels(numIterationsCoarse, numIterationsFine, outlierSpaceDistanceCoarse, outlierSpaceDistanceFine,
+                     outlierColourDistanceCoarse, outlierColourDistanceFine);
     return ret;
   }
 
   /**
    * \brief Makes an IMU tracker.
    */
-  static ITMTracker *MakeIMUTracker(const Vector2i &imgSize_rgb,
-                                    const Vector2i &imgSize_d,
-                                    ITMLibSettings::DeviceType deviceType,
-                                    const ORUtils::KeyValueConfig &cfg,
-                                    const ITMLowLevelEngine *lowLevelEngine,
-                                    ITMIMUCalibrator *imuCalibrator,
+  static ITMTracker *MakeIMUTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                    ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                    const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                     const ITMSceneParams *sceneParams) {
     const char *levelSetup = "tb";
     float smallStepSizeCriterion = 1e-3f;
@@ -434,7 +399,9 @@ class ITMTrackerFactory {
     int numIterationsFine = 2;
 
     int verbose = 0;
-    if (cfg.getProperty("help") != NULL) if (verbose < 10) verbose = 10;
+    if (cfg.getProperty("help") != NULL)
+      if (verbose < 10)
+        verbose = 10;
     cfg.parseStrProperty("levels", "resolution hierarchy levels", levelSetup, verbose);
     std::vector<TrackerIterationType> levels = parseLevelConfig(levelSetup);
 
@@ -447,30 +414,29 @@ class ITMTrackerFactory {
 
     ITMDepthTracker *dTracker = NULL;
     switch (deviceType) {
-      case ITMLibSettings::DEVICE_CPU:
-        dTracker = new ITMDepthTracker_CPU(imgSize_d,
-                                           &(levels[0]),
-                                           static_cast<int>(levels.size()),
-                                           smallStepSizeCriterion,
-                                           failureDetectorThd,
-                                           lowLevelEngine);
-        break;
-      case ITMLibSettings::DEVICE_CUDA:
+    case ITMLibSettings::DEVICE_CPU:
+      dTracker = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()),
+                                         smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
+      break;
+    case ITMLibSettings::DEVICE_CUDA:
 #ifndef COMPILE_WITHOUT_CUDA
-        dTracker = new ITMDepthTracker_CUDA(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
+      dTracker = new ITMDepthTracker_CUDA(imgSize_d, &(levels[0]), static_cast<int>(levels.size()),
+                                          smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
 #endif
-        break;
-      case ITMLibSettings::DEVICE_METAL:
+      break;
+    case ITMLibSettings::DEVICE_METAL:
 #ifdef COMPILE_WITH_METAL
-        dTracker = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()), smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
+      dTracker = new ITMDepthTracker_CPU(imgSize_d, &(levels[0]), static_cast<int>(levels.size()),
+                                         smallStepSizeCriterion, failureDetectorThd, lowLevelEngine);
 #endif
-        break;
-      default: break;
+      break;
+    default:
+      break;
     }
 
-    if (dTracker == NULL) DIEWITHEXCEPTION("Failed to make IMU tracker");
-    dTracker->SetupLevels(numIterationsCoarse, numIterationsFine,
-                          outlierDistanceCoarse, outlierDistanceFine);
+    if (dTracker == NULL)
+      DIEWITHEXCEPTION("Failed to make IMU tracker");
+    dTracker->SetupLevels(numIterationsCoarse, numIterationsFine, outlierDistanceCoarse, outlierDistanceFine);
 
     ITMCompositeTracker *compositeTracker = new ITMCompositeTracker;
     compositeTracker->AddTracker(new ITMIMUTracker(imuCalibrator));
@@ -479,18 +445,16 @@ class ITMTrackerFactory {
   }
 
   /**
-  * \brief Makes an Extended IMU tracker.
-  */
-  static ITMTracker *MakeExtendedIMUTracker(const Vector2i &imgSize_rgb,
-                                            const Vector2i &imgSize_d,
-                                            ITMLibSettings::DeviceType deviceType,
-                                            const ORUtils::KeyValueConfig &cfg,
-                                            const ITMLowLevelEngine *lowLevelEngine,
-                                            ITMIMUCalibrator *imuCalibrator,
+   * \brief Makes an Extended IMU tracker.
+   */
+  static ITMTracker *MakeExtendedIMUTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                            ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                            const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                             const ITMSceneParams *sceneParams) {
-    ITMTracker *dTracker = MakeExtendedTracker(imgSize_rgb, imgSize_d, deviceType, cfg,
-                                               lowLevelEngine, imuCalibrator, sceneParams);
-    if (dTracker == NULL) DIEWITHEXCEPTION("Failed to make extended tracker"); // Should never happen though
+    ITMTracker *dTracker =
+        MakeExtendedTracker(imgSize_rgb, imgSize_d, deviceType, cfg, lowLevelEngine, imuCalibrator, sceneParams);
+    if (dTracker == NULL)
+      DIEWITHEXCEPTION("Failed to make extended tracker"); // Should never happen though
 
     ITMCompositeTracker *compositeTracker = new ITMCompositeTracker;
     compositeTracker->AddTracker(new ITMIMUTracker(imuCalibrator));
@@ -501,15 +465,13 @@ class ITMTrackerFactory {
   /**
    * \brief Makes a file based tracker.
    */
-  static ITMTracker *MakeFileBasedTracker(const Vector2i &imgSize_rgb,
-                                          const Vector2i &imgSize_d,
-                                          ITMLibSettings::DeviceType deviceType,
-                                          const ORUtils::KeyValueConfig &cfg,
-                                          const ITMLowLevelEngine *lowLevelEngine,
-                                          ITMIMUCalibrator *imuCalibrator,
+  static ITMTracker *MakeFileBasedTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                          ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                          const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                           const ITMSceneParams *sceneParams) {
     int verbose = 0;
-    if (cfg.getProperty("help") && verbose < 10) verbose = 10;
+    if (cfg.getProperty("help") && verbose < 10)
+      verbose = 10;
 
     const char *fileMask = "";
     int initialFrameNo = 0;
@@ -522,14 +484,11 @@ class ITMTrackerFactory {
   /**
    * \brief Makes a force fail tracker.
    */
-  static ITMTracker *MakeForceFailTracker(const Vector2i &imgSize_rgb,
-                                          const Vector2i &imgSize_d,
-                                          ITMLibSettings::DeviceType deviceType,
-                                          const ORUtils::KeyValueConfig &cfg,
-                                          const ITMLowLevelEngine *lowLevelEngine,
-                                          ITMIMUCalibrator *imuCalibrator,
+  static ITMTracker *MakeForceFailTracker(const Vector2i &imgSize_rgb, const Vector2i &imgSize_d,
+                                          ITMLibSettings::DeviceType deviceType, const ORUtils::KeyValueConfig &cfg,
+                                          const ITMLowLevelEngine *lowLevelEngine, ITMIMUCalibrator *imuCalibrator,
                                           const ITMSceneParams *sceneParams) {
     return new ITMForceFailTracker;
   }
 };
-}
+} // namespace ITMLib

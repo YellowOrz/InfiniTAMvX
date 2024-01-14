@@ -7,6 +7,7 @@
 #include "../../ORUtils/MemoryDeviceType.h"
 
 namespace ITMLib {
+/** InfiniTAM的总参数 */
 class ITMLibSettings {
  public:
   /// The device used to run the DeviceAgnostic code

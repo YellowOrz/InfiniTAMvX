@@ -15,7 +15,7 @@
 //#define OUTPUT_TRAJECTORY_QUATERNIONS
 
 using namespace ITMLib;
-// TODO: 下次从这儿开始
+
 template <typename TVoxel, typename TIndex>
 ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, const ITMRGBDCalib &calib,
                                                Vector2i imgSize_rgb, Vector2i imgSize_d) {
@@ -28,11 +28,11 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, c
   this->scene = new ITMScene<TVoxel, TIndex>(&settings->sceneParams,
                                              settings->swappingMode == ITMLibSettings::SWAPPINGMODE_ENABLED,
                                              memoryType);
-  // 设备类型
+  // 设备类型: CPU、GPU、Metal
   const ITMLibSettings::DeviceType deviceType = settings->deviceType;
   // 底层的图像处理模块（拷贝、彩色转灰色等操作，不是预处理）
   lowLevelEngine = ITMLowLevelEngineFactory::MakeLowLevelEngine(deviceType);
-  // 输入图像 && 预处理
+  // 输入图像的预处理
   viewBuilder = ITMViewBuilderFactory::MakeViewBuilder(calib, deviceType);
   // 渲染（可视化）
   visualisationEngine = ITMVisualisationEngineFactory::MakeVisualisationEngine<TVoxel, TIndex>(deviceType);
@@ -48,7 +48,7 @@ ITMBasicEngine<TVoxel, TIndex>::ITMBasicEngine(const ITMLibSettings *settings, c
   tracker = ITMTrackerFactory::Instance().Make(imgSize_rgb, imgSize_d, settings, lowLevelEngine, imuCalibrator,
                                                scene->sceneParams);
   trackingController = new ITMTrackingController(tracker, settings);
-  // 获取图像大小
+  // 获取用于跟踪的图像大小   // TODO: 是因为金字塔导致用于跟踪的图片大小可能会更小吗？
   Vector2i trackedImageSize = trackingController->GetTrackedImageSize(imgSize_rgb, imgSize_d);
   // 初始哈跟踪状态和位姿
   trackingState = new ITMTrackingState(trackedImageSize, memoryType);
@@ -246,8 +246,7 @@ template<typename TVoxel, typename TIndex>
 ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(ITMUChar4Image *rgbImage,
                                                                               ITMShortImage *rawDepthImage,
                                                                               ITMIMUMeasurement *imuMeasurement) {
-  // prepare image and turn it into a depth image
-  //! 准备数据：对输入数据预处理后，放到view中
+  //! 准备数据：对输入数据预处理后，放到view中。prepare image and turn it into a depth image
   if (imuMeasurement == NULL)   // 无IMU
     viewBuilder->UpdateView(&view, rgbImage, rawDepthImage, settings->useBilateralFilter);
   else                          // 有IMU

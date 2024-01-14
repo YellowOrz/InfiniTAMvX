@@ -7,26 +7,24 @@
 
 namespace ORUtils {
 
-/** Helper class for managing key-value like configuration information. Most
-    helpful for parsing strings.
+/** 
+ * @brief 辅助类，用于管理key-value的配置信息。
+ * Helper class for managing key-value like configuration information. Most helpful for parsing strings.
+ * @note 主要用于解析字符串
 */
 class KeyValueConfig {
  public:
-  /** Just a helper for sorting... ignore unless you know what it's
-      about!
-  */
+  /** 字符串排序。Just a helper for sorting... ignore unless you know what it's about! */
   struct ltstr {
     bool operator()(const char *s1, const char *s2) const { return strcmp(s1, s2) < 0; }
   };
 
-  /** This is a helper class to manage parsing something like
-      multiple-choice options within a KeyValueConfig.
+  /** 辅助类，用于管理解析KeyValueConfig中的多项选择选项。 
+   * This is a helper class to manage parsing something like multiple-choice options within a KeyValueConfig.
   */
   class ChoiceList {
    public:
-    /** To create a choice list, you'll have to add options with
-        a name and a value each.
-    */
+    /** To create a choice list, you'll have to add options with a name and a value each. */
     void addChoice(const char *name, int value) { choices[name] = value; }
 
     /** Given a choice in string format, this function returns
@@ -67,89 +65,78 @@ class KeyValueConfig {
     List choices;
   };
 
-  /** Constructor */
+  /** 空的默认构造函数。Constructor */
   KeyValueConfig(void) {}
-  /** Constructor calling parseString(). */
+  /** 输入参数字符串的构造函数。Constructor calling parseString(). */
   KeyValueConfig(const char *str) { parseString(str); }
-  /** Copy constructor */
+  /** 拷贝构造函数。Copy constructor */
   KeyValueConfig(const KeyValueConfig &src);
-  /** Destructor */
+  /** 析构函数。Destructor */
   ~KeyValueConfig(void);
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                             Setting and Getting Values                                             */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
-  /** @name Setting and Getting Values
-      @{ */
-  /** Set a property for the config. Will overwrite the existing value,
-      if the key is already present. Usually keys are case insensitive,
-      which is achieved by setting all keys to lower case.
-  */
+  /**
+   * @brief 设置属性
+   * @param[in] key 
+   * @param[in] value 
+   * @param[in] toLower 是否转小写
+   * @note 大小写敏感、如果存在会覆盖。
+   * Set a property for the config. Will overwrite the existing value, if the key is already present. Usually keys are case insensitive, which is achieved by setting all keys to lower case.
+   */
   void setProperty(const char *key, const char *value, bool toLower = true);
 
-  /** Remove a property from the config. No problem, if the key is not
-      found.
-  */
+  /**
+   * @brief 删除属性
+   * @param[in] key 
+   * @param[in] toLower 是否转小写
+   * @note 大小写敏感、如果不存在没关系。Remove a property from the config. No problem, if the key is not found.
+   */
   void unsetProperty(const char *key, bool toLower = true);
 
-  /** Remove all properties from the config. */
+  /** 删除所有属性。Remove all properties from the config. */
   void unsetAllProperties(void);
 
-  /** Retrieve the value of a property or NULL, if the key is not used. */
+  /** 获取属性的值。不存在返回null。Retrieve the value of a property or NULL, if the key is not used. */
   const char *getProperty(const char *key, bool toLower = true) const;
 
-  /** Parse a string in the form of "key1=value1,key2=value2,..." */
+  /**
+   * @brief 从字符串"key1=value1,key2=value2,..."中解析配置
+   * @param[in] string 
+   * @param[in] toLower 是否转小写
+   * @return true   成功
+   * @return false  失败
+   * @note Parse a string in the form of "key1=value1,key2=value2,..."
+   */
   bool parseString(const char *string, bool toLower = true);
-  /** @} */
 
-  /** @name Parse the Options in a KeyValueConfig
-      @{ */
-  /** This method parses the configuration option @p key which is
-      described in a lengthy, textual form as @p description. The
-      value stored in this KeyValueConfig is interpreted as a textual
-      key for the ChoiceList @p choices and the value, if provided,
-      is stored as @p opt_value. Finally, also the verbosity can be
-      controlled with @p verbose.
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                        Parse the Options in a KeyValueConfig                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
+
+  /** This method parses the configuration option @p key which is described in a lengthy, textual form as @p description. The value stored in this KeyValueConfig is interpreted as a textual key for the ChoiceList @p choices and the value, if provided, is stored as @p opt_value. Finally, also the verbosity can be controlled with @p verbose.
   */
-  void parseChoiceProperty(const char *key,
-                           const char *description,
-                           int &opt_value,
-                           const ChoiceList &choices,
+  void parseChoiceProperty(const char *key, const char *description, int &opt_value, const ChoiceList &choices,
                            int verbose = -1) const;
 
-  /** This method parses the configuration option @p key which is
-      described in a lengthy, textual form as @p description. If the
-      key is present in this KeyValueConfig the value of @p opt_value
-      will be set to true, otherwise it will be set to false. Finally,
-      also the verbosity can be controlled with @p verbose.
+  /** This method parses the configuration option @p key which is described in a lengthy, textual form as @p description. If the key is present in this KeyValueConfig the value of @p opt_value will be set to true, otherwise it will be set to false. Finally, also the verbosity can be controlled with @p verbose.
   */
   void parseBoolProperty(const char *key, const char *description, bool &opt_value, int verbose = -1) const;
 
-  /** This method parses the configuration option @p key which is
-      described in a lengthy, textual form as @p description. The
-      value stored in this KeyValueConfig under the given key is
-      interpreted as an integer option and, if provided, is stored
-      as @p opt_value. Finally, also the verbosity can be controlled
-      with @p verbose.
+  /** This method parses the configuration option @p key which is described in a lengthy, textual form as @p description. The value stored in this KeyValueConfig under the given key is interpreted as an integer option and, if provided, is stored as @p opt_value. Finally, also the verbosity can be controlled with @p verbose.
   */
   void parseIntProperty(const char *key, const char *description, int &opt_value, int verbose = -1) const;
 
-  /** This method parses the configuration option @p key which is
-      described in a lengthy, textual form as @p description. The
-      value stored in this KeyValueConfig under the given key is
-      interpreted as an floating point option and, if provided, is stored
-      as @p opt_value. Finally, also the verbosity can be controlled
-      with @p verbose.
+  /** This method parses the configuration option @p key which is described in a lengthy, textual form as @p description. The value stored in this KeyValueConfig under the given key is interpreted as an floating point option and, if provided, is stored as @p opt_value. Finally, also the verbosity can be controlled with @p verbose.
   */
   void parseFltProperty(const char *key, const char *description, double &opt_value, int verbose = -1) const;
   void parseFltProperty(const char *key, const char *description, float &opt_value, int verbose = -1) const;
 
-  /** This method parses the configuration option @p key which is
-      described in a lengthy, textual form as @p description. The
-      value stored in this KeyValueConfig under the given key is
-      expected as a raw string option and, if provided, is stored
-      as @p opt_value. Finally, also the verbosity can be controlled
-      with @p verbose.
+  /** This method parses the configuration option @p key which is described in a lengthy, textual form as @p description. The value stored in this KeyValueConfig under the given key is expected as a raw string option and, if provided, is stored as @p opt_value. Finally, also the verbosity can be controlled with @p verbose.
   */
   void parseStrProperty(const char *key, const char *description, const char *&opt_value, int verbose = -1) const;
-  /** @} */
+
 
  private:
 

@@ -7,7 +7,7 @@
 #include <ctype.h>
 
 using namespace ORUtils;
-
+/** 将输入字符串转小写 */
 static inline char *strLower(const char *input) {
   if (input == NULL) return NULL;
   size_t len = strlen(input);
@@ -175,11 +175,8 @@ bool KeyValueConfig::parseString(const char *string, bool toLower) {
   return (mode == WAIT_FOR_KEY);
 }
 
-void KeyValueConfig::parseChoiceProperty(const char *key,
-                                         const char *description,
-                                         int &opt_value,
-                                         const ChoiceList &choices,
-                                         int verbose) const {
+void KeyValueConfig::parseChoiceProperty(const char *key, const char *description, int &opt_value,
+                                         const ChoiceList &choices, int verbose) const {
   const char *val = getProperty(key);
   int val_i;
 

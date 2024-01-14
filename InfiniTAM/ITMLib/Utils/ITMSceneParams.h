@@ -3,9 +3,7 @@
 #pragma once
 
 namespace ITMLib {
-/** \brief
-    Stores parameters of a scene like voxel size
-*/
+/** 三维场景的参数（例如voxel size）。Stores parameters of a scene like voxel size */
 class ITMSceneParams {
  public:
   /// Size of a voxel, usually given in meters.

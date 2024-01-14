@@ -24,19 +24,19 @@ class ITMMultiEngine : public ITMMainEngine {
  private:
   const ITMLibSettings *settings;
 
-  ITMLowLevelEngine *lowLevelEngine;
-  ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine;
-  ITMMultiVisualisationEngine<TVoxel, TIndex> *multiVisualisationEngine;
+  ITMLowLevelEngine *lowLevelEngine;                                  // 底层的图像处理模块（拷贝、彩色转灰色等操作，不是预处理）
+  ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine;        // 负责渲染（可视化）
+  ITMMultiVisualisationEngine<TVoxel, TIndex> *multiVisualisationEngine;  
 
-  ITMMultiMeshingEngine<TVoxel, TIndex> *meshingEngine;
+  ITMMultiMeshingEngine<TVoxel, TIndex> *meshingEngine;   // 负责mesh
 
-  ITMViewBuilder *viewBuilder;
-  ITMTrackingController *trackingController;
-  ITMTracker *tracker;
-  ITMIMUCalibrator *imuCalibrator;
-  ITMDenseMapper<TVoxel, TIndex> *denseMapper;
+  ITMViewBuilder *viewBuilder;                      // 负责输入图像 && 预处理
+  ITMTrackingController *trackingController;        // 负责调用raycsting，为下一帧的跟踪做准备
+  ITMTracker *tracker;                              // 负责跟踪
+  ITMIMUCalibrator *imuCalibrator;                  // 负责IMU预积分
+  ITMDenseMapper<TVoxel, TIndex> *denseMapper;      // 负责 场景三维模型的融合 && swap in/out
 
-  FernRelocLib::Relocaliser<float> *relocaliser;
+  FernRelocLib::Relocaliser<float> *relocaliser;    // 负责重定位
 
   ITMVoxelMapGraphManager<TVoxel, TIndex> *mapManager;
   ITMActiveMapManager *mActiveDataManager;
@@ -44,8 +44,8 @@ class ITMMultiEngine : public ITMMainEngine {
   bool mScheduleGlobalAdjustment;
 
   Vector2i trackedImageSize;
-  ITMRenderState *renderState_freeview;
-  ITMRenderState *renderState_multiscene;
+  ITMRenderState *renderState_freeview;             // 渲染结果：自由视角
+  ITMRenderState *renderState_multiscene;           // 渲染结果：固定视角
   int freeviewLocalMapIdx;
 
   /// Pointer for storing the current input frame
@@ -56,16 +56,13 @@ class ITMMultiEngine : public ITMMainEngine {
   ITMTrackingState *GetTrackingState(void);
 
   /// Process a frame with rgb and depth images and (optionally) a corresponding imu measurement
-  ITMTrackingState::TrackingResult ProcessFrame(ITMUChar4Image *rgbImage,
-                                                ITMShortImage *rawDepthImage,
+  ITMTrackingState::TrackingResult ProcessFrame(ITMUChar4Image *rgbImage, ITMShortImage *rawDepthImage,
                                                 ITMIMUMeasurement *imuMeasurement = NULL);
 
   /// Get a result image as output
   Vector2i GetImageSize(void) const;
 
-  void GetImage(ITMUChar4Image *out,
-                GetImageType getImageType,
-                ORUtils::SE3Pose *pose = NULL,
+  void GetImage(ITMUChar4Image *out, GetImageType getImageType, ORUtils::SE3Pose *pose = NULL,
                 ITMIntrinsics *intrinsics = NULL);
 
   void changeFreeviewLocalMapIdx(ORUtils::SE3Pose *pose, int newIdx);

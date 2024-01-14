@@ -42,7 +42,7 @@ ITMLibSettings::ITMLibSettings(void)
   behaviourOnFailure = FAILUREMODE_IGNORE;
 
   /// switch between various library modes - basic, with loop closure, etc.
-  libMode = LIBMODE_BASIC;
+  libMode = LIBMODE_LOOPCLOSURE;
   //libMode = LIBMODE_BASIC_SURFELS;
 
   //! 跟踪配置

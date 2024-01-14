@@ -11,10 +11,9 @@ namespace ITMLib {
     incoming view with an existing scene.
 */
 class ITMTracker {
- public:
+public:
   /** Gets whether the tracker can keep tracking or not.
-      Can be used to signal e.g. the end of a sequence
-      of file-based poses, or the failure of an IMU.
+      Can be used to signal e.g. the end of a sequence of file-based poses, or the failure of an IMU.
   */
   virtual bool CanKeepTracking() const { return true; }
 
@@ -35,4 +34,4 @@ class ITMTracker {
 
   virtual ~ITMTracker(void) {}
 };
-}
+} // namespace ITMLib

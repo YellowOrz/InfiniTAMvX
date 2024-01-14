@@ -57,7 +57,7 @@ class ITMVoxelMapGraphManager : public ITMMapGraphManager {
   size_t numLocalMaps(void) const { return allData.size(); }
 
   const ITMLocalMap<TVoxel, TIndex> *getLocalMap(int localMapId) const { return allData[localMapId]; }
-
+  /** 获取指定的子图 */
   ITMLocalMap<TVoxel, TIndex> *getLocalMap(int localMapId) { return allData[localMapId]; }
 
   const ITMPoseConstraint &getRelation_const(int fromLocalMap, int toLocalMap) const;

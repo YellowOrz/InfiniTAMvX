@@ -51,13 +51,8 @@ class Relocaliser {
     delete processedImage2;
   }
 
-  bool ProcessFrame(const ORUtils::Image<ElementType> *img,
-                    const ORUtils::SE3Pose *pose,
-                    int sceneId,
-                    int k,
-                    int nearestNeighbours[],
-                    float *distances,
-                    bool harvestKeyframes) const {
+  bool ProcessFrame(const ORUtils::Image<ElementType> *img, const ORUtils::SE3Pose *pose, int sceneId, int k,
+                    int nearestNeighbours[], float *distances, bool harvestKeyframes) const {
     // downsample and preprocess image => processedImage1
     filterSubsample(img, processedImage1); // 320x240
     filterSubsample(processedImage1, processedImage2); // 160x120
