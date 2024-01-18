@@ -8,7 +8,7 @@ using namespace ITMLib;
 static const int N_linktrials = 20;
 // at least these many frames have to be tracked successfully
 static const int N_linkoverlap = 10;
-// try relocalisations for this number of frames
+// 固定n帧指定重定位。try relocalisations for this number of frames
 static const int N_reloctrials = 20;
 // at least these many tracking attempts have to succeed for relocalisation
 static const int N_relocsuccess = 10;
@@ -195,23 +195,27 @@ void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::Tra
   int localMapId = data.localMapIndex;
   data.trackingAttempts++;
 
-  if (trackingResult == ITMTrackingState::TRACKING_GOOD) {
-    if (data.type == RELOCALISATION) data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM());
-    else if (((data.type == NEW_LOCAL_MAP) || (data.type == LOOP_CLOSURE)) && primaryTrackingSuccess) {
+  if (trackingResult == ITMTrackingState::TRACKING_GOOD) {        // 跟踪good
+    if (data.type == RELOCALISATION)    // 重定位的话，直接记录位姿   // ??? 当前帧到上一帧的位姿？？？
+      data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM());
+    else if (primaryTrackingSuccess &&  // 新建子图 or 回环，记录相较于 旧子图的位姿
+             ((data.type == NEW_LOCAL_MAP) || (data.type == LOOP_CLOSURE))) {
       Matrix4f Tnew_inv = localMapManager->getTrackingPose(localMapId)->GetInvM();
       Matrix4f Told = localMapManager->getTrackingPose(primaryLocalMapID)->GetM();
       Matrix4f Told_to_new = Tnew_inv * Told;
 
       data.constraints.push_back(Told_to_new);
     }
-  } else if (trackingResult == ITMTrackingState::TRACKING_FAILED) {
+  } else if (trackingResult == ITMTrackingState::TRACKING_FAILED) { // 跟踪失败
     if (data.type == PRIMARY_LOCAL_MAP) {
       for (size_t j = 0; j < activeData.size(); ++j) {
-        if (activeData[j].type == NEW_LOCAL_MAP) activeData[j].type = LOST_NEW;
-        else activeData[j].type = LOST;
+        if (activeData[j].type == NEW_LOCAL_MAP)
+          activeData[j].type = LOST_NEW;
+        else
+          activeData[j].type = LOST;
       }
     }
-  }
+  }                                                                 // NOTE: 除了主子图，跟踪为poor都算是fail
 }
 
 static float huber_weight(float residual, float b) {
@@ -318,9 +322,7 @@ int ITMActiveMapManager::CheckSuccess_newlink(int dataID,
   if (primaryDataID >= 0) primaryLocalMapIndex = activeData[primaryDataID].localMapIndex;
   const ITMPoseConstraint
       &previousInformation = localMapManager->getRelation_const(primaryLocalMapIndex, link.localMapIndex);
-  /* hmm... do we want the "Estimate" (i.e. the pose corrected by pose
-     graph optimization) or the "Observations" (i.e. the accumulated
-     poses seen in previous frames?
+  /* hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the accumulated poses seen in previous frames?
      This should only really make a difference, if there is a large
      disagreement between the two, in which case one might argue that
      most likely something went wrong with a loop-closure, and we are
@@ -368,7 +370,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
   bool localMapGraphChanged = false;
 
   int primaryDataIdx = findPrimaryDataIdx();
-  int moveToDataIdx = -1;
+  int moveToDataIdx = -1;   // 更新后的主子图id
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];
 

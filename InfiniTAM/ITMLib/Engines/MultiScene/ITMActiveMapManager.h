@@ -19,16 +19,17 @@ class ITMActiveMapManager {
   } LocalMapActivity;
 
  private:
+  /** 单个活跃子图的相关信息 */
   struct ActiveDataDescriptor {
-    int localMapIndex;    // ??? 全局子图id
-    LocalMapActivity type;
-    std::vector<Matrix4f> constraints;
-    ORUtils::SE3Pose estimatedPose;
-    int trackingAttempts;
+    int localMapIndex;                  // ??? 全局子图id
+    LocalMapActivity type;              // ??? 子图类型
+    std::vector<Matrix4f> constraints;  // ??? 有关联的其他活跃子图的id
+    ORUtils::SE3Pose estimatedPose;     // ??? 位姿
+    int trackingAttempts;               // 跟踪帧数（无论成功与否）
   };
 
-  ITMMapGraphManager *localMapManager;
-  std::vector<ActiveDataDescriptor> activeData;
+  ITMMapGraphManager *localMapManager;          // 管理所有子图
+  std::vector<ActiveDataDescriptor> activeData; // 所有活跃子图的信息
 
   int CheckSuccess_relocalisation(int dataID) const;
   int CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers, ORUtils::SE3Pose *inlierPose) const;
@@ -44,7 +45,10 @@ class ITMActiveMapManager {
 
   void recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult, bool primaryTrackingSuccess);
 
-  // return whether or not the local map graph has changed
+  /**
+   * @brief 判断当前子图与主子图的位姿是否发生变化。return whether or not the local map graph has changed
+   * @note 什么时候会发生变化？？？
+   */
   bool maintainActiveData(void);
 
   int findPrimaryDataIdx(void) const;

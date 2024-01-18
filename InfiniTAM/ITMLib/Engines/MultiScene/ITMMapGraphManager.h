@@ -9,9 +9,8 @@
 #include "../../Engines/Visualisation/Interface/ITMVisualisationEngine.h"
 
 namespace ITMLib {
-/* This helpful abstract interface allows you to ignore the fact that
-scenes are templates.
-*/
+/** 管理子图的抽象类。用于提供接口，无需关注三维场景的类型。
+ * This helpful abstract interface allows you to ignore the fact that scenes are templates. */
 class ITMMapGraphManager {
  public:
   virtual ~ITMMapGraphManager(void) {}
@@ -35,6 +34,7 @@ class ITMMapGraphManager {
   virtual int countVisibleBlocks(int localMapId, int minBlockId, int maxBlockId, bool invertIDs) const = 0;
 };
 
+/** 基于voxel hashing的子图管理器 */
 template<class TVoxel, class TIndex>
 class ITMVoxelMapGraphManager : public ITMMapGraphManager {
  private:
@@ -43,7 +43,7 @@ class ITMVoxelMapGraphManager : public ITMMapGraphManager {
   const ITMDenseMapper<TVoxel, TIndex> *denseMapper;
   Vector2i trackedImageSize;
 
-  std::vector<ITMLocalMap<TVoxel, TIndex> *> allData;
+  std::vector<ITMLocalMap<TVoxel, TIndex> *> allData; // 所有子图。包含 活跃和不活跃的
 
  public:
   ITMVoxelMapGraphManager(const ITMLibSettings *settings,

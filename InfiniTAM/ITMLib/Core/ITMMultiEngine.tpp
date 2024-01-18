@@ -284,14 +284,14 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
           primaryDataIdx = -1;
           todoList.resize(i + 1);
           todoList.push_back(TodoListEntry(-1, false, false, false));
-        }
+        }                                                                 // TODO: 主子图跟踪为poor咋办呢？？
       }
 
       // 记录跟踪结果 // TODO: 下次从这儿开始
       mActiveDataManager->recordTrackingResult(dataId, trackingResult, primaryTrackingSuccess);
     }
 
-    // fusion in any subscene as long as tracking is good for the respective subscene
+    //! 只有跟踪成功才fusion。fusion in any subscene as long as tracking is good for the respective subscene
     if (todoList[i].fusion)
       denseMapper->ProcessFrame(view, currentLocalMap->trackingState, currentLocalMap->scene,
                                 currentLocalMap->renderState);
@@ -299,14 +299,13 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
       denseMapper->UpdateVisibleList(view, currentLocalMap->trackingState, currentLocalMap->scene,
                                      currentLocalMap->renderState);
 
-    // raycast to renderState_live for tracking and free visualisation
+    //! raycast。raycast to renderState_live for tracking and free visualisation
     if (todoList[i].prepare)
       trackingController->Prepare(currentLocalMap->trackingState, currentLocalMap->scene, view, visualisationEngine,
                                   currentLocalMap->renderState);
   }
-
+  //! 全局优化
   mScheduleGlobalAdjustment |= mActiveDataManager->maintainActiveData();
-
   if (mScheduleGlobalAdjustment) {
     if (mGlobalAdjustmentEngine->updateMeasurements(*mapManager)) {
       if (separateThreadGlobalAdjustment)
