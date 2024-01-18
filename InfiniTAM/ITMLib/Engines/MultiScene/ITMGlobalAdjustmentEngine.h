@@ -40,8 +40,13 @@ class ITMGlobalAdjustmentEngine {
 
   bool isBusyEstimating(void) const;
 
-  // Check whether thread is busy, if it is, return false, otherwise
-  // create a copy of all new measurements and make it busy
+  /**
+   * @brief ？？？根据当前观测更新位姿图
+   * @details 如果线程Check whether thread is busy, if it is, return false, otherwise create a copy of all new measurements and make it busy
+   * @param[in] src 所有子图的管理器
+   * @return true   更新成功
+   * @return false  更新失败
+   */
   bool updateMeasurements(const ITMMapGraphManager &src);
 
   bool runGlobalAdjustment(bool blockingWait = false);

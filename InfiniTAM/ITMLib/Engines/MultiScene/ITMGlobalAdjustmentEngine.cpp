@@ -7,7 +7,7 @@
 #include "../../../MiniSlamGraphLib/SlamGraphErrorFunction.h"
 #include "../../../MiniSlamGraphLib/LevenbergMarquardtMethod.h"
 
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
 #include <mutex>
 #include <thread>
 #include <condition_variable>
@@ -16,7 +16,7 @@
 using namespace ITMLib;
 
 struct ITMGlobalAdjustmentEngine::PrivateData {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   PrivateData(void) {
     stopThread = false;
     wakeupSent = false;
@@ -50,7 +50,7 @@ bool ITMGlobalAdjustmentEngine::hasNewEstimates(void) const {
 }
 
 bool ITMGlobalAdjustmentEngine::retrieveNewEstimates(ITMMapGraphManager &dest) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   if (processedData == NULL) return false;
 
   privateData->processedData_mutex.lock();
@@ -63,7 +63,7 @@ bool ITMGlobalAdjustmentEngine::retrieveNewEstimates(ITMMapGraphManager &dest) {
 }
 
 bool ITMGlobalAdjustmentEngine::isBusyEstimating(void) const {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex  
   // if someone else is currently using the mutex (most likely the
   // consumer thread), we consider the global adjustment engine to
   // be busy
@@ -75,7 +75,7 @@ bool ITMGlobalAdjustmentEngine::isBusyEstimating(void) const {
 }
 
 bool ITMGlobalAdjustmentEngine::updateMeasurements(const ITMMapGraphManager &src) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   // busy, can't accept new measurements at the moment
   if (!privateData->workingData_mutex.try_lock()) return false;
 
@@ -87,7 +87,7 @@ bool ITMGlobalAdjustmentEngine::updateMeasurements(const ITMMapGraphManager &src
 }
 
 bool ITMGlobalAdjustmentEngine::runGlobalAdjustment(bool blockingWait) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   // first make sure there is new data and we have exclusive access to it
   if (workingData == NULL) return false;
 
@@ -114,7 +114,7 @@ bool ITMGlobalAdjustmentEngine::runGlobalAdjustment(bool blockingWait) {
 }
 
 bool ITMGlobalAdjustmentEngine::startSeparateThread(void) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   if (privateData->processingThread.joinable()) return false;
 
   privateData->processingThread = std::thread(&ITMGlobalAdjustmentEngine::estimationThreadMain, this);
@@ -123,7 +123,7 @@ bool ITMGlobalAdjustmentEngine::startSeparateThread(void) {
 }
 
 bool ITMGlobalAdjustmentEngine::stopSeparateThread(void) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   if (!privateData->processingThread.joinable()) return false;
 
   privateData->stopThread = true;
@@ -134,7 +134,7 @@ bool ITMGlobalAdjustmentEngine::stopSeparateThread(void) {
 }
 
 void ITMGlobalAdjustmentEngine::estimationThreadMain(void) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   while (!privateData->stopThread) {
     runGlobalAdjustment(true);
     std::unique_lock<std::mutex> lck(privateData->wakeupMutex);
@@ -145,7 +145,7 @@ void ITMGlobalAdjustmentEngine::estimationThreadMain(void) {
 }
 
 void ITMGlobalAdjustmentEngine::wakeupSeparateThread(void) {
-#ifndef NO_CPP11
+#ifndef NO_CPP11  // ∵c++11才开始支持mutex
   std::unique_lock<std::mutex> lck(privateData->wakeupMutex);
   privateData->wakeupSent = true;
   privateData->wakeupCond.notify_all();

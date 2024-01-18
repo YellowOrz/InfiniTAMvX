@@ -152,13 +152,14 @@ bool ITMActiveMapManager::shouldMovePrimaryLocalMap(int newDataId, int bestDataI
 }
 
 int ITMActiveMapManager::findPrimaryDataIdx(void) const {
-  for (int i = 0; i < (int) activeData.size(); ++i)
+  for (int i = 0; i < (int) activeData.size(); ++i) // 主子图肯定是活跃子图
     if (activeData[i].type == PRIMARY_LOCAL_MAP) return i;
 
   return -1;
 }
 
 int ITMActiveMapManager::findPrimaryLocalMapIdx(void) const {
+  // TODO: 直接跟findPrimaryDataIdx一样遍历activeData的不就好了吗
   int id = findPrimaryDataIdx();
   if (id < 0) return -1;
   return activeData[id].localMapIndex;
@@ -195,27 +196,27 @@ void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::Tra
   int localMapId = data.localMapIndex;
   data.trackingAttempts++;
 
-  if (trackingResult == ITMTrackingState::TRACKING_GOOD) {        // 跟踪good
-    if (data.type == RELOCALISATION)    // 重定位的话，直接记录位姿   // ??? 当前帧到上一帧的位姿？？？
-      data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM());
-    else if (primaryTrackingSuccess &&  // 新建子图 or 回环，记录相较于 旧子图的位姿
+  if (trackingResult == ITMTrackingState::TRACKING_GOOD) {            //! 跟踪good
+    if (data.type == RELOCALISATION)        // 重定位的话，直接记录位姿   // ??? 当前帧到上一帧的位姿？？？
+      data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM()); // ???怎么可以根据活跃id到全局子图中去找？？？
+    else if (primaryTrackingSuccess &&      // 新建子图 or 回环的话，记录相较于 旧子图的位姿
              ((data.type == NEW_LOCAL_MAP) || (data.type == LOOP_CLOSURE))) {
-      Matrix4f Tnew_inv = localMapManager->getTrackingPose(localMapId)->GetInvM();
-      Matrix4f Told = localMapManager->getTrackingPose(primaryLocalMapID)->GetM();
-      Matrix4f Told_to_new = Tnew_inv * Told;
+      Matrix4f Tnew_inv = localMapManager->getTrackingPose(localMapId)->GetInvM();  // ? T_now-submap_2_world
+      Matrix4f Told = localMapManager->getTrackingPose(primaryLocalMapID)->GetM();  // ? T_world_2_old-submap
+      Matrix4f Told_to_new = Tnew_inv * Told;                                       // ? T_now-submap_to_old-submap
 
       data.constraints.push_back(Told_to_new);
     }
-  } else if (trackingResult == ITMTrackingState::TRACKING_FAILED) { // 跟踪失败
-    if (data.type == PRIMARY_LOCAL_MAP) {
+  } else if (trackingResult == ITMTrackingState::TRACKING_FAILED) {   //! 跟踪失败
+    if (data.type == PRIMARY_LOCAL_MAP) {   // 主子图的话，所有活跃的子图都设置type为lost
       for (size_t j = 0; j < activeData.size(); ++j) {
-        if (activeData[j].type == NEW_LOCAL_MAP)
+        if (activeData[j].type == NEW_LOCAL_MAP)  // 新建的子图要单独对待，因为一次性只能有一个
           activeData[j].type = LOST_NEW;
         else
           activeData[j].type = LOST;
       }
     }
-  }                                                                 // NOTE: 除了主子图，跟踪为poor都算是fail
+  }                                                                   // NOTE: 除了主子图，跟踪为poor都算是fail
 }
 
 static float huber_weight(float residual, float b) {
@@ -366,10 +367,10 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
   }
 }
 
-bool ITMActiveMapManager::maintainActiveData(void) {
+bool ITMActiveMapManager::maintainActiveData(void) {  // TODO: 下次从这儿开始
   bool localMapGraphChanged = false;
 
-  int primaryDataIdx = findPrimaryDataIdx();
+  int primaryDataIdx = findPrimaryDataIdx();  
   int moveToDataIdx = -1;   // 更新后的主子图id
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];
@@ -429,11 +430,10 @@ bool ITMActiveMapManager::maintainActiveData(void) {
 
   for (size_t i = 0; i < activeData.size();) {
     ActiveDataDescriptor &link = activeData[i];
+    // 丢弃最新跟丢的子图
     if (link.type == LOST_NEW) {
-      // NOTE: there will only be at most one new local map at
-      // any given time and it's guaranteed to be the last
-      // in the list. Removing this new local map will therefore
-      // not require rearranging indices!
+      // NOTE: 最多只有一个新的子图，并保证其是localMapManager的最后一个。所以删除后不需要重新排列索引!
+      // NOTE: there will only be at most one new local map at any given time and it's guaranteed to be the last in the list. Removing this new local map will therefore not require rearranging indices!
       localMapManager->removeLocalMap(link.localMapIndex);
       link.type = LOST;
     }

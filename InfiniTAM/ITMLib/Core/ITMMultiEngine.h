@@ -38,12 +38,12 @@ class ITMMultiEngine : public ITMMainEngine {
 
   FernRelocLib::Relocaliser<float> *relocaliser;    // 负责重定位
 
-  ITMVoxelMapGraphManager<TVoxel, TIndex> *mapManager;
-  ITMActiveMapManager *mActiveDataManager;
-  ITMGlobalAdjustmentEngine *mGlobalAdjustmentEngine;
-  bool mScheduleGlobalAdjustment;
+  ITMVoxelMapGraphManager<TVoxel, TIndex> *mapManager;  // 负责管理所有子图
+  ITMActiveMapManager *mActiveDataManager;              // 负责管理活跃子图
+  ITMGlobalAdjustmentEngine *mGlobalAdjustmentEngine;   // 负责全局优化
+  bool mScheduleGlobalAdjustment;                       // 是否进行全局优化
 
-  Vector2i trackedImageSize;
+  Vector2i trackedImageSize;                        // 用于跟踪的图像分辨率
   ITMRenderState *renderState_freeview;             // 渲染结果：自由视角
   ITMRenderState *renderState_multiscene;           // 渲染结果：固定视角
   int freeviewLocalMapIdx;

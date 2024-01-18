@@ -20,7 +20,7 @@ static const int k_loopcloseneighbours = 1;
 // maximum distance reported by LCD library to attempt relocalisation
 static const float F_maxdistattemptreloc = 0.05f;
 
-// loop closure global adjustment runs on a separate thread
+// 全局优化是否单独开线程。loop closure global adjustment runs on a separate thread
 static const bool separateThreadGlobalAdjustment = true;
 
 template <typename TVoxel, typename TIndex>
@@ -141,7 +141,7 @@ struct TodoListEntry {
   TodoListEntry(int _activeDataID, bool _track, bool _fusion, bool _prepare)
       : dataId(_activeDataID), track(_track), fusion(_fusion), prepare(_prepare), preprepare(false) {}
   TodoListEntry(void) {}
-  int dataId;       // 子图的id。=-1表示不处理子图、处理回环检测
+  int dataId;       // 子图的活跃id。=-1表示不处理子图、处理回环检测
   bool track;       // 是否要跟踪
   bool fusion;      // 是否要fusion
   bool prepare;     // 是否要raycast
@@ -163,7 +163,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
   //! 准备todo list：包含主子图,以及新来、回环、重定位的子图，还有重定位
   std::vector<TodoListEntry> todoList;
   // 把主子图添加到todo list。find primary data, if available  // TODO:????
-  int primaryDataIdx = mActiveDataManager->findPrimaryDataIdx();  // 找到活跃子图中type为PRIMARY_LOCAL_MAP的id
+  int primaryDataIdx = mActiveDataManager->findPrimaryDataIdx();  // 找到活跃子图中type为PRIMARY_LOCAL_MAP的活跃id
   if (primaryDataIdx >= 0)  // if there is a "primary data index", process it
     todoList.push_back(TodoListEntry(primaryDataIdx, true, true, true));
 
@@ -231,8 +231,8 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
       continue;
     }
     // 获取当前子图
-    ITMLocalMap<TVoxel, TIndex> *currentLocalMap = NULL;
-    int currentLocalMapIdx = mActiveDataManager->getLocalMapIndex(todoList[i].dataId);
+    ITMLocalMap<TVoxel, TIndex> *currentLocalMap = NULL;                                // 正在处理的子图
+    int currentLocalMapIdx = mActiveDataManager->getLocalMapIndex(todoList[i].dataId);  // 正在处理的子图的全局id
     currentLocalMap = mapManager->getLocalMap(currentLocalMapIdx);
 
     // if a new relocalisation/loopclosure is started, this will do the initial raycasting before tracking can start
@@ -245,7 +245,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
     }
     //! 跟踪
     if (todoList[i].track) {
-      int dataId = todoList[i].dataId;  // 子图id
+      int dataId = todoList[i].dataId;  // 正在处理的子图的活跃id
 
 #ifdef DEBUG_MULTISCENE
       int blocksInUse = currentLocalMap->scene->index.getNumAllocatedVoxelBlocks() -
@@ -258,7 +258,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
       trackingController->Track(currentLocalMap->trackingState, view);
 
       // 除了主子图，其他子图的跟踪结果为Poor直接算成fail。tracking is allowed to be poor only in the primary scenes.
-      ITMTrackingState::TrackingResult trackingResult = currentLocalMap->trackingState->trackerResult;
+      ITMTrackingState::TrackingResult trackingResult = currentLocalMap->trackingState->trackerResult;  // 跟踪结果
       if (mActiveDataManager->getLocalMapType(dataId) != ITMActiveMapManager::PRIMARY_LOCAL_MAP)
         if (trackingResult == ITMTrackingState::TRACKING_POOR)
           trackingResult = ITMTrackingState::TRACKING_FAILED;
@@ -280,14 +280,14 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
         if (trackingResult == ITMTrackingState::TRACKING_GOOD)            // 跟踪good
           primaryTrackingSuccess = true;
         // we need to relocalise in the primary local map
-        else if (trackingResult == ITMTrackingState::TRACKING_FAILED) {   // 跟踪失败，准备后续重定位
+        else if (trackingResult == ITMTrackingState::TRACKING_FAILED) {   // 跟踪失败，准备后续用主子图重定位
           primaryDataIdx = -1;
           todoList.resize(i + 1);
           todoList.push_back(TodoListEntry(-1, false, false, false));
         }                                                                 // TODO: 主子图跟踪为poor咋办呢？？
       }
 
-      // 记录跟踪结果 // TODO: 下次从这儿开始
+      // 记录跟踪结果
       mActiveDataManager->recordTrackingResult(dataId, trackingResult, primaryTrackingSuccess);
     }
 
@@ -307,7 +307,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
   //! 全局优化
   mScheduleGlobalAdjustment |= mActiveDataManager->maintainActiveData();
   if (mScheduleGlobalAdjustment) {
-    if (mGlobalAdjustmentEngine->updateMeasurements(*mapManager)) {
+    if (mGlobalAdjustmentEngine->updateMeasurements(*mapManager)) { // 更新位姿图
       if (separateThreadGlobalAdjustment)
         mGlobalAdjustmentEngine->wakeupSeparateThread();
       else

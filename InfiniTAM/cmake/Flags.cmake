@@ -14,7 +14,7 @@ IF(${CMAKE_SYSTEM} MATCHES "Darwin")
     # If on Mac OS X 10.9 (Mavericks), use the libstdc++ implementation of the C++ Standard Library and prevent C++11 code from being compiled.
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libstdc++")
-    ADD_DEFINITIONS(-DNO_CPP11)
+    ADD_DEFINITIONS(-DNO_CPP11) # C++11之后支持mutex
   ELSE()
     # Otherwise, use the libc++ implementation of the C++ Standard Library, and enable C++11 support.
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -std=c++11")

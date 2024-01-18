@@ -9,13 +9,14 @@ namespace ITMLib {
 */
 class ITMActiveMapManager {
  public:
-   typedef enum { 
-    PRIMARY_LOCAL_MAP, 
-    NEW_LOCAL_MAP, 
-    LOOP_CLOSURE, 
-    RELOCALISATION, 
-    LOST, 
-    LOST_NEW 
+  // 活跃子图的状态
+  typedef enum { 
+    PRIMARY_LOCAL_MAP,  // 主子图
+    NEW_LOCAL_MAP,      // 新建的
+    LOOP_CLOSURE,       // 回环的
+    RELOCALISATION,     // 重定位的
+    LOST,               // 跟丢的
+    LOST_NEW            // 新建但跟丢的
   } LocalMapActivity;
 
  private:
@@ -23,7 +24,7 @@ class ITMActiveMapManager {
   struct ActiveDataDescriptor {
     int localMapIndex;                  // ??? 全局子图id
     LocalMapActivity type;              // ??? 子图类型
-    std::vector<Matrix4f> constraints;  // ??? 有关联的其他活跃子图的id
+    std::vector<Matrix4f> constraints;  // ??? 跟主子图的相对位姿
     ORUtils::SE3Pose estimatedPose;     // ??? 位姿
     int trackingAttempts;               // 跟踪帧数（无论成功与否）
   };
@@ -42,7 +43,13 @@ class ITMActiveMapManager {
  public:
   int initiateNewLocalMap(bool isPrimaryLocalMap = false);
   int initiateNewLink(int sceneID, const ORUtils::SE3Pose &pose, bool isRelocalisation);
-
+  /**
+   * @brief 更新指定子图以及相关联子图的跟踪结果
+   * @param[in] dataID                  指定子图的活跃id
+   * @param[in] trackingResult          指定跟踪结果。0=failed，1=poor，2=good
+   * @param[in] primaryTrackingSuccess  主子图是否跟踪good
+   * @note 只要主子图跟踪不good，所有活跃子图都算是跟踪失败
+   */
   void recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult, bool primaryTrackingSuccess);
 
   /**
@@ -50,8 +57,9 @@ class ITMActiveMapManager {
    * @note 什么时候会发生变化？？？
    */
   bool maintainActiveData(void);
-
+  /** 获取主子图的活跃id */
   int findPrimaryDataIdx(void) const;
+  /** 获取主子图的全局id */
   int findPrimaryLocalMapIdx(void) const;
 
   int findBestVisualisationDataIdx(void) const;
