@@ -9,7 +9,7 @@ namespace ITMLib {
 */
 class ITMActiveMapManager {
  public:
-  // 活跃子图的状态
+  // 子图的活跃类型
   typedef enum { 
     PRIMARY_LOCAL_MAP,  // 主子图
     NEW_LOCAL_MAP,      // 新建的
@@ -22,16 +22,20 @@ class ITMActiveMapManager {
  private:
   /** 单个活跃子图的相关信息 */
   struct ActiveDataDescriptor {
-    int localMapIndex;                  // ??? 全局子图id
-    LocalMapActivity type;              // ??? 子图类型
-    std::vector<Matrix4f> constraints;  // ??? 跟主子图的相对位姿
+    int localMapIndex;                  // 子图的全局id
+    LocalMapActivity type;              // 子图的活跃类型
+    std::vector<Matrix4f> constraints;  // ??? 有关联的子图的相对位姿。T_now_other
     ORUtils::SE3Pose estimatedPose;     // ??? 位姿
     int trackingAttempts;               // 跟踪帧数（无论成功与否）
   };
 
   ITMMapGraphManager *localMapManager;          // 管理所有子图
   std::vector<ActiveDataDescriptor> activeData; // 所有活跃子图的信息
-
+  /**
+   * @brief 判断指定子图是否重定位成功
+   * @param[in] dataID  子图的活跃id
+   * @return            int 0，重定位成功；-1，重定位失败；0，再试试看
+   */
   int CheckSuccess_relocalisation(int dataID) const;
   int CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers, ORUtils::SE3Pose *inlierPose) const;
   void AcceptNewLink(int dataId, int primaryDataId, const ORUtils::SE3Pose &pose, int weight);

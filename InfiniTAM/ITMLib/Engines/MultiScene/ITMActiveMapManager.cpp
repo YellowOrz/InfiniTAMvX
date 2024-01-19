@@ -3,17 +3,16 @@
 #include "ITMActiveMapManager.h"
 
 using namespace ITMLib;
-
+// TODO：为啥要在这里设置一堆静态变量，而不是添加到类里面，或者头文件里面
 // try loop closures for this number of frames
 static const int N_linktrials = 20;
 // at least these many frames have to be tracked successfully
 static const int N_linkoverlap = 10;
 // 固定n帧指定重定位。try relocalisations for this number of frames
 static const int N_reloctrials = 20;
-// at least these many tracking attempts have to succeed for relocalisation
+// 有关联的子图数量超过这个阈值，算重定位成功。at least these many tracking attempts have to succeed for relocalisation
 static const int N_relocsuccess = 10;
-// When checking "overlap with original local map", find how many of the first N
-// blocks are still visible
+// When checking "overlap with original local map", find how many of the first N blocks are still visible
 static const int N_originalblocks = 1000;
 static const float F_originalBlocksThreshold = 0.2f; //0.4f
 
@@ -298,15 +297,16 @@ static ORUtils::SE3Pose estimateRelativePose(const std::vector<Matrix4f> &observ
 }
 
 int ITMActiveMapManager::CheckSuccess_relocalisation(int dataID) const {
-  // sucessfully relocalised
+  // 相关联的子图数量>阈值，重定位成功。sucessfully relocalised
   if (activeData[dataID].constraints.size() >= N_relocsuccess) return 1;
 
-  // relocalisation failed: declare as LOST
+  // 子图中跟踪失败的帧数太多，重定位失败。relocalisation failed: declare as LOST
+  // trackingAttempts表示子图里的总帧数（不管跟踪成狗与否），constraints的数量就是跟踪成功帧数，
   if ((N_reloctrials - activeData[dataID].trackingAttempts)
       < (N_relocsuccess - (int) activeData[dataID].constraints.size()))
     return -1;
 
-  // keep trying
+  // 再试试看。keep trying
   return 0;
 }
 
@@ -367,16 +367,17 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
   }
 }
 
-bool ITMActiveMapManager::maintainActiveData(void) {  // TODO: 下次从这儿开始
+bool ITMActiveMapManager::maintainActiveData(void) { 
   bool localMapGraphChanged = false;
 
   int primaryDataIdx = findPrimaryDataIdx();  
   int moveToDataIdx = -1;   // 更新后的主子图id
+  //! 处理活跃子图中类型为 重定位、回环、新建的
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];
 
     if (link.type == RELOCALISATION) {
-      int success = CheckSuccess_relocalisation(i);
+      int success = CheckSuccess_relocalisation(i);  // TODO: 下次从这儿开始
       if (success == 1) {
         if (moveToDataIdx < 0) moveToDataIdx = i;
         else link.type = LOST;
