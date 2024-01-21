@@ -100,19 +100,19 @@ void ITMDepthTracker::PrepareForEvaluation() {
     lowLevelEngine->FilterSubsampleWithHoles(currentLevelView->data, previousLevelView->data);      // 尺寸缩小为1/2
     currentLevelView->intrinsics = previousLevelView->intrinsics * 0.5f;                            // 内参跟着变
 
-    ITMSceneHierarchyLevel *currentLevelScene = sceneHierarchy->GetLevel(i);                        // 当前投影帧
-    ITMSceneHierarchyLevel *previousLevelScene = sceneHierarchy->GetLevel(i - 1);                   // 上一投影帧
-    // TODO: 投影帧不用缩小吗？？？投影帧不弄金字塔？？？永远只跟原始的投影帧率匹配吗？
+    ITMSceneHierarchyLevel *currentLevelScene = sceneHierarchy->GetLevel(i);                        // 当前参考帧
+    ITMSceneHierarchyLevel *previousLevelScene = sceneHierarchy->GetLevel(i - 1);                   // 上一参考帧
+    // NOTE: 参考帧不用弄金字塔，因为都是拿 输入帧的像素 往 参考帧上进行重投影
     //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->pointsMap, previousLevelScene->pointsMap);  
     //lowLevelEngine->FilterSubsampleWithHoles(currentLevelScene->normalsMap, previousLevelScene->normalsMap);
-    currentLevelScene->intrinsics = previousLevelScene->intrinsics * 0.5f;                          // 内参跟着变
+    currentLevelScene->intrinsics = previousLevelScene->intrinsics * 0.5f;                          // TODO：内参不用变?
   }
 }
 
 void ITMDepthTracker::SetEvaluationParams(int levelId) {
   this->levelId = levelId;                                                // 金字塔当前层数
   this->iterationType = viewHierarchy->GetLevel(levelId)->iterationType;  // 迭代的跟踪类型
-  this->sceneHierarchyLevel = sceneHierarchy->GetLevel(0);                // 投影帧没有金字塔？？？
+  this->sceneHierarchyLevel = sceneHierarchy->GetLevel(0);                // 参考帧没有金字塔
   this->viewHierarchyLevel = viewHierarchy->GetLevel(levelId);            // 从输入帧金字塔取数据
 }
 
@@ -281,8 +281,8 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
     this->SetEvaluationParams(levelId);
     if (iterationType == TRACKER_ITERATION_NONE) continue;
     // 设置初始位姿
-    Matrix4f approxInvPose = trackingState->pose_d->GetInvM();
-    ORUtils::SE3Pose lastKnownGoodPose(*(trackingState->pose_d));
+    Matrix4f approxInvPose = trackingState->pose_d->GetInvM();    // 初始位姿，local to world
+    ORUtils::SE3Pose lastKnownGoodPose(*(trackingState->pose_d)); // 记录旧的位姿
     f_old = 1e20f;
     noValidPoints_old = 0;
     float lambda = 1.0;
@@ -309,7 +309,7 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
           nabla_good[i] = nabla_new[i] / noValidPoints_new;
         lambda /= 10.0f;
       }
-      for (int i = 0; i < 6 * 6; ++i)     // 不能用hessian_good作为矩阵A，∵要A要加lambda，而hessian_good后面用于判断跟踪质量
+      for (int i = 0; i < 6 * 6; ++i)     // hessian_good不能作为矩阵A，∵A还要加lambda，而hessian_good后面用于判断跟踪质量
         A[i] = hessian_good[i];
       for (int i = 0; i < 6; ++i) 
         A[i + i * 6] *= 1.0f + lambda;    // A 矩阵的对角线上加lambda
@@ -318,12 +318,12 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
       //! 解方程后，更新位姿
       ComputeDelta(step, nabla_good, A, iterationType != TRACKER_ITERATION_BOTH);
       ApplyDelta(approxInvPose, step, approxInvPose);
-      trackingState->pose_d->SetInvM(approxInvPose);    // 取逆后保存到位姿中。∵approxInvPose是从
+      trackingState->pose_d->SetInvM(approxInvPose);    // 取逆后保存到位姿中。∵approxInvPose是从local to world
       trackingState->pose_d->Coerce();
+      //! 为下次迭代准备
       approxInvPose = trackingState->pose_d->GetInvM();
 
-      // if step is small, assume it's going to decrease the error and finish
-      //! 若收敛 退出迭代
+      //! 若收敛 退出迭代。if step is small, assume it's going to decrease the error and finish
       if (HasConverged(step)) break;
     }
   }

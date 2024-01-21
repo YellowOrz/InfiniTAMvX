@@ -18,9 +18,9 @@
  * @param[in] sceneImageSize  场景的
  * @param[in] sceneIntrinsics 
  * @param[in] approxInvPose   初始位姿，=上一帧的位姿？？？
- * @param[in] scenePose       投影帧位姿？？？
- * @param[in] pointsMap       投影帧出来的三维点？？？
- * @param[in] normalsMap      投影帧对应的法向量
+ * @param[in] scenePose       参考帧位姿？？？
+ * @param[in] pointsMap       参考帧出来的三维点？？？
+ * @param[in] normalsMap      参考帧对应的法向量
  * @param[in] distThresh      距离阈值，用来剔除误差大的点
  * @return
  */
@@ -38,20 +38,20 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(
   Vector4f curr3Dpoint, corr3Dnormal;
   Vector2f tmp2Dpoint;
 
-  //! 计算当前帧中像素的三维坐标
+  //! 将当前帧中像素反投影
   tmp3Dpoint.x = depth * ((float(x) - viewIntrinsics.z) / viewIntrinsics.x);  // 在当前帧下的三维坐标
   tmp3Dpoint.y = depth * ((float(y) - viewIntrinsics.w) / viewIntrinsics.y);
   tmp3Dpoint.z = depth;
   tmp3Dpoint.w = 1.0f;
   // transform to previous frame coordinates
-  tmp3Dpoint = approxInvPose * tmp3Dpoint;  // 变换到上一帧坐标系下
+  tmp3Dpoint = approxInvPose * tmp3Dpoint;  // 变换到世界坐标系下
   tmp3Dpoint.w = 1.0f;
 
-  //! 通过重投影找到 投影帧 中的 匹配点
+  //! 通过重投影找到 参考帧 中的 匹配点
   // project into previous rendered image  
-  tmp3Dpoint_reproj = scenePose * tmp3Dpoint;     // 变换到投影帧的坐标系下 ？？？上一帧的坐标投射到之前的渲染图像总区
+  tmp3Dpoint_reproj = scenePose * tmp3Dpoint;     // 变换到参考帧的局部坐标系下
   if (tmp3Dpoint_reproj.z <= 0.0f) return false;  // 检测深度
-  // 投影到scene的成像平面，会是小数
+  // 投影到参考帧的成像平面，是小数
   tmp2Dpoint.x = sceneIntrinsics.x * tmp3Dpoint_reproj.x / tmp3Dpoint_reproj.z + sceneIntrinsics.z;
   tmp2Dpoint.y = sceneIntrinsics.y * tmp3Dpoint_reproj.y / tmp3Dpoint_reproj.z + sceneIntrinsics.w;
   if (!((tmp2Dpoint.x >= 0.0f) && (tmp2Dpoint.x <= sceneImageSize.x - 2) && (tmp2Dpoint.y >= 0.0f)
@@ -105,13 +105,13 @@ _CPU_AND_GPU_CODE_ inline bool computePerPointGH_Depth_Ab(
  * @param[out] localNabla     nabla算子
  * @param[out] localHessian   H矩阵
  * @param[out] localF         误差
- * @param[in] x               像素的x坐标
- * @param[in] y
- * @param[in] depth
- * @param[in] viewImageSize   当前帧的
- * @param[in] viewIntrinsics
- * @param[in] sceneImageSize  场景的
- * @param[in] sceneIntrinsics 
+ * @param[in] x               当前帧的像素的x坐标
+ * @param[in] y               当前帧的像素的y坐标
+ * @param[in] depth           当前帧的像素的深度值
+ * @param[in] viewImageSize   当前帧的分辨率
+ * @param[in] viewIntrinsics  当前帧的内参
+ * @param[in] sceneImageSize  参考帧的分辨率
+ * @param[in] sceneIntrinsics 参考帧的内参
  * @param[in] approxInvPose   初始位姿，=上一帧的位姿？？？
  * @param[in] scenePose       场景位姿？？？
  * @param[in] pointsMap       场景投影出来的三维点？？？

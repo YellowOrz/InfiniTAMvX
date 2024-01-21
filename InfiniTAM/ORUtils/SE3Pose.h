@@ -7,15 +7,12 @@
 
 namespace ORUtils {
 /** \brief 相机位姿（旋转+平移）
-    Represents a camera pose with rotation and translation
-    parameters
+    Represents a camera pose with rotation and translation parameters
 */
 class SE3Pose {
  private:
-  /** 相机位姿的参数形式（6x1），旋转用SO3表示
-   * This is the minimal representation of the pose with
-      six parameters. The three rotation parameters are
-      the Lie algebra representation of SO3.
+  /** 相机位姿的最简形式（6x1），旋转用SO3表示
+   * This is the minimal representation of the pose with six parameters. The three rotation parameters are the Lie algebra representation of SO3.
   */
   union {
     float all[6];
@@ -26,20 +23,17 @@ class SE3Pose {
   } params;
 
   /** 相机位姿的矩阵形式（4x4）
-   * The pose as a 4x4 transformation matrix ("modelview
-      matrix).
+   * The pose as a 4x4 transformation matrix ("modelview matrix).
   */
   Matrix4<float> M;
 
-  /** 相机位姿从 矩阵形式（4x4） 转 参数形式（6x1）
-   * This will update the minimal parameterisation from
-      the current modelview matrix.
-      */
+  /** 相机位姿从 矩阵形式（4x4） 转 最简形式（6x1）
+   * This will update the minimal parameterisation from the current modelview matrix.
+   */
   void SetParamsFromModelView();
 
-  /** 相机位姿从 参数形式（6x1） 转 矩阵形式（4x4） 
-   * This will update the "modelview matrix" M from the
-      minimal representation.
+  /** 相机位姿从 最简形式（6x1） 转 矩阵形式（4x4） 
+   * This will update the "modelview matrix" M from the minimal representation.
   */
   void SetModelViewFromParams();
  public:
@@ -53,8 +47,7 @@ class SE3Pose {
   void SetFrom(const float pose[6]);
   void SetFrom(const SE3Pose *pose);
 
-  /** This will multiply a pose @p pose on the right, i.e.
-      this = this * pose.
+  /** This will multiply a pose @p pose on the right, i.e. this = this * pose.
   */
   void MultiplyWith(const SE3Pose *pose);
 
@@ -64,6 +57,7 @@ class SE3Pose {
   Vector3<float> GetT(void) const;
 
   void GetParams(Vector3<float> &translation, Vector3<float> &rotation) const;
+  /** 获取 相机位姿的最简形式（6x1），旋转用SO3表示 */
   const float *GetParams(void) const { return params.all; }
 
   void SetM(const Matrix4<float> &M);
@@ -77,10 +71,8 @@ class SE3Pose {
   /** 将输入矩阵取逆后作为位姿矩阵 */
   void SetInvM(const Matrix4<float> &invM);
 
-  /** 保证旋转矩阵的正交性。建议在计算M之后调用  
-   * This will enforce the orthonormality constraints on
-      the rotation matrix. It's recommended to call this
-      function after manipulating the matrix M.
+  /** 保证旋转矩阵的正交性。建议在计算M之后调用。
+   * This will enforce the orthonormality constraints on the rotation matrix. It's recommended to call this function after manipulating the matrix M.
   */
   void Coerce(void);
 
@@ -98,8 +90,7 @@ class SE3Pose {
     return os;
   }
 
-  /** This builds a Pose based on its exp representation
-  */
+  /** This builds a Pose based on its exp representation */
   static SE3Pose exp(const Vector6<float> &tangent);
 };
 }

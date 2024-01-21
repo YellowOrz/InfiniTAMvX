@@ -68,22 +68,8 @@ class Matrix4 : public Matrix4_<T> {
   _CPU_AND_GPU_CODE_ Matrix4() {}
   _CPU_AND_GPU_CODE_ Matrix4(T t) { setValues(t); }
   _CPU_AND_GPU_CODE_ Matrix4(const T *m) { setValues(m); }
-  _CPU_AND_GPU_CODE_ Matrix4(T a00,
-                             T a01,
-                             T a02,
-                             T a03,
-                             T a10,
-                             T a11,
-                             T a12,
-                             T a13,
-                             T a20,
-                             T a21,
-                             T a22,
-                             T a23,
-                             T a30,
-                             T a31,
-                             T a32,
-                             T a33) {
+  _CPU_AND_GPU_CODE_ Matrix4(T a00, T a01, T a02, T a03, T a10, T a11, T a12, T a13, T a20, T a21, T a22, T a23, T a30,
+                             T a31, T a32, T a33) {
     this->m00 = a00;
     this->m01 = a01;
     this->m02 = a02;
@@ -244,8 +230,11 @@ class Matrix4 : public Matrix4_<T> {
     return r;
   }
 
-  // 计算4x4矩阵的逆
-  // The inverse matrix for float/double type
+  /**
+   * @brief 计算4x4矩阵的逆。
+   * @param[out] out 
+   * @return 取逆是否成功
+   */
   _CPU_AND_GPU_CODE_ inline bool inv(Matrix4 &out) const {
     T tmp[12], src[16], det;
     T *dst = out.m;
@@ -304,22 +293,22 @@ class Matrix4 : public Matrix4_<T> {
     tmp[10] = src[0] * src[5];
     tmp[11] = src[1] * src[4];
 
-    dst[8] = (tmp[0] * src[13] + tmp[3] * src[14] + tmp[4] * src[15])
-        - (tmp[1] * src[13] + tmp[2] * src[14] + tmp[5] * src[15]);
-    dst[9] = (tmp[1] * src[12] + tmp[6] * src[14] + tmp[9] * src[15])
-        - (tmp[0] * src[12] + tmp[7] * src[14] + tmp[8] * src[15]);
-    dst[10] = (tmp[2] * src[12] + tmp[7] * src[13] + tmp[10] * src[15])
-        - (tmp[3] * src[12] + tmp[6] * src[13] + tmp[11] * src[15]);
-    dst[11] = (tmp[5] * src[12] + tmp[8] * src[13] + tmp[11] * src[14])
-        - (tmp[4] * src[12] + tmp[9] * src[13] + tmp[10] * src[14]);
-    dst[12] = (tmp[2] * src[10] + tmp[5] * src[11] + tmp[1] * src[9])
-        - (tmp[4] * src[11] + tmp[0] * src[9] + tmp[3] * src[10]);
-    dst[13] = (tmp[8] * src[11] + tmp[0] * src[8] + tmp[7] * src[10])
-        - (tmp[6] * src[10] + tmp[9] * src[11] + tmp[1] * src[8]);
-    dst[14] = (tmp[6] * src[9] + tmp[11] * src[11] + tmp[3] * src[8])
-        - (tmp[10] * src[11] + tmp[2] * src[8] + tmp[7] * src[9]);
-    dst[15] = (tmp[10] * src[10] + tmp[4] * src[8] + tmp[9] * src[9])
-        - (tmp[8] * src[9] + tmp[11] * src[10] + tmp[5] * src[8]);
+    dst[8] = (tmp[0] * src[13] + tmp[3] * src[14] + tmp[4] * src[15]) -
+             (tmp[1] * src[13] + tmp[2] * src[14] + tmp[5] * src[15]);
+    dst[9] = (tmp[1] * src[12] + tmp[6] * src[14] + tmp[9] * src[15]) -
+             (tmp[0] * src[12] + tmp[7] * src[14] + tmp[8] * src[15]);
+    dst[10] = (tmp[2] * src[12] + tmp[7] * src[13] + tmp[10] * src[15]) -
+              (tmp[3] * src[12] + tmp[6] * src[13] + tmp[11] * src[15]);
+    dst[11] = (tmp[5] * src[12] + tmp[8] * src[13] + tmp[11] * src[14]) -
+              (tmp[4] * src[12] + tmp[9] * src[13] + tmp[10] * src[14]);
+    dst[12] = (tmp[2] * src[10] + tmp[5] * src[11] + tmp[1] * src[9]) -
+              (tmp[4] * src[11] + tmp[0] * src[9] + tmp[3] * src[10]);
+    dst[13] = (tmp[8] * src[11] + tmp[0] * src[8] + tmp[7] * src[10]) -
+              (tmp[6] * src[10] + tmp[9] * src[11] + tmp[1] * src[8]);
+    dst[14] = (tmp[6] * src[9] + tmp[11] * src[11] + tmp[3] * src[8]) -
+              (tmp[10] * src[11] + tmp[2] * src[8] + tmp[7] * src[9]);
+    dst[15] = (tmp[10] * src[10] + tmp[4] * src[8] + tmp[9] * src[9]) -
+              (tmp[8] * src[9] + tmp[11] * src[10] + tmp[5] * src[8]);
 
     out *= 1 / det;
     return true;

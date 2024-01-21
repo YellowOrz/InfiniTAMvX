@@ -15,26 +15,26 @@
 namespace ITMLib {
 /** 使用ICP的depth tarcking基类。类似KinectFusion。 
  * Base class for engine performing ICP based depth tracking.
-    A typical example would be the original KinectFusion
-    tracking algorithm.
+  A typical example would be the original KinectFusion tracking algorithm.
 */
 class ITMDepthTracker : public ITMTracker {
+/* ----------------------------------------------------- private ---------------------------------------------------- */
  private:
-  const ITMLowLevelEngine *lowLevelEngine;  // 
-  ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;  // 模型投影图片的金字塔
-  ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy; // 当前输入图片的金字塔
+  const ITMLowLevelEngine *lowLevelEngine;                                      // 负责底层的图像处理模块。比如计算梯度
+  ITMImageHierarchy<ITMSceneHierarchyLevel> *sceneHierarchy;                    // 参考帧的金字塔
+  ITMImageHierarchy<ITMTemplatedHierarchyLevel<ITMFloatImage> > *viewHierarchy; // 当前帧的金字塔
 
   ITMTrackingState *trackingState;  // tracking过程中的变量，如相机位姿、raycast的点云等
-  const ITMView *view;        // 当前输入图片
+  const ITMView *view;              // 当前帧
 
-  int *noIterationsPerLevel;  // 金字塔每一层的迭代次数
+  int *noIterationsPerLevel;        // 金字塔每一层的迭代次数
 
-  float terminationThreshold; // 判断跟踪结果是否收敛的阈值。用来跟△T的模长对比
+  float terminationThreshold;       // 判断跟踪结果是否收敛的阈值。用来跟△T的模长对比
   /** 构建图像金字塔 */
   void PrepareForEvaluation();
   /**
    * @brief 从金字塔中取出当前层级的数据。
-   * @note包含层级数、当前帧和投影帧数据、匹配类型（r、t、b）
+   * @note包含层级数、当前帧和参考帧数据、匹配类型（r、t、b）
    * @param[in] levelId 层级数。数字越大，图片越大？？？
    */
   void SetEvaluationParams(int levelId);
@@ -52,7 +52,7 @@ class ITMDepthTracker : public ITMTracker {
    * @note delta前3个数字对应rotation见论文《Linear Least-Squares Optimization for Point-to-Plane ICP Surface 
    *          Registration》的公式(6)
    * @param[in] para_old  老位姿
-   * @param[in] delta     位姿增量，维度6*1，前3个是旋转向量（SO3？），后3个是平移
+   * @param[in] delta     位姿增量，维度6*1，前3个是SO3的旋转，后3个是平移
    * @param[out] para_new 新位姿
    */
   void ApplyDelta(const Matrix4f &para_old, const float *delta, Matrix4f &para_new) const;
@@ -80,19 +80,17 @@ class ITMDepthTracker : public ITMTracker {
   ORUtils::HomkerMap *map;               // SVM分类器所需？？？
   ORUtils::SVMClassifier *svmClassifier; // 判别跟踪质量的SVM分类器
   Vector4f mu, sigma;                    // SVM分类器所需？？？
-
+/* ---------------------------------------------------- protected --------------------------------------------------- */
 protected:
-  float *distThresh;  // 金字塔每一层的距离阈值，用来筛选匹配
-
-  int levelId;        // 金字塔当前层数
+  float *distThresh;                    // 金字塔每一层的距离阈值，用来筛选匹配
+  int levelId;                          // 金字塔当前层数
   TrackerIterationType iterationType;   // 迭代的跟踪类型。在ITMLibSettings => trackerConfig => levels里设置
 
-  Matrix4f scenePose;                          // 投影帧的位姿。是三维模型相对世界坐标系的位姿？？？
-  ITMSceneHierarchyLevel *sceneHierarchyLevel; // 投影帧的金字塔
+  Matrix4f scenePose;                          // 参考帧的位姿，世界坐标系 到 局部坐标系，即T_lw
+  ITMSceneHierarchyLevel *sceneHierarchyLevel; // 参考帧的金字塔
   ITMTemplatedHierarchyLevel<ITMFloatImage> *viewHierarchyLevel; // 当前帧的金字塔
   /**
    * @brief 计算point-to-plane ICP的Hessian矩阵、Nabla算子 和 误差
-   *
    * @param[out] f            误差
    * @param[out] nabla        Nabla算子
    * @param[out] hessian      Hessian矩阵
@@ -100,21 +98,20 @@ protected:
    * @return int              有效像素数
    */
   virtual int ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) = 0;
-
+/* ----------------------------------------------------- public ----------------------------------------------------- */
  public:
   /**
    * @brief 使用 高斯牛顿法 求解point-to-plane ICP，跟踪相机
-   * 
    * @note 参考资料https://zhuanlan.zhihu.com/p/385414929
    * @param trackingState 
    * @param view 
    */
   void TrackCamera(ITMTrackingState *trackingState, const ITMView *view);
-  /**渲染的时候不要彩色图，因为这里是depth tracking*/
+  /** 渲染的时候不要彩色图，因为这里是depth tracking */
   bool requiresColourRendering() const { return false; }
-  /**渲染的时候不要Depth的置信度。但是好像没有地方用到*/
+  /** 渲染的时候不要Depth的置信度。但是好像没有地方用到 */
   bool requiresDepthReliability() const { return false; }
-  /**渲染的时候要点云，用于depth tracking*/
+  /** 渲染的时候要点云，用于depth tracking */
   bool requiresPointCloudRendering() const { return true; }
   /**
    * @brief 设置金字塔迭代的参数。下面“小”就是尺寸最小的

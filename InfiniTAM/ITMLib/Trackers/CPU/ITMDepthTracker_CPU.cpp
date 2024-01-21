@@ -15,10 +15,10 @@ ITMDepthTracker_CPU::~ITMDepthTracker_CPU(void) {}
 
 int ITMDepthTracker_CPU::ComputeGandH(float &f, float *nabla, float *hessian, Matrix4f approxInvPose) {
   //! 从scene中获取所需信息
-  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU);   // 三维坐标点。第4个数字是w？？？
-  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU); // 法向量。第4个数字是w？？？
-  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;                        // 场景相机内参
-  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;                  // 场景图像大小
+  Vector4f *pointsMap = sceneHierarchyLevel->pointsMap->GetData(MEMORYDEVICE_CPU);   // 参考帧的三维坐标点。第4个数字是w？？？
+  Vector4f *normalsMap = sceneHierarchyLevel->normalsMap->GetData(MEMORYDEVICE_CPU); // 参考帧的法向量。第4个数字是w？？？
+  Vector4f sceneIntrinsics = sceneHierarchyLevel->intrinsics;                        // 参考帧相机内参
+  Vector2i sceneImageSize = sceneHierarchyLevel->pointsMap->noDims;                  // 参考帧图像大小
   //! 从当前帧获取所需信息
   float *depth = viewHierarchyLevel->data->GetData(MEMORYDEVICE_CPU); // 获取当前帧的深度图（以一维存储）
   Vector4f viewIntrinsics = viewHierarchyLevel->intrinsics;           // 当前帧相机内参
