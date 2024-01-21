@@ -21,6 +21,7 @@ namespace ITMLib {
 */
 template<typename TVoxel, typename TIndex>
 class ITMMultiEngine : public ITMMainEngine {
+/* ----------------------------------------------------- private ---------------------------------------------------- */
  private:
   const ITMLibSettings *settings;
 
@@ -48,8 +49,8 @@ class ITMMultiEngine : public ITMMainEngine {
   ITMRenderState *renderState_multiscene;           // 渲染结果：固定视角
   int freeviewLocalMapIdx;
 
-  /// Pointer for storing the current input frame
-  ITMView *view;
+  ITMView *view;                                    // 当前帧的指针。Pointer for storing the current input frame
+/* ----------------------------------------------------- public ----------------------------------------------------- */
  public:
   ITMView *GetView() { return view; }
 
@@ -87,12 +88,9 @@ class ITMMultiEngine : public ITMMainEngine {
   //void SaveSceneToMesh(const char *objFileName);
 
   /** \brief Constructor
-      Ommitting a separate image size for the depth images
-      will assume same resolution as for the RGB images.
+      Ommitting a separate image size for the depth images will assume same resolution as for the RGB images.
   */
-  ITMMultiEngine(const ITMLibSettings *settings,
-                 const ITMRGBDCalib &calib,
-                 Vector2i imgSize_rgb,
+  ITMMultiEngine(const ITMLibSettings *settings, const ITMRGBDCalib &calib, Vector2i imgSize_rgb,
                  Vector2i imgSize_d = Vector2i(-1, -1));
   ~ITMMultiEngine(void);
 };

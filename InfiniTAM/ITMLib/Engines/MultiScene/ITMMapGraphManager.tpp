@@ -5,17 +5,12 @@
 //#include <queue>
 
 namespace ITMLib {
-template<class TVoxel, class TIndex>
-ITMVoxelMapGraphManager<TVoxel, TIndex>::ITMVoxelMapGraphManager(const ITMLibSettings *_settings,
-                                                                 const ITMVisualisationEngine<TVoxel,
-                                                                                              TIndex> *_visualisationEngine,
-                                                                 const ITMDenseMapper<TVoxel, TIndex> *_denseMapper,
-                                                                 const Vector2i &_trackedImageSize)
-    : settings(_settings),
-      visualisationEngine(_visualisationEngine),
-      denseMapper(_denseMapper),
-      trackedImageSize(_trackedImageSize) {
-}
+template <class TVoxel, class TIndex>
+ITMVoxelMapGraphManager<TVoxel, TIndex>::ITMVoxelMapGraphManager(
+    const ITMLibSettings *_settings, const ITMVisualisationEngine<TVoxel, TIndex> *_visualisationEngine,
+    const ITMDenseMapper<TVoxel, TIndex> *_denseMapper, const Vector2i &_trackedImageSize)
+    : settings(_settings), visualisationEngine(_visualisationEngine), denseMapper(_denseMapper),
+      trackedImageSize(_trackedImageSize) {}
 
 template<class TVoxel, class TIndex>
 ITMVoxelMapGraphManager<TVoxel, TIndex>::~ITMVoxelMapGraphManager(void) {
@@ -55,16 +50,27 @@ ITMPoseConstraint &ITMVoxelMapGraphManager<TVoxel, TIndex>::getRelation(int from
 
 static const ITMPoseConstraint invalidPoseConstraint;
 
-template<class TVoxel, class TIndex>
+/**
+ * @brief 获取两个子图之间的约束关系（也叫做link）
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] fromLocalMap  第一个子图的全局id
+ * @param[in] toLocalMap    第二个子图的全局id
+ * @return const ITMPoseConstraint& 从第一个子图中找到与第二个子图的约束信息（即link）。其中的位姿是第二个子图=>第一个子图
+ */
+template <class TVoxel, class TIndex>
 const ITMPoseConstraint &ITMVoxelMapGraphManager<TVoxel, TIndex>::getRelation_const(int fromLocalMap,
                                                                                     int toLocalMap) const {
-  if ((fromLocalMap < 0) || (fromLocalMap >= (int) allData.size())) return invalidPoseConstraint;
-
-  const ConstraintList &m = getLocalMap(fromLocalMap)->relations;
-  ConstraintList::const_iterator it = m.find(toLocalMap);
-  if (it == m.end()) return invalidPoseConstraint;
-
-  return it->second;
+  // 检查id有效性
+  if ((fromLocalMap < 0) || (fromLocalMap >= (int)allData.size()))
+    return invalidPoseConstraint;
+  
+  const ConstraintList &m = getLocalMap(fromLocalMap)->relations; // 第一个子图的所有link
+  // 从第一个子图的所有约束中找到跟第二个子图的link
+  ConstraintList::const_iterator it = m.find(toLocalMap);         
+  if (it == m.end())
+    return invalidPoseConstraint; // 没找到
+  return it->second;              // 找到了，返回link
 }
 
 template<class TVoxel, class TIndex>

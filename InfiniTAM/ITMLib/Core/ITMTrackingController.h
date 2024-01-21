@@ -36,12 +36,8 @@ class ITMTrackingController {
       throw std::runtime_error("The surfel engine doesn't yet support colour trackers");
     } else {
       const bool useRadii = true;
-      visualisationEngine->FindSurface(scene,
-                                       trackingState->pose_d,
-                                       &view->calib.intrinsics_d,
-                                       useRadii,
-                                       USR_FAUTEDEMIEUX,
-                                       renderState);
+      visualisationEngine->FindSurface(scene, trackingState->pose_d, &view->calib.intrinsics_d, useRadii,
+                                       USR_FAUTEDEMIEUX, renderState);
       trackingState->pose_pointCloud->SetFrom(trackingState->pose_d);
 
       if (requiresFullRendering) {
@@ -55,14 +51,14 @@ class ITMTrackingController {
     }
   }
   /**
-   * @brief voxel场景的raycast
+   * @brief 为跟踪做准备，即对voxel的三维场景做raycast
    * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
    * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
-   * @param[in] trackingState 包含跟踪得到的相机位姿、跟踪的分数等
-   * @param[in] scene 三维模型
-   * @param[in] view 当前输入图像
+   * @param[in] trackingState       包含跟踪得到的相机位姿、跟踪的分数等
+   * @param[in] scene               三维模型
+   * @param[in] view                当前输入图像
    * @param[in] visualisationEngine 包含渲染相关的函数。比如可见block的寻找
-   * @param[out] renderState raycasting的到的结果
+   * @param[out] renderState        raycasting的到的结果
    */
   template<typename TVoxel, typename TIndex>
   void Prepare(ITMTrackingState *trackingState, const ITMScene<TVoxel, TIndex> *scene, const ITMView *view,

@@ -83,7 +83,7 @@ bool ITMActiveMapManager::shouldStartNewArea(void) const {
 
   return false;
 }
-
+// TODO: 下次从这儿开始
 bool ITMActiveMapManager::shouldMovePrimaryLocalMap(int newDataId, int bestDataId, int primaryDataId) const {
   int localMapIdx_primary = -1;
   int localMapIdx_best = -1;
@@ -191,25 +191,25 @@ void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::Tra
                                                bool primaryTrackingSuccess) {
   ActiveDataDescriptor &data = activeData[dataID];
 
-  int primaryLocalMapID = findPrimaryLocalMapIdx();
-  int localMapId = data.localMapIndex;
+  int primaryLocalMapID = findPrimaryLocalMapIdx();   // 主子图的全局id
+  int localMapId = data.localMapIndex;                // 当前子图的全局id
   data.trackingAttempts++;
 
   if (trackingResult == ITMTrackingState::TRACKING_GOOD) {            //! 跟踪good
-    if (data.type == RELOCALISATION)        // 重定位的话，直接记录位姿   // ??? 当前帧到上一帧的位姿？？？
-      data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM()); // ???怎么可以根据活跃id到全局子图中去找？？？
-    else if (primaryTrackingSuccess &&      // 新建子图 or 回环的话，记录相较于 旧子图的位姿
+    if (data.type == RELOCALISATION)        // 重定位的话，位姿是当前子图=>主子图（因为重定位是以主子图为世界坐标系？），直接记录
+      data.constraints.push_back(localMapManager->getTrackingPose(dataID)->GetM()); // ?为啥根据活跃id到全局子图中去找？
+    else if (primaryTrackingSuccess &&      // 新建子图 or 回环的话，位姿是世界坐标系=>当前子图，要转换成 当前子图=>主子图
              ((data.type == NEW_LOCAL_MAP) || (data.type == LOOP_CLOSURE))) {
-      Matrix4f Tnew_inv = localMapManager->getTrackingPose(localMapId)->GetInvM();  // ? T_now-submap_2_world
-      Matrix4f Told = localMapManager->getTrackingPose(primaryLocalMapID)->GetM();  // ? T_world_2_old-submap
-      Matrix4f Told_to_new = Tnew_inv * Told;                                       // ? T_now-submap_to_old-submap
+      Matrix4f Tnew_inv = localMapManager->getTrackingPose(localMapId)->GetInvM();  // 当前子图 to 世界坐标系= 的位姿
+      Matrix4f Told = localMapManager->getTrackingPose(primaryLocalMapID)->GetM();  // 世界坐标系 to 主子图  的位姿
+      Matrix4f Told_to_new = Tnew_inv * Told;                                       // 当前子图 to 主子图 的位姿
 
       data.constraints.push_back(Told_to_new);
     }
   } else if (trackingResult == ITMTrackingState::TRACKING_FAILED) {   //! 跟踪失败
     if (data.type == PRIMARY_LOCAL_MAP) {   // 主子图的话，所有活跃的子图都设置type为lost
       for (size_t j = 0; j < activeData.size(); ++j) {
-        if (activeData[j].type == NEW_LOCAL_MAP)  // 新建的子图要单独对待，因为一次性只能有一个
+        if (activeData[j].type == NEW_LOCAL_MAP)      // 新建的子图要单独对待，因为一次性只能有一个
           activeData[j].type = LOST_NEW;
         else
           activeData[j].type = LOST;
@@ -218,74 +218,94 @@ void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::Tra
   }                                                                   // NOTE: 除了主子图，跟踪为poor都算是fail
 }
 
-static float huber_weight(float residual, float b) {
-  double r_abs = fabs(residual);
+/**
+ * @brief 使用huber函数计算新的权重
+ * @param[in] residual  权重残差
+ * @param[in] b         阈值。<b的权重都设为1
+ * @return float        新的权重 = 1                       r<b
+ *                              = sqrt(2b|r| - b^2)/|r|, r>=b
+ * @note b=0.1的曲线图见 https://www.wolframalpha.com/input?i=sqrt%280.2*x-0.01%29%2Fx
+ * TODO：应该改名叫做huber_loss
+ */
+static float huber_weight(float residual, float b) {  //? 在cpp文件中定义的函数都要加static？？？
+  float r_abs = fabs(residual);
   if (r_abs < b) return 1.0f;
-  double tmp = 2.0 * b * r_abs - b * b;
-  return (float) (sqrt(tmp) / r_abs);
+  return (float) (sqrt(2.f * b * r_abs - b * b) / r_abs);
 }
 
-/** estimate a relative pose, taking into account a previous estimate (weight 0
-	indicates that no previous estimate is available).
-	out_numInliers and out_inlierPose is the number of inliers from amongst the
-	new observations and the pose computed from them.
-*/
+/**
+ * @brief 从新旧位姿中，估计更准的相对位姿
+ * @details 用到了huber函数
+ * @param[in] observations            新的位姿（一堆）
+ * @param[in] previousEstimate        旧的位姿（一个）
+ * @param[in] previousEstimate_weight 旧的位姿的权重。若为0表示没有旧的位姿
+ * @param[out] out_numInliers         新位姿中inlier的个数
+ * @param[out] out_inlierPose         用所有inlier直接平均得到的位姿
+ * @return ORUtils::SE3Pose           用所有位姿（包含outlier）加权平均得到的位姿
+ * @note estimate a relative pose, taking into account a previous estimate (weight 0 indicates that no previous estimate is available). out_numInliers and out_inlierPose is the number of inliers from amongst the new observations and the pose computed from them.
+ */
 static ORUtils::SE3Pose estimateRelativePose(const std::vector<Matrix4f> &observations,
-                                             const ORUtils::SE3Pose &previousEstimate,
-                                             float previousEstimate_weight,
-                                             int *out_numInliers,
-                                             ORUtils::SE3Pose *out_inlierPose) {
-  static const float huber_b = 0.1f;
-  static const float weightsConverged = 0.01f;
-  static const int maxIter = 10;
-  static const float inlierThresholdForFinalResult = 0.8f;
-  std::vector<float> weights(observations.size() + 1, 1.0f);
-  std::vector<ORUtils::SE3Pose> poses;
+                                             const ORUtils::SE3Pose &previousEstimate, float previousEstimate_weight,
+                                             int *out_numInliers, ORUtils::SE3Pose *out_inlierPose) {
+  //! 准备：定义超参、转换格式
+  static const float huber_b = 0.1f;                          // huber函数的阈值
+  static const float weightsConverged = 0.01f;                // 判断是否收敛的权重变化阈值。<则为收敛
+  static const int maxIter = 10;                              // 迭代次数
+  static const float inlierThresholdForFinalResult = 0.8f;    // 判断位姿是否是inlier的权重阈值。>则为inlier
 
-  for (size_t i = 0; i < observations.size(); ++i) poses.push_back(ORUtils::SE3Pose(observations[i]));
+  std::vector<float> weights(observations.size() + 1, 1.0f);  // 刚开始用固定权重
+  std::vector<ORUtils::SE3Pose> poses;                        // 将输入的observations转成SE3格式
+  for (size_t i = 0; i < observations.size(); ++i) 
+    poses.push_back(ORUtils::SE3Pose(observations[i]));
 
+  // NOTE: 循环
   float params[6];
   for (int iter = 0; iter < maxIter; ++iter) {
-    // estimate with fixed weights
-    float sumweight = previousEstimate_weight;
-    for (int j = 0; j < 6; ++j) params[j] = weights.back() * previousEstimate_weight * previousEstimate.GetParams()[j];
+    //! 先用固定权重，对所有位姿做加权平均。estimate with fixed weights
+    float sumweight = previousEstimate_weight;  // 初始权重
+    for (int j = 0; j < 6; ++j)     // 加上旧的位姿（权重为它的初始权重）
+      params[j] = weights.back() * previousEstimate_weight * previousEstimate.GetParams()[j];
     for (size_t i = 0; i < poses.size(); ++i) {
-      for (int j = 0; j < 6; ++j) params[j] += weights[i] * poses[i].GetParams()[j];
+      for (int j = 0; j < 6; ++j)   // 加上新的位姿（权重为1）
+        params[j] += weights[i] * poses[i].GetParams()[j];
       sumweight += weights[i];
     }
-    for (int j = 0; j < 6; ++j) params[j] /= sumweight;
+    for (int j = 0; j < 6; ++j)     // 取平均
+      params[j] /= sumweight;
 
-    // compute new weights
-    float weightchanges = 0.0f;
+    //! 使用huber函数计算更新每个位姿（包含新旧位姿）的权重 compute new weights
+    float avgweightchange = 0.0f;   // 权重的平均变化量，用来判断迭代是否收敛
     for (size_t i = 0; i < weights.size(); ++i) {
       const ORUtils::SE3Pose *p;
       float w = 1.0f;
-      if (i < poses.size()) p = &(poses[i]);
+      if (i < poses.size()) p = &(poses[i]);  // 输入的新位姿
       else {
-        p = &(previousEstimate);
+        p = &(previousEstimate);              // 输入的旧位姿
         w = previousEstimate_weight;
       }
 
-      float residual = 0.0f;
+      float residual = 0.0f;                  // 残差=加权平均后的位姿与原始位姿的欧式距离（因为位姿用SE3表示，维度6x1）
       for (int j = 0; j < 6; ++j) {
         float r = p->GetParams()[j] - params[j];
         residual += r * r;
       }
       residual = sqrt(residual);
-      float newweight = huber_weight(residual, huber_b);
-      weightchanges += w * fabs(newweight - weights[i]);
+
+      float newweight = huber_weight(residual, huber_b);    // 使用huber函数计算新的权重
+      avgweightchange += w * fabs(newweight - weights[i]);  // 记录变化量，后续判断是否收敛
       weights[i] = newweight;
     }
 
-    float avgweightchange = weightchanges / (weights.size() - 1 + previousEstimate_weight);
+    //! 收敛的话提前退出
+    avgweightchange = avgweightchange / (weights.size() - 1 + previousEstimate_weight);
     if (avgweightchange < weightsConverged) break;
   }
-
+  
+  //! 找到inlier，计算平均位姿
   int inliers = 0;
   Matrix4f inlierTrafo;
   inlierTrafo.setZeros();
-
-  for (size_t i = 0; i < poses.size(); ++i)
+  for (size_t i = 0; i < poses.size(); ++i) // 对所有inlier计算均值
     if (weights[i] > inlierThresholdForFinalResult) {
       inlierTrafo += observations[i];
       ++inliers;
@@ -297,58 +317,57 @@ static ORUtils::SE3Pose estimateRelativePose(const std::vector<Matrix4f> &observ
 }
 
 int ITMActiveMapManager::CheckSuccess_relocalisation(int dataID) const {
-  // 相关联的子图数量>阈值，重定位成功。sucessfully relocalised
+  //! 跟踪成功数量>阈值，重定位成功。sucessfully relocalised
   if (activeData[dataID].constraints.size() >= N_relocsuccess) return 1;
 
-  // 子图中跟踪失败的帧数太多，重定位失败。relocalisation failed: declare as LOST
-  // trackingAttempts表示子图里的总帧数（不管跟踪成狗与否），constraints的数量就是跟踪成功帧数，
-  if ((N_reloctrials - activeData[dataID].trackingAttempts)
-      < (N_relocsuccess - (int) activeData[dataID].constraints.size()))
+  //! 跟踪失败的数量太多，重定位失败。relocalisation failed: declare as LOST
+  // trackingAttempts表示子图跟踪的总次数（不管跟踪成功与否），constraints的数量就是跟踪成功次数，
+  if ((N_reloctrials - N_relocsuccess)
+      < (activeData[dataID].trackingAttempts - (int) activeData[dataID].constraints.size()))
     return -1;
 
-  // 再试试看。keep trying
+  //! 下次再试试看。keep trying
   return 0;
 }
 
-int ITMActiveMapManager::CheckSuccess_newlink(int dataID,
-                                              int primaryDataID,
-                                              int *inliers,
+int ITMActiveMapManager::CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers,
                                               ORUtils::SE3Pose *inlierPose) const {
   const ActiveDataDescriptor &link = activeData[dataID];
 
-  // take previous data from local map relations into account!
-  //ORUtils::SE3Pose previousEstimate;
-  //int previousEstimate_weight = 0;
+  //! 从主子图中找到与指定子图的约束信息。take previous data from local map relations into account!
+  // ORUtils::SE3Pose previousEstimate;
+  // int previousEstimate_weight = 0;
   int primaryLocalMapIndex = -1;
-  if (primaryDataID >= 0) primaryLocalMapIndex = activeData[primaryDataID].localMapIndex;
-  const ITMPoseConstraint
-      &previousInformation = localMapManager->getRelation_const(primaryLocalMapIndex, link.localMapIndex);
-  /* hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the accumulated poses seen in previous frames?
-     This should only really make a difference, if there is a large
-     disagreement between the two, in which case one might argue that
-     most likely something went wrong with a loop-closure, and we are
-     not really sure the "Estimate" is true or just based on an erroneous
-     loop closure. We therefore want to be consistent with previous
-     observations not estimations...
+  if (primaryDataID >= 0)
+    primaryLocalMapIndex = activeData[primaryDataID].localMapIndex;
+  // NOTE: 没有主子图的话不能return -1，因为可能是
+  const ITMPoseConstraint &previousInformation =                // 主子图中记录的与当前子图的link
+      localMapManager->getRelation_const(primaryLocalMapIndex, link.localMapIndex);
+  /* 进入这个函数的dataID都对应回环or新建的子图。因为回环检测可能存在的错误是无法确定的，所以从主子图中找到link，而不是从当前子图中找link。
+  hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the accumulated poses seen in previous frames? This should only really make a difference, if there is a large disagreement between the two, in which case one might argue that most likely something went wrong with a loop-closure, and we are not really sure the "Estimate" is true or just based on an erroneous loop closure. We therefore want to be consistent with previous observations not estimations...
   */
+  
+  ORUtils::SE3Pose previousEstimate = previousInformation.GetAccumulatedObservations(); // 约束信息中的位姿，当前子图=>主子图
+  int previousEstimate_weight = previousInformation.GetNumAccumulatedObservations();    // 约束信息中的权重
 
-  ORUtils::SE3Pose previousEstimate = previousInformation.GetAccumulatedObservations();
-  int previousEstimate_weight = previousInformation.GetNumAccumulatedObservations();
-
+  //! 估计主子图与指定子图的相对位姿，并找到inlier
   int inliers_local;
   ORUtils::SE3Pose inlierPose_local;
-  if (inliers == NULL) inliers = &inliers_local;
-  if (inlierPose == NULL) inlierPose = &inlierPose_local;
+  if (inliers == NULL)    // 输入为空的话新建一个
+    inliers = &inliers_local;
+  if (inlierPose == NULL) // 输入为空的话新建一个
+    inlierPose = &inlierPose_local;
+  estimateRelativePose(link.constraints, previousEstimate, (float)previousEstimate_weight, inliers, inlierPose);
 
-  estimateRelativePose(link.constraints, previousEstimate, (float) previousEstimate_weight, inliers, inlierPose);
+  //! inlier的个数超过阈值，添加link。accept link
+  if (*inliers >= N_linkoverlap)
+    return 1;
 
-  // accept link
-  if (*inliers >= N_linkoverlap) return 1;
+  //! outlier的个数超过阈值，拒绝link。reject link
+  if ((N_linktrials - N_linkoverlap) < (link.trackingAttempts - *inliers))
+    return -1;
 
-  // reject link
-  if ((N_linktrials - link.trackingAttempts) < (N_linkoverlap - *inliers)) return -1;
-
-  // keep trying
+  //! 下次再试试看。keep trying
   return 0;
 }
 
@@ -356,11 +375,11 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
   int fromLocalMapIdx = activeData[fromData].localMapIndex;
   int toLocalMapIdx = activeData[toData].localMapIndex;
 
-  {
+  { //! fromData里添加toData到fromData的位姿
     ITMPoseConstraint &c = localMapManager->getRelation(fromLocalMapIdx, toLocalMapIdx);
     c.AddObservation(pose, weight);
   }
-  {
+  { //! toData里添加fromData到toData的位姿
     ORUtils::SE3Pose invPose(pose.GetInvM());
     ITMPoseConstraint &c = localMapManager->getRelation(toLocalMapIdx, fromLocalMapIdx);
     c.AddObservation(invPose, weight);
@@ -370,38 +389,41 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
 bool ITMActiveMapManager::maintainActiveData(void) { 
   bool localMapGraphChanged = false;
 
-  int primaryDataIdx = findPrimaryDataIdx();  
-  int moveToDataIdx = -1;   // 更新后的主子图id
-  //! 处理活跃子图中类型为 重定位、回环、新建的
+  int primaryDataIdx = findPrimaryDataIdx();    // 主子图的活跃id
+  int moveToDataIdx = -1;                       // 更新后的主子图的活跃id
+  //! 处理每个活跃子图中类型为 、回环、新建的
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];
 
-    if (link.type == RELOCALISATION) {
-      int success = CheckSuccess_relocalisation(i);  // TODO: 下次从这儿开始
+    if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
+      int success = CheckSuccess_relocalisation(i);
       if (success == 1) {
-        if (moveToDataIdx < 0) moveToDataIdx = i;
-        else link.type = LOST;
-      } else if (success == -1) link.type = LOST;
+        if (moveToDataIdx < 0)    // 第一次重定位成功
+          moveToDataIdx = i;
+        else                      // 再次重定位成功，不是之前的主子图，就设置当前子图为lost
+          link.type = LOST;  
+      } else if (success == -1)   // 重定位失败
+        link.type = LOST;
     }
-
-    if ((link.type == LOOP_CLOSURE) || (link.type == NEW_LOCAL_MAP)) {
-      ORUtils::SE3Pose inlierPose;
-      int inliers;
-
-      int success = CheckSuccess_newlink(i, primaryDataIdx, &inliers, &inlierPose);
-      if (success == 1) {
-        AcceptNewLink(primaryDataIdx, i, inlierPose, inliers);
-        link.constraints.clear();
+    
+    if ((link.type == LOOP_CLOSURE) || (link.type == NEW_LOCAL_MAP)) {      //! 处理 回环和新建 的活跃子图
+      ORUtils::SE3Pose inlierPose;        // 当前子图的约束中的inlier直接平均得到的位姿，当前子图=>主子图
+      int inliers;                        // 当前子图的约束中的inlier数量
+      // TODO: 可能存在primaryDataIdx=-1吗？？？
+      int success = CheckSuccess_newlink(i, primaryDataIdx, &inliers, &inlierPose); // 检查当前子图与主子图的关联是否可靠
+      if (success == 1) {         // 当前子图与主子图的关联 可靠
+        AcceptNewLink(primaryDataIdx, i, inlierPose, inliers);  // 建立当前子图与主子图的link
+        link.constraints.clear();                               // 建立当前子图与主子图的link后，就不需要这些约束了
         link.trackingAttempts = 0;
         if (shouldMovePrimaryLocalMap(i, moveToDataIdx, primaryDataIdx)) moveToDataIdx = i;
         localMapGraphChanged = true;
-      } else if (success == -1) {
+      } else if (success == -1) { // 当前子图与主子图的关联 不可靠，设置当前子图为lost
         if (link.type == NEW_LOCAL_MAP) link.type = LOST_NEW;
         else link.type = LOST;
       }
     }
   }
-
+  // add
   std::vector<int> restartLinksToLocalMaps;
   primaryDataIdx = -1;
   for (int i = 0; i < (int) activeData.size(); ++i) {

@@ -18,7 +18,12 @@ class ITMMapGraphManager {
   virtual int createNewLocalMap(void) = 0;
   virtual void removeLocalMap(int index) = 0;
   virtual size_t numLocalMaps(void) const = 0;
-
+  /**
+   * @brief 获取两个子图之间的约束关系（也叫做link）
+   * @param[in] fromLocalMap  第一个子图的全局id
+   * @param[in] toLocalMap    第二个子图的全局id
+   * @return const ITMPoseConstraint& 从第一个子图中找到与第二个子图的约束信息（即link）。其中的位姿是第二个子图=>第一个子图
+   */
   virtual const ITMPoseConstraint &getRelation_const(int fromLocalMap, int toLocalMap) const = 0;
   virtual ITMPoseConstraint &getRelation(int fromLocalMap, int toLocalMap) = 0;
   virtual void eraseRelation(int fromLocalMap, int toLocalMap) = 0;
@@ -55,9 +60,9 @@ class ITMVoxelMapGraphManager : public ITMMapGraphManager {
   int createNewLocalMap(void);
   void removeLocalMap(int index);
   size_t numLocalMaps(void) const { return allData.size(); }
-
+  /** [const版本] 根据全局id获取子图 */
   const ITMLocalMap<TVoxel, TIndex> *getLocalMap(int localMapId) const { return allData[localMapId]; }
-  /** 获取指定的子图 */
+  /** 根据全局id获取子图 */
   ITMLocalMap<TVoxel, TIndex> *getLocalMap(int localMapId) { return allData[localMapId]; }
 
   const ITMPoseConstraint &getRelation_const(int fromLocalMap, int toLocalMap) const;
@@ -71,7 +76,14 @@ class ITMVoxelMapGraphManager : public ITMMapGraphManager {
   const ORUtils::SE3Pose &getEstimatedGlobalPose(int localMapId) const { return allData[localMapId]->estimatedGlobalPose; }
 
   bool resetTracking(int localMapId, const ORUtils::SE3Pose &pose);
-  const ORUtils::SE3Pose *getTrackingPose(int localMapId) const { return getLocalMap(localMapId)->trackingState->pose_d; }
+  /**
+   * @brief 获取指定子图的位姿。world to local
+   * @param[in] localMapId 指定子图的全局id
+   * @return const ORUtils::SE3Pose* 
+   */
+  const ORUtils::SE3Pose *getTrackingPose(int localMapId) const {
+    return getLocalMap(localMapId)->trackingState->pose_d;
+  }
 
   int getLocalMapSize(int localMapId) const;
   int countVisibleBlocks(int localMapId, int minBlockId, int maxBlockId, bool invertIDs) const;

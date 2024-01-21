@@ -24,21 +24,36 @@ class ITMActiveMapManager {
   struct ActiveDataDescriptor {
     int localMapIndex;                  // 子图的全局id
     LocalMapActivity type;              // 子图的活跃类型
-    std::vector<Matrix4f> constraints;  // ??? 有关联的子图的相对位姿。T_now_other
-    ORUtils::SE3Pose estimatedPose;     // ??? 位姿
-    int trackingAttempts;               // 跟踪帧数（无论成功与否）
+    std::vector<Matrix4f> constraints;  // 与主子图的相对位姿。当前子图=>主子图
+    ORUtils::SE3Pose estimatedPose;     // ??? 位姿，没用到？？？
+    int trackingAttempts;               // 跟踪次数（无论成功与否，一帧一次）。
   };
 
   ITMMapGraphManager *localMapManager;          // 管理所有子图
   std::vector<ActiveDataDescriptor> activeData; // 所有活跃子图的信息
   /**
    * @brief 判断指定子图是否重定位成功
-   * @param[in] dataID  子图的活跃id
-   * @return            int 0，重定位成功；-1，重定位失败；0，再试试看
+   * @param[in] dataID  指定子图的活跃id
+   * @return int        0，重定位成功；-1，重定位失败；0，下次再试试看
    */
   int CheckSuccess_relocalisation(int dataID) const;
+  /**
+   * @brief 查看指定子图与主子图是否存在稳定的连接
+   * @param[in] dataID        指定子图的活跃id
+   * @param[in] primaryDataID 主子图的活跃id。可以为-1，即没有主子图吗？？？
+   * @param[in] inliers       指定子图的约束中的inlier数量
+   * @param[in] inlierPose    指定子图的约束中的inlier直接平均得到的位姿，当前子图=>主子图
+   * @return int              0，重定位成功；-1，重定位失败；0，下次再试试看
+   */
   int CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers, ORUtils::SE3Pose *inlierPose) const;
-  void AcceptNewLink(int dataId, int primaryDataId, const ORUtils::SE3Pose &pose, int weight);
+  /**
+   * @brief 在两个子图之间添加link（即观测，也是加权后的位姿）
+   * @param[in] fromData    一个子图的全局id。应该叫id1
+   * @param[in] toData      另一个子图的全局id。应该叫id2
+   * @param[in] pose        toData到fromData的位姿
+   * @param[in] weight      上面位姿的权重
+   */
+  void AcceptNewLink(int fromData, int toData, const ORUtils::SE3Pose &pose, int weight);
 
   float visibleOriginalBlocks(int dataID) const;
   bool shouldStartNewArea(void) const;
