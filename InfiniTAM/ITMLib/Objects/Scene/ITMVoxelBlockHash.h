@@ -128,7 +128,7 @@ class ITMVoxelBlockHash {
   const void* getIndexData_MB(void) const { return hashEntries->GetMetalBuffer(); }
 #endif
 
-  /** block的最大数量。Maximum number of total entries. */
+  /** block的最大数量，即localVBA的长度。Maximum number of total entries. */
   int getNumAllocatedVoxelBlocks(void) { return SDF_LOCAL_BLOCK_NUM; }
 
   /** 单个block中voxel的数量 */

@@ -54,9 +54,21 @@ class ITMActiveMapManager {
    * @param[in] weight      上面位姿的权重
    */
   void AcceptNewLink(int fromData, int toData, const ORUtils::SE3Pose &pose, int weight);
-
+  /**
+   * @brief 查看子图占用voxel block中可见的比例
+   * @param[in] dataID 子图的活跃id
+   * @return float      block的可见比例。
+   * @note              只在前1000个voxel block中，计算可见的比例
+   */
   float visibleOriginalBlocks(int dataID) const;
   bool shouldStartNewArea(void) const;
+  /**
+   * @brief 判断当前子图能否成为下一个主子图的唯一候选者
+   * @param[in] newDataIdx      当前子图的活跃id
+   * @param[in] bestDataIdx     现有候选子图的活跃id
+   * @param[in] primaryDataIdx  现有主子图的活跃id
+   * @return                    true，当前子图成为下一个主子图的唯一候选者
+   */
   bool shouldMovePrimaryLocalMap(int newDataIdx, int bestDataIdx, int primaryDataIdx) const;
 
  public:

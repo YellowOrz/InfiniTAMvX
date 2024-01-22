@@ -12,6 +12,7 @@ static const int N_linkoverlap = 10;
 static const int N_reloctrials = 20;
 // 有关联的子图数量超过这个阈值，算重定位成功。at least these many tracking attempts have to succeed for relocalisation
 static const int N_relocsuccess = 10;
+// 查看子图中voxel block的可见性时，只查看前1000个。
 // When checking "overlap with original local map", find how many of the first N blocks are still visible
 static const int N_originalblocks = 1000;
 static const float F_originalBlocksThreshold = 0.2f; //0.4f
@@ -54,14 +55,15 @@ int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose 
 }
 
 float ITMActiveMapManager::visibleOriginalBlocks(int dataID) const {
-  int localMapId = activeData[dataID].localMapIndex;
+  int localMapId = activeData[dataID].localMapIndex;              // 子图的全局id
 
-  int allocated = localMapManager->getLocalMapSize(localMapId);
-  int counted = localMapManager->countVisibleBlocks(localMapId, 0, N_originalblocks, true);
+  int allocated = localMapManager->getLocalMapSize(localMapId);   // 子图占用的voxel block数量
+  int counted = localMapManager->countVisibleBlocks(localMapId, 0, N_originalblocks, true); // 前1000个block中可见数量
 
-  int tmp = N_originalblocks;
-  if (allocated < tmp) tmp = allocated;
-  return (float) counted / (float) tmp;
+  // int tmp = N_originalblocks;
+  // if (allocated < tmp) tmp = allocated;
+  // return (float) counted / (float) tmp; 
+  return (float)counted / (float)std::min(N_originalblocks, allocated);   // 计算可见的比例   // TODO: 确定这么修改没有问题
 }
 
 bool ITMActiveMapManager::shouldStartNewArea(void) const {
@@ -83,71 +85,68 @@ bool ITMActiveMapManager::shouldStartNewArea(void) const {
 
   return false;
 }
-// TODO: 下次从这儿开始
+
 bool ITMActiveMapManager::shouldMovePrimaryLocalMap(int newDataId, int bestDataId, int primaryDataId) const {
-  int localMapIdx_primary = -1;
-  int localMapIdx_best = -1;
-  int localMapIdx_new = -1;
+  int localMapIdx_primary = primaryDataId >= 0 ? activeData[primaryDataId].localMapIndex : -1;  // 现有主子图的全局id
+  int localMapIdx_best = bestDataId >= 0 ? activeData[bestDataId].localMapIndex : -1;           // 候选子图的全局id
+  int localMapIdx_new = newDataId >= 0 ? activeData[newDataId].localMapIndex : -1;              // 当前子图的全局id
 
-  int blocksInUse_primary = -1;
-  float visibleRatio_primary = 1.0f;
-  int blocksInUse_best = -1;
-  float visibleRatio_best = 1.0f;
-  bool isNewLocalMap_best = false;
-  int blocksInUse_new = -1;
-  float visibleRatio_new = 1.0f;
-  bool isNewLocalMap_new = false;
+  int blocksInUse_primary = -1;         // 主子图占用的voxel block数量
+  float visibleRatio_primary = 1.0f;    // 主子图占用的voxel block中可见的比例  // TODO: 初始化成0更好吧
+  int blocksInUse_best = -1;            // 候选子图占用的voxel block数量
+  float visibleRatio_best = 1.0f;       // 候选子图占用的voxel block中可见的比例
+  bool isNewLocalMap_best = false;      // 候选子图是否是新建的
+  int blocksInUse_new = -1;             // 当前子图占用的voxel block数量
+  float visibleRatio_new = 1.0f;        // 当前子图占用的voxel block中可见的比例
+  bool isNewLocalMap_new = false;       // 当前子图是否是新建的
 
-  if (primaryDataId >= 0) localMapIdx_primary = activeData[primaryDataId].localMapIndex;
-  if (bestDataId >= 0) localMapIdx_best = activeData[bestDataId].localMapIndex;
-  if (newDataId >= 0) localMapIdx_new = activeData[newDataId].localMapIndex;
+  //! 统计每个子图中的voxel block。count blocks in all relevant localMaps
+  if (localMapIdx_new >= 0) {       // 当前子图
+    isNewLocalMap_new = (activeData[newDataId].type == NEW_LOCAL_MAP);
+    blocksInUse_new = localMapManager->getLocalMapSize(localMapIdx_new);
+    if (blocksInUse_new < 0) return false;    // TODO: 怎么可能占用voxel block数量<0？除非当前子图的全局id非法
+    visibleRatio_new = visibleOriginalBlocks(newDataId);
+  }
 
-  // count blocks in all relevant localMaps
-  if (localMapIdx_primary >= 0) {
+  if (localMapIdx_primary >= 0) {   // 主子图
     blocksInUse_primary = localMapManager->getLocalMapSize(localMapIdx_primary);
     visibleRatio_primary = visibleOriginalBlocks(primaryDataId);
   }
 
-  if (localMapIdx_new >= 0) {
-    isNewLocalMap_new = (activeData[newDataId].type == NEW_LOCAL_MAP);
-    blocksInUse_new = localMapManager->getLocalMapSize(localMapIdx_new);
-    if (blocksInUse_new < 0) return false;
-    visibleRatio_new = visibleOriginalBlocks(newDataId);
-  }
-
-  if (localMapIdx_best >= 0) {
+  if (localMapIdx_best >= 0) {      // 候选子图
     isNewLocalMap_best = (activeData[bestDataId].type == NEW_LOCAL_MAP);
     blocksInUse_best = localMapManager->getLocalMapSize(localMapIdx_best);
     visibleRatio_best = visibleOriginalBlocks(bestDataId);
   }
 
-  if (blocksInUse_primary < 0) {
-    // TODO: if relocalisation fails, a new local map gets started,
-    //       and is eventually accepted, this case will get relevant
+  //! 判断 是否要把 当前子图 替换 主子图
+  if (blocksInUse_primary < 0)                  // 主子图还没用voxel block（那它怎么成为主子图的？！），替换
+    // TODO: if relocalisation fails, a new local map gets started, and is eventually accepted, this case will get relevant
     return true;
-  }
 
   // step 1: is "new" better than "primary" ?
 
   // don't continue a local map that is already full
-/*	if (blocksInUse_new >= N_maxblocknum) return false;
+/* 	if (blocksInUse_new >= N_maxblocknum) return false;
 
-	if (blocksInUse_new >= blocksInUse_primary) return false;*/
-  if (visibleRatio_new <= visibleRatio_primary) return false;
+	if (blocksInUse_new >= blocksInUse_primary) return false; */
+  if (visibleRatio_new <= visibleRatio_primary)   // 当前子图的voxel block可见比例 < 主子图，不替换
+    return false;
 
   // step 2: is there any contender for a new local map to move to?
-  if (blocksInUse_best < 0) return true;
+  if (blocksInUse_best < 0)                       // 候选子图还没用voxel block（那它怎么成为候选子图的？！），替换
+    return true;
 
-  // if this is a new local map, but we previously found that we can loop
-  // close, don't accept the new local map!
-  if (isNewLocalMap_new && !isNewLocalMap_best) return false;
-  // if this is a loop closure and we have not found any alternative
-  // loop closure before, accept the new one!
-  if (!isNewLocalMap_new && isNewLocalMap_best) return true;
+  // if this is a new local map, but we previously found that we can loop close, don't accept the new local map!
+  if (isNewLocalMap_new && !isNewLocalMap_best)   // 当前子图是新的，但候选子图可以用于回环（为啥？？？），不替换
+    return false;
+  // if this is a loop closure and we have not found any alternative loop closure before, accept the new one!
+  if (!isNewLocalMap_new && isNewLocalMap_best)   // 存在回环，但是没有其他回环选项，替换  // ?只要不是NEW_LOCAL_MAP都是回环
+    return true;
 
   // if the two are equal, take the smaller one
-  //return (blocksInUse_new < blocksInUse_best);
-  return (visibleRatio_new > visibleRatio_best);
+  // return (blocksInUse_new < blocksInUse_best);
+  return (visibleRatio_new > visibleRatio_best);  // 当前子图的voxel block可见比例 > 候选子图，替换
 }
 
 int ITMActiveMapManager::findPrimaryDataIdx(void) const {
@@ -390,7 +389,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
   bool localMapGraphChanged = false;
 
   int primaryDataIdx = findPrimaryDataIdx();    // 主子图的活跃id
-  int moveToDataIdx = -1;                       // 更新后的主子图的活跃id
+  int moveToDataIdx = -1;                       // 候选成主子图的子图的活跃id
   //! 处理每个活跃子图中类型为 、回环、新建的
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];
@@ -398,7 +397,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
     if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
       int success = CheckSuccess_relocalisation(i);
       if (success == 1) {
-        if (moveToDataIdx < 0)    // 第一次重定位成功
+        if (moveToDataIdx < 0)    // 第一次重定位成功，则该子图就是新的主子图
           moveToDataIdx = i;
         else                      // 再次重定位成功，不是之前的主子图，就设置当前子图为lost
           link.type = LOST;  
@@ -415,7 +414,8 @@ bool ITMActiveMapManager::maintainActiveData(void) {
         AcceptNewLink(primaryDataIdx, i, inlierPose, inliers);  // 建立当前子图与主子图的link
         link.constraints.clear();                               // 建立当前子图与主子图的link后，就不需要这些约束了
         link.trackingAttempts = 0;
-        if (shouldMovePrimaryLocalMap(i, moveToDataIdx, primaryDataIdx)) moveToDataIdx = i;
+        if (shouldMovePrimaryLocalMap(i, moveToDataIdx, primaryDataIdx))  // 查看当前子图是否要作为新的主子图
+          moveToDataIdx = i;
         localMapGraphChanged = true;
       } else if (success == -1) { // 当前子图与主子图的关联 不可靠，设置当前子图为lost
         if (link.type == NEW_LOCAL_MAP) link.type = LOST_NEW;
@@ -423,7 +423,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       }
     }
   }
-  // add
+  // add  // TODO: 下次从这儿开始
   std::vector<int> restartLinksToLocalMaps;
   primaryDataIdx = -1;
   for (int i = 0; i < (int) activeData.size(); ++i) {

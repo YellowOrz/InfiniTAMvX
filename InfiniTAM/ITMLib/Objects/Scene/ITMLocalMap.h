@@ -46,7 +46,7 @@ typedef std::map<int, ITMPoseConstraint> ConstraintList;
 template<class TVoxel, class TIndex>
 class ITMLocalMap {
  public:
-  ITMScene<TVoxel, TIndex> *scene;      // 当前子图所在三维场景的指针
+  ITMScene<TVoxel, TIndex> *scene;      // 只包含当前子图的三维场景
   ITMRenderState *renderState;          // 当前子图的渲染结果的指针
   ITMTrackingState *trackingState;      // 当前子图参与跟踪的变量的指针
   ConstraintList relations;             // 当前子图相关的所有子图id 以及 对应的位姿

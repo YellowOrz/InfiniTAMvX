@@ -35,6 +35,11 @@ class ITMMapGraphManager {
   virtual bool resetTracking(int localMapId, const ORUtils::SE3Pose &pose) = 0;
 
   virtual const ORUtils::SE3Pose *getTrackingPose(int localMapId) const = 0;
+  /**
+   * @brief 获取指定子图所占用的voxel block数量
+   * @param[in] localMapId  子图的全局id
+   * @return int            占用的voxel block数量
+   */
   virtual int getLocalMapSize(int localMapId) const = 0;
   virtual int countVisibleBlocks(int localMapId, int minBlockId, int maxBlockId, bool invertIDs) const = 0;
 };

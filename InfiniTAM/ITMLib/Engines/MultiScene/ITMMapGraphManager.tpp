@@ -72,7 +72,13 @@ const ITMPoseConstraint &ITMVoxelMapGraphManager<TVoxel, TIndex>::getRelation_co
     return invalidPoseConstraint; // 没找到
   return it->second;              // 找到了，返回link
 }
-
+/**
+ * @brief 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] fromLocalMap 
+ * @param[in] toLocalMap 
+ */
 template<class TVoxel, class TIndex>
 void ITMVoxelMapGraphManager<TVoxel, TIndex>::eraseRelation(int fromLocalMap, int toLocalMap) {
   if ((fromLocalMap < 0) || (fromLocalMap >= (int) allData.size())) return;
@@ -80,7 +86,15 @@ void ITMVoxelMapGraphManager<TVoxel, TIndex>::eraseRelation(int fromLocalMap, in
   std::map<int, ITMPoseConstraint> &m = getLocalMap(fromLocalMap)->relations;
   m.erase(toLocalMap);
 }
-
+/**
+ * @brief 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] localMapId 
+ * @param[in] pose 
+ * @return true 
+ * @return false 
+ */
 template<class TVoxel, class TIndex>
 bool ITMVoxelMapGraphManager<TVoxel, TIndex>::resetTracking(int localMapId, const ORUtils::SE3Pose &pose) {
   if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return false;
@@ -88,25 +102,40 @@ bool ITMVoxelMapGraphManager<TVoxel, TIndex>::resetTracking(int localMapId, cons
   allData[localMapId]->trackingState->age_pointCloud = -1;
   return true;
 }
-
+/**
+ * @brief 获取指定子图所占用的voxel block数量
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] localMapId  子图的全局id
+ * @return int            占用的voxel block数量
+ */
 template<class TVoxel, class TIndex>
 int ITMVoxelMapGraphManager<TVoxel, TIndex>::getLocalMapSize(int localMapId) const {
+  // 检查id有效性
   if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return -1;
 
   ITMScene<TVoxel, TIndex> *scene = allData[localMapId]->scene;
   return scene->index.getNumAllocatedVoxelBlocks() - scene->localVBA.lastFreeBlockId - 1;
+  // NOTE: getNumAllocatedVoxelBlocks是localVBA的总长度，lastFreeBlockId是localVBA中剩余空位数
 }
-
-template<class TVoxel, class TIndex>
-int ITMVoxelMapGraphManager<TVoxel, TIndex>::countVisibleBlocks(int localMapId,
-                                                                int minBlockId,
-                                                                int maxBlockId,
+/**
+ * @brief 统计子图占用的voxel block中，指定id范围内可见的数量
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] localMapId  子图的全局id
+ * @param[in] minBlockId  子图占用的voxel block的最小id
+ * @param[in] maxBlockId  子图占用的voxel block的最大id
+ * @param[in] invertIds   false，id范围是正数的；true，id范围是倒数的
+ * @return int            voxel block 数量
+ */
+template <class TVoxel, class TIndex>
+int ITMVoxelMapGraphManager<TVoxel, TIndex>::countVisibleBlocks(int localMapId, int minBlockId, int maxBlockId,
                                                                 bool invertIds) const {
-  if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return -1;
-  const ITMLocalMap<TVoxel, TIndex> *localMap = allData[localMapId];
+  if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return -1;   // 检查id有效性
+  const ITMLocalMap<TVoxel, TIndex> *localMap = allData[localMapId];              // 子图
 
-  if (invertIds) {
-    int tmp = minBlockId;
+  if (invertIds) {  // 如果voxel block id是倒数的，转换成正数的
+    int tmp = minBlockId;             // NOTE：getNumAllocatedVoxelBlocks表示localVBA的长度
     minBlockId = localMap->scene->index.getNumAllocatedVoxelBlocks() - maxBlockId - 1;
     maxBlockId = localMap->scene->index.getNumAllocatedVoxelBlocks() - tmp - 1;
   }
@@ -117,7 +146,14 @@ int ITMVoxelMapGraphManager<TVoxel, TIndex>::countVisibleBlocks(int localMapId,
 struct LinkPathComparison {
   bool operator()(const std::vector<int> &a, const std::vector<int> &b) { return a.size() > b.size(); }
 };
-
+/**
+ * @brief 
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] fromLocalMapId 
+ * @param[in] toLocalMapId 
+ * @return ORUtils::SE3Pose 
+ */
 template<class TVoxel, class TIndex>
 ORUtils::SE3Pose ITMVoxelMapGraphManager<TVoxel, TIndex>::findTransformation(int fromLocalMapId,
                                                                              int toLocalMapId) const {
