@@ -32,18 +32,18 @@ int ITMActiveMapManager::initiateNewLocalMap(bool isPrimaryLocalMap) {
 
   return newIdx;
 }
-
+// TODO: 下次从这儿开始
 int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation) {
   static const bool ensureUniqueLinks = true;
 
   // make sure only one relocalisation per local map is attempted at a time
-  if (ensureUniqueLinks) {
-    for (size_t i = 0; i < activeData.size(); ++i) {
-      if (activeData[i].localMapIndex == localMapId) return -1;
-    }
-  }
+  if (ensureUniqueLinks)
+    for (size_t i = 0; i < activeData.size(); ++i)
+      if (activeData[i].localMapIndex == localMapId)
+        return -1;
 
-  if (!localMapManager->resetTracking(localMapId, pose)) return -1;
+  if (!localMapManager->resetTracking(localMapId, pose))
+    return -1;
 
   ActiveDataDescriptor newLink;
   newLink.localMapIndex = localMapId;
@@ -51,7 +51,7 @@ int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose 
   newLink.trackingAttempts = 0;
   activeData.push_back(newLink);
 
-  return (int) activeData.size() - 1;
+  return (int)activeData.size() - 1;
 }
 
 float ITMActiveMapManager::visibleOriginalBlocks(int dataID) const {
@@ -397,11 +397,11 @@ bool ITMActiveMapManager::maintainActiveData(void) {
     if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
       int success = CheckSuccess_relocalisation(i);
       if (success == 1) {
-        if (moveToDataIdx < 0)    // 第一次重定位成功，则该子图就是新的主子图
+        if (moveToDataIdx < 0)            // 第一次重定位成功，则该子图就是新的主子图
           moveToDataIdx = i;
-        else                      // 再次重定位成功，不是之前的主子图，就设置当前子图为lost
+        else                              // 再次重定位成功，不是之前的主子图，就设置当前子图为lost
           link.type = LOST;  
-      } else if (success == -1)   // 重定位失败
+      } else if (success == -1)           // 重定位失败
         link.type = LOST;
     }
     
@@ -423,7 +423,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       }
     }
   }
-  // add  // TODO: 下次从这儿开始
+  //! add  // TODO: 下次从这儿开始
   std::vector<int> restartLinksToLocalMaps;
   primaryDataIdx = -1;
   for (int i = 0; i < (int) activeData.size(); ++i) {
@@ -450,20 +450,20 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       primaryDataIdx = i;
     }
   }
-
-  for (size_t i = 0; i < activeData.size();) {
+  //! 删除所有跟丢的子图
+  for (size_t i = 0; i < activeData.size();) {            // NOTE: 这里没有i++，因为删除的是迭代器。
     ActiveDataDescriptor &link = activeData[i];
-    // 丢弃最新跟丢的子图
-    if (link.type == LOST_NEW) {
-      // NOTE: 最多只有一个新的子图，并保证其是localMapManager的最后一个。所以删除后不需要重新排列索引!
+    if (link.type == LOST_NEW) {  // 新跟丢的子图，整个删除
       // NOTE: there will only be at most one new local map at any given time and it's guaranteed to be the last in the list. Removing this new local map will therefore not require rearranging indices!
+      // NOTE: 最多只有一个新的子图，并保证其是localMapManager的最后一个。所以删除后不需要重新排列索引!
       localMapManager->removeLocalMap(link.localMapIndex);
       link.type = LOST;
     }
-    if (link.type == LOST) activeData.erase(activeData.begin() + i);
+    if (link.type == LOST)        // 之前就跟丢的（子图已经被删了），现在删除 相关信息
+      activeData.erase(activeData.begin() + i);
     else i++;
   }
-
+  //! 更新？？？
   for (std::vector<int>::const_iterator it = restartLinksToLocalMaps.begin(); it != restartLinksToLocalMaps.end();
        ++it) {
     initiateNewLink(*it, *(localMapManager->getTrackingPose(*it)), false);
@@ -475,10 +475,9 @@ bool ITMActiveMapManager::maintainActiveData(void) {
 
     if (primaryDataIdx >= 0) {
       int primaryLocalMapIdx = activeData[primaryDataIdx].localMapIndex;
-      localMapManager->setEstimatedGlobalPose(newIdx,
-                                              ORUtils::SE3Pose(
-                                                  localMapManager->getTrackingPose(primaryLocalMapIdx)->GetM()
-                                                      * localMapManager->getEstimatedGlobalPose(primaryLocalMapIdx).GetM()));
+      localMapManager->setEstimatedGlobalPose(
+          newIdx, ORUtils::SE3Pose(localMapManager->getTrackingPose(primaryLocalMapIdx)->GetM() *
+                                   localMapManager->getEstimatedGlobalPose(primaryLocalMapIdx).GetM()));
     }
   }
 

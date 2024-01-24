@@ -49,11 +49,10 @@ class ITMLocalMap {
   ITMScene<TVoxel, TIndex> *scene;      // 只包含当前子图的三维场景
   ITMRenderState *renderState;          // 当前子图的渲染结果的指针
   ITMTrackingState *trackingState;      // 当前子图参与跟踪的变量的指针
-  ConstraintList relations;             // 当前子图相关的所有子图id 以及 对应的位姿
+  ConstraintList relations;             // 当前子图相关的所有子图id 以及 对应的位姿（即link）
   ORUtils::SE3Pose estimatedGlobalPose; // 当前子图的位姿
 
-  ITMLocalMap(const ITMLibSettings *settings,
-              const ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine,
+  ITMLocalMap(const ITMLibSettings *settings, const ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine,
               const Vector2i &trackedImageSize) {
     MemoryDeviceType
         memoryType = settings->deviceType == ITMLibSettings::DEVICE_CUDA ? MEMORYDEVICE_CUDA : MEMORYDEVICE_CPU;

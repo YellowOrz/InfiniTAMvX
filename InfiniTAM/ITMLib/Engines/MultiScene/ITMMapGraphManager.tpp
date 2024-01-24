@@ -28,18 +28,24 @@ int ITMVoxelMapGraphManager<TVoxel, TIndex>::createNewLocalMap(void) {
   denseMapper->ResetScene(allData[newIdx]->scene);
   return newIdx;
 }
-
+/**
+ * @brief 删除子图（保证从别的子图的约束中也被删除了）
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] localMapId  子图的全局id
+ */
 template<class TVoxel, class TIndex>
 void ITMVoxelMapGraphManager<TVoxel, TIndex>::removeLocalMap(int localMapId) {
+  //! 检查有效性
   if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return;
 
-  // make sure there are no relations anywhere pointing to the local map
+  //! 从别的子图中删除跟当前子图的约束。make sure there are no relations anywhere pointing to the local map
   const ConstraintList &l = getConstraints(localMapId);
   for (ConstraintList::const_iterator it = l.begin(); it != l.end(); ++it) eraseRelation(it->first, localMapId);
 
-  // delete the local map
-  delete allData[localMapId];
-  allData.erase(allData.begin() + localMapId);
+  //! 删除当前子图。delete the local map
+  delete allData[localMapId];                   // 先释放指针指向的内存
+  allData.erase(allData.begin() + localMapId);  // 再删除指针
 }
 
 template<class TVoxel, class TIndex>
@@ -73,11 +79,11 @@ const ITMPoseConstraint &ITMVoxelMapGraphManager<TVoxel, TIndex>::getRelation_co
   return it->second;              // 找到了，返回link
 }
 /**
- * @brief 
+ * @brief 从fromLocalMap的约束中删除toLocalMap
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] fromLocalMap 
- * @param[in] toLocalMap 
+ * @param[in] fromLocalMap  子图的全局id
+ * @param[in] toLocalMap    子图的全局id
  */
 template<class TVoxel, class TIndex>
 void ITMVoxelMapGraphManager<TVoxel, TIndex>::eraseRelation(int fromLocalMap, int toLocalMap) {
@@ -90,7 +96,7 @@ void ITMVoxelMapGraphManager<TVoxel, TIndex>::eraseRelation(int fromLocalMap, in
  * @brief 
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
- * @param[in] localMapId 
+ * @param[in] localMapId  子图的全局id
  * @param[in] pose 
  * @return true 
  * @return false 
