@@ -22,33 +22,34 @@ ITMActiveMapManager::ITMActiveMapManager(ITMMapGraphManager *_localMapManager) {
 }
 
 int ITMActiveMapManager::initiateNewLocalMap(bool isPrimaryLocalMap) {
+  //! 新建子图
   int newIdx = localMapManager->createNewLocalMap();
-
-  ActiveDataDescriptor newLink;
-  newLink.localMapIndex = newIdx;
-  newLink.type = isPrimaryLocalMap ? PRIMARY_LOCAL_MAP : NEW_LOCAL_MAP;
-  newLink.trackingAttempts = 0;
+  //! 记录新的link
+  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor，而不是叫newLink
+  newLink.localMapIndex = newIdx;     // 子图的全局id
+  newLink.type = isPrimaryLocalMap ? PRIMARY_LOCAL_MAP : NEW_LOCAL_MAP; // 类型只能是主子图 or 新建的
+  newLink.trackingAttempts = 0;       // 跟踪次数置为0
   activeData.push_back(newLink);
 
   return newIdx;
 }
-// TODO: 下次从这儿开始
-int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation) {
-  static const bool ensureUniqueLinks = true;
 
-  // make sure only one relocalisation per local map is attempted at a time
+int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation) {
+
+  //! 如果之前添加过了，就不再添加。 make sure only one relocalisation per local map is attempted at a time
+  static const bool ensureUniqueLinks = true; // TODO：都static const了，直接删了得了
   if (ensureUniqueLinks)
     for (size_t i = 0; i < activeData.size(); ++i)
       if (activeData[i].localMapIndex == localMapId)
         return -1;
-
+  //! 重置当前子图的位姿
   if (!localMapManager->resetTracking(localMapId, pose))
     return -1;
-
-  ActiveDataDescriptor newLink;
-  newLink.localMapIndex = localMapId;
-  newLink.type = isRelocalisation ? RELOCALISATION : LOOP_CLOSURE;
-  newLink.trackingAttempts = 0;
+  //! 记录新的link
+  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor，而不是叫newLink
+  newLink.localMapIndex = localMapId; // 子图的全局id
+  newLink.type = isRelocalisation ? RELOCALISATION : LOOP_CLOSURE;  // 类型只能是 重定位 或 回环
+  newLink.trackingAttempts = 0;       // 跟踪次数置为0
   activeData.push_back(newLink);
 
   return (int)activeData.size() - 1;
@@ -451,12 +452,12 @@ bool ITMActiveMapManager::maintainActiveData(void) {
     }
   }
   //! 删除所有跟丢的子图
-  for (size_t i = 0; i < activeData.size();) {            // NOTE: 这里没有i++，因为删除的是迭代器。
+  for (size_t i = 0; i < activeData.size();) {            // NOTE: 这里没有i++，因为删除的是迭代器。i++放在for
     ActiveDataDescriptor &link = activeData[i];
     if (link.type == LOST_NEW) {  // 新跟丢的子图，整个删除
       // NOTE: there will only be at most one new local map at any given time and it's guaranteed to be the last in the list. Removing this new local map will therefore not require rearranging indices!
       // NOTE: 最多只有一个新的子图，并保证其是localMapManager的最后一个。所以删除后不需要重新排列索引!
-      localMapManager->removeLocalMap(link.localMapIndex);
+      localMapManager->removeLocalMap(link.localMapIndex);  // 删除子图
       link.type = LOST;
     }
     if (link.type == LOST)        // 之前就跟丢的（子图已经被删了），现在删除 相关信息
@@ -471,11 +472,11 @@ bool ITMActiveMapManager::maintainActiveData(void) {
 
   // NOTE: this has to be done AFTER removing any previous new local map
   if (shouldStartNewArea()) {
-    int newIdx = initiateNewLocalMap();
+    int newIdx = initiateNewLocalMap();   // 新建子图
 
     if (primaryDataIdx >= 0) {
-      int primaryLocalMapIdx = activeData[primaryDataIdx].localMapIndex;
-      localMapManager->setEstimatedGlobalPose(
+      int primaryLocalMapIdx = activeData[primaryDataIdx].localMapIndex;  // 主子图的全局id
+      localMapManager->setEstimatedGlobalPose(                            // 设置新建子图的全局位姿
           newIdx, ORUtils::SE3Pose(localMapManager->getTrackingPose(primaryLocalMapIdx)->GetM() *
                                    localMapManager->getEstimatedGlobalPose(primaryLocalMapIdx).GetM()));
     }

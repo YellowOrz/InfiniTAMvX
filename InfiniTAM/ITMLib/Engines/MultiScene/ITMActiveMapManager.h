@@ -12,7 +12,7 @@ class ITMActiveMapManager {
   // 子图的活跃类型
   typedef enum { 
     PRIMARY_LOCAL_MAP,  // 主子图
-    NEW_LOCAL_MAP,      // 新建的
+    NEW_LOCAL_MAP,      // 新建的。最多一个
     LOOP_CLOSURE,       // 回环的
     RELOCALISATION,     // 重定位的
     LOST,               // 跟丢的
@@ -20,7 +20,7 @@ class ITMActiveMapManager {
   } LocalMapActivity;
 
  private:
-  /** 单个活跃子图的相关信息 */
+  /** 单个活跃子图的相关信息（包含constraints） */
   struct ActiveDataDescriptor {
     int localMapIndex;                  // 子图的全局id
     LocalMapActivity type;              // 子图的活跃类型
@@ -72,8 +72,20 @@ class ITMActiveMapManager {
   bool shouldMovePrimaryLocalMap(int newDataIdx, int bestDataIdx, int primaryDataIdx) const;
 
  public:
+  /**
+   * @brief 新建子图
+   * @param[in] isPrimaryLocalMap 是否是主子图
+   * @return int                  新建子图的全局id
+   */
   int initiateNewLocalMap(bool isPrimaryLocalMap = false);
-  int initiateNewLink(int sceneID, const ORUtils::SE3Pose &pose, bool isRelocalisation);
+  /**
+   * @brief 为已有的子图添加新的约束
+   * @param[in] localMapId        已有的子图的全局id
+   * @param[in] pose              约束位姿
+   * @param[in] isRelocalisation  
+   * @return int 
+   */
+  int initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation);
   /**
    * @brief 更新指定子图以及相关联子图的跟踪结果
    * @param[in] dataID                  指定子图的活跃id

@@ -48,9 +48,9 @@ class ITMLocalMap {
  public:
   ITMScene<TVoxel, TIndex> *scene;      // 只包含当前子图的三维场景
   ITMRenderState *renderState;          // 当前子图的渲染结果的指针
-  ITMTrackingState *trackingState;      // 当前子图参与跟踪的变量的指针
+  ITMTrackingState *trackingState;      // 当前子图参与跟踪的变量的指针。位姿是world to local??//?world指的是主子图？
   ConstraintList relations;             // 当前子图相关的所有子图id 以及 对应的位姿（即link）
-  ORUtils::SE3Pose estimatedGlobalPose; // 当前子图的位姿
+  ORUtils::SE3Pose estimatedGlobalPose; // 当前子图的真实位姿？？？ 真的world to local？？？
 
   ITMLocalMap(const ITMLibSettings *settings, const ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine,
               const Vector2i &trackedImageSize) {
