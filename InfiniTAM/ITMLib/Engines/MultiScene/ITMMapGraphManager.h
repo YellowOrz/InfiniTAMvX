@@ -15,7 +15,7 @@ class ITMMapGraphManager {
 public:
   virtual ~ITMMapGraphManager(void) {}
   /**
-   * @brief 新建子图（放在最后）
+   * @brief 新建子图（放在最后）&& 初始化三维场景
    * @return int 新建子图的全局id
    */
   virtual int createNewLocalMap(void) = 0;
@@ -50,8 +50,9 @@ public:
   virtual void eraseRelation(int fromLocalMap, int toLocalMap) = 0;
   /** 获取指定子图（全局id）的所有link */
   virtual const ConstraintList &getConstraints(int localMapId) const = 0;
-
+  /** 设置指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
   virtual void setEstimatedGlobalPose(int localMapId, const ORUtils::SE3Pose &pose) = 0;
+  /** 获取指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
   virtual const ORUtils::SE3Pose &getEstimatedGlobalPose(int localMapId) const = 0;
   /**
    * @brief 将指定子图的跟踪位姿（trackingState）设置为指定位姿
@@ -62,7 +63,7 @@ public:
    */
   virtual bool resetTracking(int localMapId, const ORUtils::SE3Pose &pose) = 0;
   /**
-   * @brief 获取指定子图的位姿。world to local
+   * @brief 获取指定子图中相机的位姿（子图坐标系到当前帧），T_ls
    * @param[in] localMapId 指定子图的全局id
    * @return const ORUtils::SE3Pose*
    */
@@ -102,7 +103,7 @@ public:
                           const ITMDenseMapper<TVoxel, TIndex> *denseMapper, const Vector2i &trackedImageSize);
   ~ITMVoxelMapGraphManager(void);
   /**
-   * @brief 新建子图（放在最后）
+   * @brief 新建子图（放在最后）&& 初始化三维场景
    * @return int 新建子图的全局id
    */
   int createNewLocalMap(void);
@@ -140,10 +141,11 @@ public:
   void eraseRelation(int fromLocalMap, int toLocalMap);
   /** 获取指定子图（全局id）的所有link */
   const ConstraintList &getConstraints(int localMapId) const { return allData[localMapId]->relations; }
-
+  /** 设置指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
   void setEstimatedGlobalPose(int localMapId, const ORUtils::SE3Pose &pose) { // TODO: 下次从这儿开始
     allData[localMapId]->estimatedGlobalPose = pose;
   }
+  /** 获取指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
   const ORUtils::SE3Pose &getEstimatedGlobalPose(int localMapId) const {
     return allData[localMapId]->estimatedGlobalPose;
   }
@@ -156,7 +158,7 @@ public:
    */
   bool resetTracking(int localMapId, const ORUtils::SE3Pose &pose);
   /**
-   * @brief 获取指定子图的位姿。world to local？？？world指的是主子图？
+   * @brief 获取指定子图中相机的位姿（子图坐标系到当前帧），T_ls
    * @param[in] localMapId 指定子图的全局id
    * @return const ORUtils::SE3Pose*
    */

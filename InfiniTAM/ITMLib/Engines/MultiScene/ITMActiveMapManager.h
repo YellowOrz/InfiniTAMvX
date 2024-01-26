@@ -30,7 +30,7 @@ class ITMActiveMapManager {
   };
 
   ITMMapGraphManager *localMapManager;          // 管理所有子图
-  std::vector<ActiveDataDescriptor> activeData; // 所有活跃子图的信息
+  std::vector<ActiveDataDescriptor> activeData; // 所有活跃子图的信息 // ?一个子图可以被添加多次吗？
   /**
    * @brief 判断指定子图是否重定位成功
    * @param[in] dataID  指定子图的活跃id
@@ -48,8 +48,8 @@ class ITMActiveMapManager {
   int CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers, ORUtils::SE3Pose *inlierPose) const;
   /**
    * @brief 在两个子图之间添加link（即观测，也是加权后的位姿）
-   * @param[in] fromData    一个子图的全局id。应该叫id1
-   * @param[in] toData      另一个子图的全局id。应该叫id2
+   * @param[in] fromData    子图1的全局id。// TODO: 应该叫id1
+   * @param[in] toData      子图2的全局id。// TODO: 应该叫id2
    * @param[in] pose        toData到fromData的位姿
    * @param[in] weight      上面位姿的权重
    */
@@ -61,6 +61,7 @@ class ITMActiveMapManager {
    * @note              只在前1000个voxel block中，计算可见的比例
    */
   float visibleOriginalBlocks(int dataID) const;
+  /** 判断是否要新建子图。主子图中voxel block可见比例低于阈值 就新建 */
   bool shouldStartNewArea(void) const;
   /**
    * @brief 判断当前子图能否成为下一个主子图的唯一候选者
@@ -73,17 +74,17 @@ class ITMActiveMapManager {
 
  public:
   /**
-   * @brief 新建子图
+   * @brief 初始化活跃子图 = 新建子图 + 添加活跃信息
    * @param[in] isPrimaryLocalMap 是否是主子图
    * @return int                  新建子图的全局id
    */
   int initiateNewLocalMap(bool isPrimaryLocalMap = false);
   /**
-   * @brief 为已有的子图添加新的约束
+   * @brief 为已有的子图添加新的约束（即设置成活跃子图）
    * @param[in] localMapId        已有的子图的全局id
    * @param[in] pose              约束位姿
-   * @param[in] isRelocalisation  
-   * @return int 
+   * @param[in] isRelocalisation  子图是否重定位
+   * @return int                  子图的活跃id
    */
   int initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation);
   /**

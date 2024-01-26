@@ -304,7 +304,7 @@ template <class TVoxel> struct ComputeUpdatedVoxelInfo<true, true, TVoxel> {
  * @param[in] y 像素坐标
  * @param[out] blockCoords 没有分配的entry会记录block坐标（short类型）
  * @param[in] depth 深度图
- * @param[in] invM_d 深度图位姿的逆（local to world？？？）
+ * @param[in] invM_d 相机位姿的逆，T_wl
  * @param[in] projParams_d 深度图相机内参的反投影
  * @param[in] mu TSDF的截断值对应的距离。默认为0.02=4*voxel_size
  * @param[in] imgSize 图像分辨率（x*y)

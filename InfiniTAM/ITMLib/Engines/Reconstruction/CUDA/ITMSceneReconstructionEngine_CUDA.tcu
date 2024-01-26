@@ -394,7 +394,7 @@ __global__ void integrateIntoScene_device(TVoxel *localVBA, const ITMHashEntry *
  * @param[out] entriesVisibleType 所有entry的可见情况。=1是正常可见，=2是可见但是被swap out
  * @param[out] blockCoords 没有分配的entry会记录block坐标（short类型）
  * @param[in] depth 深度图
- * @param[in] invM_d 深度图位姿的逆（local to world？？？）
+ * @param[in] invM_d 相机位姿的逆，T_wl
  * @param[in] projParams_d 深度图相机内参的反投影
  * @param[in] mu TSDF的截断值对应的距离
  * @param[in] _imgSize 图像分辨率（x*y)

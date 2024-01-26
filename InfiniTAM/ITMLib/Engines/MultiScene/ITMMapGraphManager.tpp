@@ -25,7 +25,7 @@ int ITMVoxelMapGraphManager<TVoxel, TIndex>::createNewLocalMap(void) {
   int newIdx = (int) allData.size();                // 新建子图的全局id
   allData.push_back(new ITMLocalMap<TVoxel, TIndex>(settings, visualisationEngine, trackedImageSize));  // 新建子图
 
-  denseMapper->ResetScene(allData[newIdx]->scene);  // 初始化该子图的
+  denseMapper->ResetScene(allData[newIdx]->scene);  // 初始化该子图的三维场景
   return newIdx;
 }
 
@@ -79,7 +79,7 @@ bool ITMVoxelMapGraphManager<TVoxel, TIndex>::resetTracking(int localMapId, cons
   // 检查id有效性
   if ((localMapId < 0) || ((unsigned) localMapId >= allData.size())) return false;
   // 重置trackingState
-  allData[localMapId]->trackingState->pose_d->SetFrom(&pose);   // 重置位姿，world => local
+  allData[localMapId]->trackingState->pose_d->SetFrom(&pose);   // 重置子图中的相机位姿，T_ls
   allData[localMapId]->trackingState->age_pointCloud = -1;      // 重置增量更新raycasting得到的点云的年龄
   return true;
 }

@@ -4,11 +4,11 @@
 
 using namespace ITMLib;
 // TODO：为啥要在这里设置一堆静态变量，而不是添加到类里面，或者头文件里面
-// try loop closures for this number of frames
+// 从多个constrain估计单个link，间隔帧数 // ??? 这是回环的时候用的？？try loop closures for this number of frames
 static const int N_linktrials = 20;
-// at least these many frames have to be tracked successfully
+// 从多个constrain估计单个link，constrain中inliner超过阈值。at least these many frames have to be tracked successfully
 static const int N_linkoverlap = 10;
-// 固定n帧指定重定位。try relocalisations for this number of frames
+// 重定位，间隔帧数。try relocalisations for this number of frames
 static const int N_reloctrials = 20;
 // 有关联的子图数量超过这个阈值，算重定位成功。at least these many tracking attempts have to succeed for relocalisation
 static const int N_relocsuccess = 10;
@@ -24,8 +24,8 @@ ITMActiveMapManager::ITMActiveMapManager(ITMMapGraphManager *_localMapManager) {
 int ITMActiveMapManager::initiateNewLocalMap(bool isPrimaryLocalMap) {
   //! 新建子图
   int newIdx = localMapManager->createNewLocalMap();
-  //! 记录新的link
-  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor，而不是叫newLink
+  //! 记录新的constrain
+  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor或者newConstrain，而不是叫newLink
   newLink.localMapIndex = newIdx;     // 子图的全局id
   newLink.type = isPrimaryLocalMap ? PRIMARY_LOCAL_MAP : NEW_LOCAL_MAP; // 类型只能是主子图 or 新建的
   newLink.trackingAttempts = 0;       // 跟踪次数置为0
@@ -35,7 +35,6 @@ int ITMActiveMapManager::initiateNewLocalMap(bool isPrimaryLocalMap) {
 }
 
 int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose &pose, bool isRelocalisation) {
-
   //! 如果之前添加过了，就不再添加。 make sure only one relocalisation per local map is attempted at a time
   static const bool ensureUniqueLinks = true; // TODO：都static const了，直接删了得了
   if (ensureUniqueLinks)
@@ -45,8 +44,8 @@ int ITMActiveMapManager::initiateNewLink(int localMapId, const ORUtils::SE3Pose 
   //! 重置当前子图的位姿
   if (!localMapManager->resetTracking(localMapId, pose))
     return -1;
-  //! 记录新的link
-  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor，而不是叫newLink
+  //! 记录新的constrain，即将当前子图设置成活跃子图
+  ActiveDataDescriptor newLink;       // TODO: 应该叫newDescriptor或者newConstrain，而不是叫newLink
   newLink.localMapIndex = localMapId; // 子图的全局id
   newLink.type = isRelocalisation ? RELOCALISATION : LOOP_CLOSURE;  // 类型只能是 重定位 或 回环
   newLink.trackingAttempts = 0;       // 跟踪次数置为0
@@ -68,12 +67,11 @@ float ITMActiveMapManager::visibleOriginalBlocks(int dataID) const {
 }
 
 bool ITMActiveMapManager::shouldStartNewArea(void) const {
-  int primaryLocalMapIdx = -1;
-  int primaryDataIdx = -1;
-
+  int primaryLocalMapIdx = -1;  // 主子图的全局id
+  int primaryDataIdx = -1;      // 主子图的活跃id
   // don't start two new local maps at a time
-  for (int i = 0; i < (int) activeData.size(); ++i) {
-    if (activeData[i].type == NEW_LOCAL_MAP) return false;
+  for (int i = 0; i < (int) activeData.size(); ++i) {       // 找到主子图的信息
+    if (activeData[i].type == NEW_LOCAL_MAP) return false;  // 保证一次最多一个NEW_LOCAL_MAP
     if (activeData[i].type == PRIMARY_LOCAL_MAP) {
       primaryDataIdx = i;
       primaryLocalMapIdx = activeData[i].localMapIndex;
@@ -81,10 +79,10 @@ bool ITMActiveMapManager::shouldStartNewArea(void) const {
   }
 
   // TODO: check: if relocalisation fails for some time, start new local map
+  // 找不到主子图，不新建   // ?什么时候会没有主子图？？
   if (primaryLocalMapIdx < 0) return false;
+  // 主子图中voxel block的可见比例 < 阈值，新建子图
   else return visibleOriginalBlocks(primaryDataIdx) < F_originalBlocksThreshold;
-
-  return false;
 }
 
 bool ITMActiveMapManager::shouldMovePrimaryLocalMap(int newDataId, int bestDataId, int primaryDataId) const {
@@ -341,9 +339,9 @@ int ITMActiveMapManager::CheckSuccess_newlink(int dataID, int primaryDataID, int
   if (primaryDataID >= 0)
     primaryLocalMapIndex = activeData[primaryDataID].localMapIndex;
   // NOTE: 没有主子图的话不能return -1，因为可能是
-  const ITMPoseConstraint &previousInformation =                // 主子图中记录的与当前子图的link
+  const ITMPoseConstraint &previousInformation =                // 主子图中记录的与当前子图的constrain
       localMapManager->getRelation_const(primaryLocalMapIndex, link.localMapIndex);
-  /* 进入这个函数的dataID都对应回环or新建的子图。因为回环检测可能存在的错误是无法确定的，所以从主子图中找到link，而不是从当前子图中找link。
+  /* dataID之对应回环or新建的子图。因为回环检测可能存在的错误是无法确定的，所以从主子图中找到constrain，而不是从当前子图中找constrain。
   hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the accumulated poses seen in previous frames? This should only really make a difference, if there is a large disagreement between the two, in which case one might argue that most likely something went wrong with a loop-closure, and we are not really sure the "Estimate" is true or just based on an erroneous loop closure. We therefore want to be consistent with previous observations not estimations...
   */
   
@@ -375,11 +373,11 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
   int fromLocalMapIdx = activeData[fromData].localMapIndex;
   int toLocalMapIdx = activeData[toData].localMapIndex;
 
-  { //! fromData里添加toData到fromData的位姿
+  { //! 子图1里添加 子图2到子图1的位姿（即link）
     ITMPoseConstraint &c = localMapManager->getRelation(fromLocalMapIdx, toLocalMapIdx);
     c.AddObservation(pose, weight);
   }
-  { //! toData里添加fromData到toData的位姿
+  { //! 子图2里添加 子图1到子图2的位姿（即link）
     ORUtils::SE3Pose invPose(pose.GetInvM());
     ITMPoseConstraint &c = localMapManager->getRelation(toLocalMapIdx, fromLocalMapIdx);
     c.AddObservation(invPose, weight);
@@ -393,7 +391,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
   int moveToDataIdx = -1;                       // 候选成主子图的子图的活跃id
   //! 处理每个活跃子图中类型为 、回环、新建的
   for (int i = 0; i < (int) activeData.size(); ++i) {
-    ActiveDataDescriptor &link = activeData[i];
+    ActiveDataDescriptor &link = activeData[i];   // TODO: 应该改名叫constrain
 
     if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
       int success = CheckSuccess_relocalisation(i);
@@ -424,10 +422,10 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       }
     }
   }
-  //! add  // TODO: 下次从这儿开始
+  //! 找到需要设置成活跃的子图（后面删除后才真正添加）。add
   std::vector<int> restartLinksToLocalMaps;
   primaryDataIdx = -1;
-  for (int i = 0; i < (int) activeData.size(); ++i) {
+  for (int i = 0; i < (int) activeData.size(); ++i) { // TODO: 下次从这儿开始
     ActiveDataDescriptor &link = activeData[i];
 
     if ((signed) i == moveToDataIdx) link.type = PRIMARY_LOCAL_MAP;
@@ -470,15 +468,16 @@ bool ITMActiveMapManager::maintainActiveData(void) {
     initiateNewLink(*it, *(localMapManager->getTrackingPose(*it)), false);
   }
 
-  // NOTE: this has to be done AFTER removing any previous new local map
+  // NOTE: 新建子图之前，要保证之前没有别的NEW_LOCAL_MAP。this has to be done AFTER removing any previous new local map
+  //! 判断是否要新建子图
   if (shouldStartNewArea()) {
     int newIdx = initiateNewLocalMap();   // 新建子图
 
     if (primaryDataIdx >= 0) {
       int primaryLocalMapIdx = activeData[primaryDataIdx].localMapIndex;  // 主子图的全局id
-      localMapManager->setEstimatedGlobalPose(                            // 设置新建子图的全局位姿
-          newIdx, ORUtils::SE3Pose(localMapManager->getTrackingPose(primaryLocalMapIdx)->GetM() *
-                                   localMapManager->getEstimatedGlobalPose(primaryLocalMapIdx).GetM()));
+      localMapManager->setEstimatedGlobalPose(                            // 新建子图的全局位姿=主子图中相机的全局位姿，即T_lw
+          newIdx, ORUtils::SE3Pose(localMapManager->getTrackingPose(primaryLocalMapIdx)->GetM() *         // T_ls
+                                   localMapManager->getEstimatedGlobalPose(primaryLocalMapIdx).GetM()));  // T_sw
     }
   }
 

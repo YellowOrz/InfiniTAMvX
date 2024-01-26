@@ -254,7 +254,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
 #endif
 
       // 跟踪单帧。actual tracking
-      ORUtils::SE3Pose oldPose(*(currentLocalMap->trackingState->pose_d));  // 旧的位姿。world => local
+      ORUtils::SE3Pose oldPose(*(currentLocalMap->trackingState->pose_d));  // 子图中旧的相机位姿。T_ls
       trackingController->Track(currentLocalMap->trackingState, view);
 
       // 除了主子图，其他子图的跟踪结果为Poor直接算成fail。tracking is allowed to be poor only in the primary scenes.

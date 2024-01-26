@@ -281,7 +281,7 @@ void ITMDepthTracker::TrackCamera(ITMTrackingState *trackingState, const ITMView
     this->SetEvaluationParams(levelId);
     if (iterationType == TRACKER_ITERATION_NONE) continue;
     // 设置初始位姿
-    Matrix4f approxInvPose = trackingState->pose_d->GetInvM();    // 初始位姿，local to world
+    Matrix4f approxInvPose = trackingState->pose_d->GetInvM();    // 初始位姿=之前相机位姿的逆，local to world
     ORUtils::SE3Pose lastKnownGoodPose(*(trackingState->pose_d)); // 记录旧的位姿
     f_old = 1e20f;
     noValidPoints_old = 0;
