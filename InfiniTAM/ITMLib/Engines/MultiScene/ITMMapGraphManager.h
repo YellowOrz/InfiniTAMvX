@@ -48,11 +48,11 @@ public:
    * @param[in] toLocalMap    子图的全局id
    */
   virtual void eraseRelation(int fromLocalMap, int toLocalMap) = 0;
-  /** 获取指定子图（全局id）的所有link */
+  /** 获取指定子图（输入全局id）的所有link */
   virtual const ConstraintList &getConstraints(int localMapId) const = 0;
-  /** 设置指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
+  /** 设置指定子图（输入全局id）的位姿，即世界坐标系到子图，T_sw */
   virtual void setEstimatedGlobalPose(int localMapId, const ORUtils::SE3Pose &pose) = 0;
-  /** 获取指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
+  /** 获取指定子图（输入全局id）的位姿，即世界坐标系到子图，T_sw */
   virtual const ORUtils::SE3Pose &getEstimatedGlobalPose(int localMapId) const = 0;
   /**
    * @brief 将指定子图的跟踪位姿（trackingState）设置为指定位姿
@@ -139,13 +139,13 @@ public:
    * @param[in] toLocalMap    子图的全局id
    */
   void eraseRelation(int fromLocalMap, int toLocalMap);
-  /** 获取指定子图（全局id）的所有link */
+  /** 获取指定子图（输入全局id）的所有link */
   const ConstraintList &getConstraints(int localMapId) const { return allData[localMapId]->relations; }
-  /** 设置指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
-  void setEstimatedGlobalPose(int localMapId, const ORUtils::SE3Pose &pose) { // TODO: 下次从这儿开始
+  /** 设置指定子图（输入全局id）的位姿，即世界坐标系到子图，T_sw */
+  void setEstimatedGlobalPose(int localMapId, const ORUtils::SE3Pose &pose) {
     allData[localMapId]->estimatedGlobalPose = pose;
   }
-  /** 获取指定子图（全局id）的位姿，即世界坐标系到子图，T_sw */
+  /** 获取指定子图（输入全局id）的位姿，即世界坐标系到子图，T_sw */
   const ORUtils::SE3Pose &getEstimatedGlobalPose(int localMapId) const {
     return allData[localMapId]->estimatedGlobalPose;
   }

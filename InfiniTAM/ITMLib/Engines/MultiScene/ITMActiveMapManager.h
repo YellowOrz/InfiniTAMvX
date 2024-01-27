@@ -12,7 +12,7 @@ class ITMActiveMapManager {
   // 子图的活跃类型
   typedef enum { 
     PRIMARY_LOCAL_MAP,  // 主子图
-    NEW_LOCAL_MAP,      // 新建的。最多一个
+    NEW_LOCAL_MAP,      // 新建的。最多一个，放在所有子图的最后
     LOOP_CLOSURE,       // 回环的
     RELOCALISATION,     // 重定位的
     LOST,               // 跟丢的
@@ -80,7 +80,7 @@ class ITMActiveMapManager {
    */
   int initiateNewLocalMap(bool isPrimaryLocalMap = false);
   /**
-   * @brief 为已有的子图添加新的约束（即设置成活跃子图）
+   * @brief 已有的子图变成活跃子图（类型只能是 重定位 或 回环）。若之前添加过了，不会再次添加
    * @param[in] localMapId        已有的子图的全局id
    * @param[in] pose              约束位姿
    * @param[in] isRelocalisation  子图是否重定位
@@ -95,27 +95,21 @@ class ITMActiveMapManager {
    * @note 只要主子图跟踪不good，所有活跃子图都算是跟踪失败
    */
   void recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult, bool primaryTrackingSuccess);
-
-  /**
-   * @brief 判断当前子图与主子图的位姿是否发生变化。return whether or not the local map graph has changed
-   * @note 什么时候会发生变化？？？
-   */
-  bool maintainActiveData(void);
+  /** 判断当前子图与主子图的位姿是否发生变化。return whether or not the local map graph has changed */
+  bool maintainActiveData(void);  // TODO: 什么时候会发生变化？？？
   /** 获取主子图的活跃id */
   int findPrimaryDataIdx(void) const;
   /** 获取主子图的全局id */
   int findPrimaryLocalMapIdx(void) const;
-
+  /** 找到可见范围最大的活跃子图，返回其活跃id */
   int findBestVisualisationDataIdx(void) const;
+  /** 找到可见范围最大的活跃子图，返回其全局id */
   int findBestVisualisationLocalMapIdx(void) const;
-
+  /** 获取活跃子图个数 */
   int numActiveLocalMaps(void) const { return static_cast<int>(activeData.size()); }
-  /**
-   * @brief 获取指定活跃子图的全局子图id
-   * @param[in] dataIdx   活跃子图id
-   * @return int          全局子图id
-   */
+  /** 获取指定子图（输入活跃id）的全局子图id */
   int getLocalMapIndex(int dataIdx) const { return activeData[dataIdx].localMapIndex; }
+  /** 获取指定子图（输入活跃id）的类型 */
   LocalMapActivity getLocalMapType(int dataIdx) const { return activeData[dataIdx].type; }
 
   ITMActiveMapManager(ITMMapGraphManager *localMapManager);
