@@ -141,14 +141,14 @@ class MemoryBlock {
     this->dataSize = newDataSize;
   }
 
-  /** Transfer data from CPU to GPU, if possible. */
+  /** 可以的话，把数据从CPU拷贝到GPU。Transfer data from CPU to GPU, if possible. */
   void UpdateDeviceFromHost() const {
 #ifndef COMPILE_WITHOUT_CUDA
     if (isAllocated_CUDA && isAllocated_CPU)
         ORcudaSafeCall(cudaMemcpy(data_cuda, data_cpu, dataSize * sizeof(T), cudaMemcpyHostToDevice));
 #endif
   }
-  /** Transfer data from GPU to CPU, if possible. */
+  /** 可以的话，把数据从GPU拷贝到CPU。Transfer data from GPU to CPU, if possible. */
   void UpdateHostFromDevice() const {
 #ifndef COMPILE_WITHOUT_CUDA
     if (isAllocated_CUDA && isAllocated_CPU)

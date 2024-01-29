@@ -13,7 +13,7 @@ class PoseDatabase {
     PoseInScene(void) {}
     PoseInScene(const ORUtils::SE3Pose &_pose, int _sceneIdx) : pose(_pose), sceneIdx(_sceneIdx) {}
     ORUtils::SE3Pose pose;
-    int sceneIdx;
+    int sceneIdx;           // 子图的全局id
   };
 
   PoseDatabase(void);

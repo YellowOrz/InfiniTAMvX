@@ -137,8 +137,8 @@ bool ITMActiveMapManager::shouldMovePrimaryLocalMap(int newDataId, int bestDataI
     return true;
 
   // if this is a new local map, but we previously found that we can loop close, don't accept the new local map!
-  if (isNewLocalMap_new && !isNewLocalMap_best)   // 当前子图是新的，但候选子图可以用于回环（为啥？？？），不替换
-    return false;
+  if (isNewLocalMap_new && !isNewLocalMap_best)   // 当前子图是新的，但候选子图可以用于回环（哪来的回环？），不替换
+    return false;                                             // TODO: 难道说明 回环的子图 比 新建的子图重要？
   // if this is a loop closure and we have not found any alternative loop closure before, accept the new one!
   if (!isNewLocalMap_new && isNewLocalMap_best)   // 存在回环，但是没有其他回环选项，替换  // ?只要不是NEW_LOCAL_MAP都是回环
     return true;
@@ -213,7 +213,7 @@ void ITMActiveMapManager::recordTrackingResult(int dataID, ITMTrackingState::Tra
           activeData[j].type = LOST;
       }
     }
-  }                                                                   // NOTE: 除了主子图，跟踪为poor都算是fail
+  }  // TODO: 主子图的poor咋处理？                                       // NOTE: 除了主子图，跟踪为poor都算是fail
 }
 
 /**
@@ -385,20 +385,20 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
 }
 
 bool ITMActiveMapManager::maintainActiveData(void) { 
-  bool localMapGraphChanged = false;
+  bool localMapGraphChanged = false;            // 位姿图是否发生变化。只有存在可靠的回环或者新建的子图，才是true
 
   int primaryDataIdx = findPrimaryDataIdx();    // 主子图的活跃id
   int moveToDataIdx = -1;                       // 候选成主子图的子图的活跃id
-  //! 处理每个活跃子图中类型为 、回环、新建的
+  //! 处理重定位、回环、新建的活跃子图，找到 主子图的候选者
   for (int i = 0; i < (int) activeData.size(); ++i) {
     ActiveDataDescriptor &link = activeData[i];   // TODO: 应该改名叫constrain
 
     if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
       int success = CheckSuccess_relocalisation(i);
       if (success == 1) {
-        if (moveToDataIdx < 0)            // 第一次重定位成功，则该子图就是新的主子图
+        if (moveToDataIdx < 0)            // 重定位成功时还没候选人，则该子图成为候选人 // ?这里不用localMapGraphChanged=true?
           moveToDataIdx = i;
-        else                              // 再次重定位成功，不是之前的主子图，就设置当前子图为lost
+        else                              // 再次重定位成功，不是之前的主子图，就设置当前子图为lost。∵一次最多一个重定位成功？
           link.type = LOST;  
       } else if (success == -1)           // 重定位失败
         link.type = LOST;
@@ -410,7 +410,7 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       // TODO: 可能存在primaryDataIdx=-1吗？？？
       int success = CheckSuccess_newlink(i, primaryDataIdx, &inliers, &inlierPose); // 检查当前子图与主子图的关联是否可靠
       if (success == 1) {         // 当前子图与主子图的关联 可靠
-        AcceptNewLink(primaryDataIdx, i, inlierPose, inliers);  // 建立当前子图与主子图的link
+        AcceptNewLink(primaryDataIdx, i, inlierPose, inliers);  // 建立当前子图与主子图的link（不是约束）
         link.constraints.clear();                               // 建立当前子图与主子图的link后，就不需要这些约束了
         link.trackingAttempts = 0;
         if (shouldMovePrimaryLocalMap(i, moveToDataIdx, primaryDataIdx))  // 查看当前子图是否要作为新的主子图
@@ -422,10 +422,10 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       }
     }
   }
-  //! 将候选子图变成主子图，并找到需要设置成活跃的子图（后面删除后才真正添加）。add
+  //! 将候选子图变成主子图，把其他所有活跃子图都设置成lost，并找记录旧的主子图和回环（删除后再次添加）。add
   std::vector<int> restartLinksToLocalMaps;
   primaryDataIdx = -1;
-  for (int i = 0; i < (int) activeData.size(); ++i) { // TODO: 下次从这儿开始
+  for (int i = 0; i < (int) activeData.size(); ++i) { // TODO: 只有moveToDataIdx >= 0才进入这个for循环
     ActiveDataDescriptor &link = activeData[i];
     // 把 候选成主子图的子图 变成主子图
     if ((signed) i == moveToDataIdx) link.type = PRIMARY_LOCAL_MAP; // TODO: 下面的if应该全是else if吧？？？？
@@ -459,17 +459,17 @@ bool ITMActiveMapManager::maintainActiveData(void) {
       link.type = LOST;
     }
     if (link.type == LOST)        // 之前就跟丢的（子图已经被删了），现在删除 相关信息
-      activeData.erase(activeData.begin() + i);
+      activeData.erase(activeData.begin() + i); // TODO: 能不能批量删除，或者把不用删除的拷贝出来？？？
     else i++;
   }
-  //! 把子图变成活跃子图
+  //! 再次添加刚被删掉的、旧的主子图和回环子图。因为它们比较重要？？？
   for (std::vector<int>::const_iterator it = restartLinksToLocalMaps.begin(); it != restartLinksToLocalMaps.end();
        ++it) {
-    initiateNewLink(*it, *(localMapManager->getTrackingPose(*it)), false);  // TODO: 这个函数没用，因为都已经是活跃子图了！！！
+    initiateNewLink(*it, *(localMapManager->getTrackingPose(*it)), false);
   }
 
   // NOTE: 新建子图之前，要保证之前没有别的NEW_LOCAL_MAP。this has to be done AFTER removing any previous new local map
-  //! 判断是否要新建子图
+  //! 判断是否要新建子图。主子图中voxel block可见比例低于阈值 就新建
   if (shouldStartNewArea()) {
     int newIdx = initiateNewLocalMap();   // 新建子图
 

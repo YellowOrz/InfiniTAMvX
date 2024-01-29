@@ -65,6 +65,7 @@ class ITMActiveMapManager {
   bool shouldStartNewArea(void) const;
   /**
    * @brief 判断当前子图能否成为下一个主子图的唯一候选者
+   * @details 主要看当前子图的可见比例是不是比别人都高
    * @param[in] newDataIdx      当前子图的活跃id
    * @param[in] bestDataIdx     现有候选子图的活跃id
    * @param[in] primaryDataIdx  现有主子图的活跃id
@@ -95,7 +96,7 @@ class ITMActiveMapManager {
    * @note 只要主子图跟踪不good，所有活跃子图都算是跟踪失败
    */
   void recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult, bool primaryTrackingSuccess);
-  /** 判断当前子图与主子图的位姿是否发生变化。return whether or not the local map graph has changed */
+  /** 查看位姿图是否发生较大变化（即是否存在回环和重建）。return whether or not the local map graph has changed */
   bool maintainActiveData(void);  // TODO: 什么时候会发生变化？？？
   /** 获取主子图的活跃id */
   int findPrimaryDataIdx(void) const;
