@@ -163,10 +163,10 @@ int ITMActiveMapManager::findPrimaryLocalMapIdx(void) const {
 
 int ITMActiveMapManager::findBestVisualisationDataIdx(void) const {
   int bestIdx = -1;
-  // 遍历活跃子图   // TODO: 逻辑是啥？？？？
+  // 遍历活跃子图 
   for (int i = 0; i < static_cast<int>(activeData.size()); ++i) {
-    if (activeData[i].type == PRIMARY_LOCAL_MAP) return i;      // 主子图的约束肯定最多，直接返回。// ?why
-    else if (activeData[i].type == NEW_LOCAL_MAP) bestIdx = i;  // 新建子图（最多一个，但在最后）
+    if (activeData[i].type == PRIMARY_LOCAL_MAP) return i;      // 主子图优先级最高。// ?why
+    else if (activeData[i].type == NEW_LOCAL_MAP) bestIdx = i;  // 新建子图（最多一个，但在最后）// TODO: 直接ruturn一样!!!
     else if (activeData[i].type == RELOCALISATION) {            // 重定位的，在里面找约束最多的
       if (bestIdx < 0) {
         bestIdx = i;
@@ -385,7 +385,7 @@ void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils:
 }
 
 bool ITMActiveMapManager::maintainActiveData(void) { 
-  bool localMapGraphChanged = false;            // 位姿图是否发生变化。只有存在可靠的回环或者新建的子图，才是true
+  bool localMapGraphChanged = false;            // 活跃子图是否发生变化。只有存在可靠的回环或者新建的子图，才是true
 
   int primaryDataIdx = findPrimaryDataIdx();    // 主子图的活跃id
   int moveToDataIdx = -1;                       // 候选成主子图的子图的活跃id

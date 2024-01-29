@@ -36,11 +36,10 @@ class Image : private MemoryBlock<T> {
   using MemoryBlock<T>::UpdateDeviceFromHost;
   using MemoryBlock<T>::UpdateHostFromDevice;
 
-  /** Size of the image in pixels. */
+  /** 图像的尺寸（）Size of the image in pixels. */
   Vector2<int> noDims;
 
-  /** Initialize an empty image of the given size, either
-  on CPU only or on both CPU and GPU.
+  /** Initialize an empty image of the given size, either on CPU only or on both CPU and GPU.
   */
   Image(Vector2<int> noDims, bool allocate_CPU, bool allocate_CUDA, bool metalCompatible = true)
       : MemoryBlock<T>(noDims.x * noDims.y, allocate_CPU, allocate_CUDA, metalCompatible) {
@@ -58,7 +57,7 @@ class Image : private MemoryBlock<T> {
   }
 
   /**
-   * @brief 调整图像大小
+   * @brief 调整图像（内存）大小
    * @param[in] newDims           新的图像大小
    * @param[in] forceReallocation 是否强制重新分配内存。
    * @note  如果新的图像大小比原来大，一定会重新分配内存

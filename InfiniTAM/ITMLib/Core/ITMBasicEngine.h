@@ -29,7 +29,7 @@ class ITMBasicEngine : public ITMMainEngine {
   bool mainProcessingActive;  // 是否开启主线程。只在移动端使用
   bool trackingInitialised;   // 是否初始化成功。融合帧数>50就成功
   int framesProcessed;        // 跟踪成功帧数
-  int relocalisationCount;    // 重定位后要求的连续跟踪成功帧数
+  int relocalisationCount;    // 重定位后要求的跟踪成功帧数。≠0，就不添加关键帧、不进行重定位
 
   ITMLowLevelEngine *lowLevelEngine;                            // 底层的图像处理模块（拷贝、彩色转灰色等操作，不是预处理）
   ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine;  // 渲染（可视化）

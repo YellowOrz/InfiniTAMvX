@@ -103,7 +103,7 @@ ITMMultiEngine<TVoxel, TIndex>::~ITMMultiEngine(void) {
   delete multiVisualisationEngine;
 }
 
-template<typename TVoxel, typename TIndex>
+template<typename TVoxel, typename TIndex>  // TODO: 下次从这儿开始
 void ITMMultiEngine<TVoxel, TIndex>::changeFreeviewLocalMapIdx(ORUtils::SE3Pose *pose, int newIdx) {
   //if ((newIdx < 0) || ((unsigned)newIdx >= mapManager->numLocalMaps())) return;
 
@@ -308,9 +308,9 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
                                   currentLocalMap->renderState);
   }
   //! 全局优化
-  mScheduleGlobalAdjustment |= mActiveDataManager->maintainActiveData();  // 位姿图发生较大变化，就要进行全局优化
+  mScheduleGlobalAdjustment |= mActiveDataManager->maintainActiveData();  // 活跃子图发生较大变化，就要进行全局优化
   if (mScheduleGlobalAdjustment) {  
-    if (mGlobalAdjustmentEngine->updateMeasurements(*mapManager)) { // 更新位姿图
+    if (mGlobalAdjustmentEngine->updateMeasurements(*mapManager)) {       // 更新位姿图
       if (separateThreadGlobalAdjustment) // 并行的全局优化
         mGlobalAdjustmentEngine->wakeupSeparateThread();
       else                                // 串行的全局优化
@@ -351,112 +351,117 @@ Vector2i ITMMultiEngine<TVoxel, TIndex>::GetImageSize(void) const {
   return trackedImageSize;
 }
 
-template<typename TVoxel, typename TIndex>
-void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out,
-                                              GetImageType getImageType,
-                                              ORUtils::SE3Pose *pose,
+template <typename TVoxel, typename TIndex>
+void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType getImageType, ORUtils::SE3Pose *pose,
                                               ITMIntrinsics *intrinsics) {
-  if (view == NULL) return;
+  if (view == NULL)
+    return;
 
   out->Clear();
-
+  //! 根据所需的图片类型不同，渲染不同的图片
   switch (getImageType) {
-    case ITMMultiEngine::InfiniTAM_IMAGE_ORIGINAL_RGB: out->ChangeDims(view->rgb->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-        out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-      else out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+  // NOTE: 以下都是直接来自输入图片
+  case ITMMultiEngine::InfiniTAM_IMAGE_ORIGINAL_RGB:                            // 输入的彩色图
+    out->ChangeDims(view->rgb->noDims);
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+    else
+      out->SetFrom(view->rgb, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    break;
+  case ITMMultiEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH:                          // 输入的深度图
+    out->ChangeDims(view->depth->noDims);
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      view->depth->UpdateHostFromDevice();
+    ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
+    break;
+  // NOTE: 以下都是固定视角的图片
+  case ITMMultiEngine::InfiniTAM_IMAGE_SCENERAYCAST:
+  case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME: // TODO: add colour rendering
+  case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
+  case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
+    // 设置渲染用的子图
+    int visualisationLocalMapIdx = mActiveDataManager->findBestVisualisationLocalMapIdx();  // 找到用于可视化的活跃子图id
+    if (visualisationLocalMapIdx < 0)
+      break; // TODO: clear image? what else to do when tracking is lost?
+    ITMLocalMap<TVoxel, TIndex> *activeLocalMap = mapManager->getLocalMap(visualisationLocalMapIdx);  // 子图
+    // 设置渲染类型。
+    IITMVisualisationEngine::RenderRaycastSelection raycastType;
+    if (activeLocalMap->trackingState->age_pointCloud <= 0) // 直接使用旧的普通raycast结果
+      raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
+    else                                                    // 直接使用旧的增量raycat结果
+      raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
+    // 设置渲染图片类型。
+    IITMVisualisationEngine::RenderImageType imageType;
+    switch (getImageType) {
+    case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:                  // 三维场景的置信度的伪彩色图
+      imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
       break;
-    case ITMMultiEngine::InfiniTAM_IMAGE_ORIGINAL_DEPTH: out->ChangeDims(view->depth->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA) view->depth->UpdateHostFromDevice();
-      ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
+    case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:                      // 三维场景的单位法向量的伪彩色图
+      imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL; 
       break;
-    case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME: //TODO: add colour rendering
-    case ITMMultiEngine::InfiniTAM_IMAGE_SCENERAYCAST:
-    case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
-    case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
-      int visualisationLocalMapIdx = mActiveDataManager->findBestVisualisationLocalMapIdx();
-      if (visualisationLocalMapIdx < 0) break; // TODO: clear image? what else to do when tracking is lost?
-
-      ITMLocalMap<TVoxel, TIndex> *activeLocalMap = mapManager->getLocalMap(visualisationLocalMapIdx);
-
-      IITMVisualisationEngine::RenderRaycastSelection raycastType;
-      if (activeLocalMap->trackingState->age_pointCloud <= 0)
-        raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
-      else raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_FORWARDPROJ;
-
-      IITMVisualisationEngine::RenderImageType imageType;
-      switch (getImageType) {
-        case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE:
-          imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
-          break;
-        case ITMMultiEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
-          imageType = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
-          break;
-        default: imageType = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS;
-      }
-
-      visualisationEngine->RenderImage(activeLocalMap->scene,
-                                       activeLocalMap->trackingState->pose_d,
-                                       &view->calib.intrinsics_d,
-                                       activeLocalMap->renderState,
-                                       activeLocalMap->renderState->raycastImage,
-                                       imageType,
-                                       raycastType);
-
-      ORUtils::Image<Vector4u> *srcImage = activeLocalMap->renderState->raycastImage;
-      out->ChangeDims(srcImage->noDims);
-      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-        out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-      else out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-      break;
+    default:                                                                      // 有序点云的法向量夹角图（灰色）
+      imageType = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE_IMAGENORMALS;
+      // TODO: 比ITMBasicEngine缺少了InfiniTAM_IMAGE_COLOUR_FROM_VOLUME。为啥缺少呢？？又不是用的ITMMultiVisualisationEngine
     }
-    case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED:
-    case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME:
-    case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL:
-    case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE: {
-      IITMVisualisationEngine::RenderImageType type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
-      if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
-      else if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
-      else if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE)
-        type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
+    // 渲染图片
+    visualisationEngine->RenderImage(activeLocalMap->scene, activeLocalMap->trackingState->pose_d,
+                                     &view->calib.intrinsics_d, activeLocalMap->renderState,
+                                     activeLocalMap->renderState->raycastImage, imageType, raycastType);
+    // 把渲染的结果转移到out
+    ORUtils::Image<Vector4u> *srcImage = activeLocalMap->renderState->raycastImage;
+    out->ChangeDims(srcImage->noDims);  // 修改图片（内存）大小
+    if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+      out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+    else
+      out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    break;
+  }
+  // NOTE: 以下都是自由视角的图片
+  case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_SHADED:
+  case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME:
+  case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL:
+  case ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE: {
+    // 默认是法向量夹角图（灰度）
+    IITMVisualisationEngine::RenderImageType type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
+    if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_VOLUME)          // 三维场景的彩色图
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME;
+    else if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_NORMAL)     // 单位法向量的伪彩色图
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL;
+    else if (getImageType == ITMMultiEngine::InfiniTAM_IMAGE_FREECAMERA_COLOUR_FROM_CONFIDENCE) // 置信度的伪彩色图
+      type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
 
-      if (freeviewLocalMapIdx >= 0) {
-        ITMLocalMap<TVoxel, TIndex> *activeData = mapManager->getLocalMap(freeviewLocalMapIdx);
-        if (renderState_freeview == NULL)
-          renderState_freeview = visualisationEngine->CreateRenderState(activeData->scene, out->noDims);
+    if (freeviewLocalMapIdx >= 0) { // 显示单个子图
+      ITMLocalMap<TVoxel, TIndex> *activeData = mapManager->getLocalMap(freeviewLocalMapIdx); // TODO: 下次从这儿开始
+      if (renderState_freeview == NULL)
+        renderState_freeview = visualisationEngine->CreateRenderState(activeData->scene, out->noDims);
+      // NOTE: 因为现在是自由视角，所以需要在当前视角下重新raycast，不能用跟踪里的raycast结果
+      // raycast三部曲：找可见block、确定ray的搜索范围、渲染图片
+      visualisationEngine->FindVisibleBlocks(activeData->scene, pose, intrinsics, renderState_freeview);
+      visualisationEngine->CreateExpectedDepths(activeData->scene, pose, intrinsics, renderState_freeview);
+      visualisationEngine->RenderImage(activeData->scene, pose, intrinsics, renderState_freeview,
+                                       renderState_freeview->raycastImage, type);
 
-        visualisationEngine->FindVisibleBlocks(activeData->scene, pose, intrinsics, renderState_freeview);
-        visualisationEngine->CreateExpectedDepths(activeData->scene, pose, intrinsics, renderState_freeview);
-        visualisationEngine->RenderImage(activeData->scene,
-                                         pose,
-                                         intrinsics,
-                                         renderState_freeview,
-                                         renderState_freeview->raycastImage,
-                                         type);
-
-        if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-          out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-        else out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-      } else {
-        if (renderState_multiscene == NULL)
-          renderState_multiscene = multiVisualisationEngine->CreateRenderState(mapManager->getLocalMap(0)->scene,
-                                                                               out->noDims);
-        multiVisualisationEngine->PrepareRenderState(*mapManager, renderState_multiscene);
-        multiVisualisationEngine->CreateExpectedDepths(pose, intrinsics, renderState_multiscene);
-        multiVisualisationEngine->RenderImage(pose,
-                                              intrinsics,
-                                              renderState_multiscene,
-                                              renderState_multiscene->raycastImage,
-                                              type);
-        if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
-          out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
-        else out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-      }
-
-      break;
+      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+        out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+      else
+        out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
+    } else {                        // 显示所有子图
+      if (renderState_multiscene == NULL)
+        renderState_multiscene =
+            multiVisualisationEngine->CreateRenderState(mapManager->getLocalMap(0)->scene, out->noDims);
+      multiVisualisationEngine->PrepareRenderState(*mapManager, renderState_multiscene);
+      multiVisualisationEngine->CreateExpectedDepths(pose, intrinsics, renderState_multiscene);
+      multiVisualisationEngine->RenderImage(pose, intrinsics, renderState_multiscene,
+                                            renderState_multiscene->raycastImage, type);
+      if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
+        out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
+      else
+        out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
     }
-    case ITMMultiEngine::InfiniTAM_IMAGE_UNKNOWN: break;
+
+    break;
+  }
+  case ITMMultiEngine::InfiniTAM_IMAGE_UNKNOWN:
+    break;
   };
 }

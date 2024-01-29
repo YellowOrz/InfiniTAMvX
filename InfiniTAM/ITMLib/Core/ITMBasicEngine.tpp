@@ -312,7 +312,7 @@ ITMTrackingState::TrackingResult ITMBasicEngine<TVoxel, TIndex>::ProcessFrame(IT
   }
   //! 将当前帧融合进三维模型
   bool didFusion = false;   // 是否融合成功
-  // fusion同时满足条件：① 跟踪good or 不是刚刚初始化；② 开启fusion；③ 重定位后连续跟踪成功的帧数足够
+  // fusion同时满足条件：① 跟踪good or 初始化没成功；② 开启fusion；③ 重定位后跟踪成功的帧数足够
   if ((trackerResult == ITMTrackingState::TRACKING_GOOD || !trackingInitialised) && (fusionActive)
       && (relocalisationCount == 0)) {
     denseMapper->ProcessFrame(view, trackingState, scene, renderState_live);
@@ -381,14 +381,13 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       view->depth->UpdateHostFromDevice();
     ITMVisualisationEngine<TVoxel, TIndex>::DepthToUchar4(out, view->depth);
-
     break;
   // NOTE: 以下都是固定视角的图片
   case ITMBasicEngine::InfiniTAM_IMAGE_SCENERAYCAST:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_VOLUME:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_NORMAL:
   case ITMBasicEngine::InfiniTAM_IMAGE_COLOUR_FROM_CONFIDENCE: {
-    // use current raycast or forward projection?
+    // 设置渲染类型。use current raycast or forward projection?
     IITMVisualisationEngine::RenderRaycastSelection raycastType;
     if (trackingState->age_pointCloud <= 0) // 直接使用旧的普通raycast结果
       raycastType = IITMVisualisationEngine::RENDER_FROM_OLD_RAYCAST;
@@ -415,12 +414,11 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
                                      renderState_live->raycastImage, imageType, raycastType);
     // 把渲染的结果转移到out
     ORUtils::Image<Vector4u> *srcImage = NULL;
-    if (relocalisationCount != 0)
+    if (relocalisationCount != 0) // 重定位没多久（即重定位后跟踪成功的帧数没达到要求），直接用跟踪的raycast的结果
       srcImage = kfRaycast;
-    else
+    else  // TODO: 把上面的visualisationEngine->RenderImage放到这里面？
       srcImage = renderState_live->raycastImage;
-
-    out->ChangeDims(srcImage->noDims);  // 修改图片大小
+    out->ChangeDims(srcImage->noDims);  // 修改图片（内存）大小
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       out->SetFrom(srcImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
     else
@@ -452,7 +450,7 @@ void ITMBasicEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
     visualisationEngine->CreateExpectedDepths(scene, pose, intrinsics, renderState_freeview);
     visualisationEngine->RenderImage(scene, pose, intrinsics, renderState_freeview, renderState_freeview->raycastImage,
                                      type);
-
+    // TODO: 为啥这里没有ChangeDims
     if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
       out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
     else

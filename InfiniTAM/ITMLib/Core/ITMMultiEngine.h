@@ -47,7 +47,7 @@ class ITMMultiEngine : public ITMMainEngine {
   Vector2i trackedImageSize;                        // 用于跟踪的图像分辨率
   ITMRenderState *renderState_freeview;             // 渲染结果：自由视角
   ITMRenderState *renderState_multiscene;           // 渲染结果：固定视角
-  int freeviewLocalMapIdx;
+  int freeviewLocalMapIdx;                          // 自由视角下显示单个子图的全局id
 
   ITMView *view;                                    // 当前帧的指针。Pointer for storing the current input frame
 /* ----------------------------------------------------- public ----------------------------------------------------- */

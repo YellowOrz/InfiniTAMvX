@@ -96,15 +96,15 @@ class ITMActiveMapManager {
    * @note 只要主子图跟踪不good，所有活跃子图都算是跟踪失败
    */
   void recordTrackingResult(int dataID, ITMTrackingState::TrackingResult trackingResult, bool primaryTrackingSuccess);
-  /** 查看位姿图是否发生较大变化（即是否存在回环和重建）。return whether or not the local map graph has changed */
+  /** 查看活跃子图是否发生较大变化（即是否存在回环和重建）。return whether or not the local map graph has changed */
   bool maintainActiveData(void);  // TODO: 什么时候会发生变化？？？
   /** 获取主子图的活跃id */
   int findPrimaryDataIdx(void) const;
   /** 获取主子图的全局id */
   int findPrimaryLocalMapIdx(void) const;
-  /** 找到可见范围最大的活跃子图，返回其活跃id */
+  /** 找到用于可视化的子图（优先级依次是主子图、新建子图、约束最多的重定位子图），返回其活跃id */
   int findBestVisualisationDataIdx(void) const;
-  /** 找到可见范围最大的活跃子图，返回其全局id */
+  /** 找到用于可视化的子图（优先级依次是主子图、新建子图、约束最多的重定位子图），返回其全局id */
   int findBestVisualisationLocalMapIdx(void) const;
   /** 获取活跃子图个数 */
   int numActiveLocalMaps(void) const { return static_cast<int>(activeData.size()); }
