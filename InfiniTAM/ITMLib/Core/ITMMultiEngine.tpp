@@ -103,15 +103,15 @@ ITMMultiEngine<TVoxel, TIndex>::~ITMMultiEngine(void) {
   delete multiVisualisationEngine;
 }
 
-template<typename TVoxel, typename TIndex>  // TODO: 下次从这儿开始
+template<typename TVoxel, typename TIndex>
 void ITMMultiEngine<TVoxel, TIndex>::changeFreeviewLocalMapIdx(ORUtils::SE3Pose *pose, int newIdx) {
   //if ((newIdx < 0) || ((unsigned)newIdx >= mapManager->numLocalMaps())) return;
-
+  //! 保证id的有效性
   if (newIdx < -1) newIdx = (int) mapManager->numLocalMaps() - 1;
   if ((unsigned) newIdx >= mapManager->numLocalMaps()) newIdx = -1;
-
-  ORUtils::SE3Pose trafo = mapManager->findTransformation(freeviewLocalMapIdx, newIdx);
-  pose->SetM(pose->GetM() * trafo.GetInvM());
+  //! 计算 新子图 到 相机 的位姿
+  ORUtils::SE3Pose trafo = mapManager->findTransformation(freeviewLocalMapIdx, newIdx); // 旧子图 到 新的位姿，即T_new_old
+  pose->SetM(pose->GetM() * trafo.GetInvM()); // T_cam_new = T_cam_old * (T_new_old)^-1
   pose->Coerce();
   freeviewLocalMapIdx = newIdx;
 }
@@ -359,6 +359,7 @@ void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
 
   out->Clear();
   //! 根据所需的图片类型不同，渲染不同的图片
+  printf("[INFO] getImageType = %d\n", getImageType);
   switch (getImageType) {
   // NOTE: 以下都是直接来自输入图片
   case ITMMultiEngine::InfiniTAM_IMAGE_ORIGINAL_RGB:                            // 输入的彩色图
@@ -431,8 +432,8 @@ void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
       type = IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE;
 
     if (freeviewLocalMapIdx >= 0) { // 显示单个子图
-      ITMLocalMap<TVoxel, TIndex> *activeData = mapManager->getLocalMap(freeviewLocalMapIdx); // TODO: 下次从这儿开始
-      if (renderState_freeview == NULL)
+      ITMLocalMap<TVoxel, TIndex> *activeData = mapManager->getLocalMap(freeviewLocalMapIdx);   // 要显示的子图
+      if (renderState_freeview == NULL) 
         renderState_freeview = visualisationEngine->CreateRenderState(activeData->scene, out->noDims);
       // NOTE: 因为现在是自由视角，所以需要在当前视角下重新raycast，不能用跟踪里的raycast结果
       // raycast三部曲：找可见block、确定ray的搜索范围、渲染图片
@@ -445,7 +446,7 @@ void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
         out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
       else
         out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-    } else {                        // 显示所有子图
+    } else {                        // 显示所有子图     // TODO: 下次从这儿开始
       if (renderState_multiscene == NULL)
         renderState_multiscene =
             multiVisualisationEngine->CreateRenderState(mapManager->getLocalMap(0)->scene, out->noDims);

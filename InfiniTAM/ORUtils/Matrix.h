@@ -70,22 +70,10 @@ class Matrix4 : public Matrix4_<T> {
   _CPU_AND_GPU_CODE_ Matrix4(const T *m) { setValues(m); }
   _CPU_AND_GPU_CODE_ Matrix4(T a00, T a01, T a02, T a03, T a10, T a11, T a12, T a13, T a20, T a21, T a22, T a23, T a30,
                              T a31, T a32, T a33) {
-    this->m00 = a00;
-    this->m01 = a01;
-    this->m02 = a02;
-    this->m03 = a03;
-    this->m10 = a10;
-    this->m11 = a11;
-    this->m12 = a12;
-    this->m13 = a13;
-    this->m20 = a20;
-    this->m21 = a21;
-    this->m22 = a22;
-    this->m23 = a23;
-    this->m30 = a30;
-    this->m31 = a31;
-    this->m32 = a32;
-    this->m33 = a33;
+    this->m00 = a00, this->m01 = a01, this->m02 = a02, this->m03 = a03;
+    this->m10 = a10, this->m11 = a11, this->m12 = a12, this->m13 = a13;
+    this->m20 = a20, this->m21 = a21, this->m22 = a22, this->m23 = a23;
+    this->m30 = a30, this->m31 = a31, this->m32 = a32, this->m33 = a33;
   }
 
   _CPU_AND_GPU_CODE_ inline void getValues(T *mp) const { memcpy(mp, this->m, sizeof(T) * 16); }

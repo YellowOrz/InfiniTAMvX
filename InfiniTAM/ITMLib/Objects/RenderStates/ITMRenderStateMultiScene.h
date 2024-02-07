@@ -47,15 +47,19 @@ class ITMRenderStateMultiScene : public ITMRenderState {
     }
 #endif
   }
-
+  /**
+   * @brief 
+   * @param[in] sceneManager 管理左右子图
+   */
   void PrepareLocalMaps(const MultiSceneManager &sceneManager) {
-    sceneParams = *(sceneManager.getLocalMap(0)->scene->sceneParams);
+    sceneParams = *(sceneManager.getLocalMap(0)->scene->sceneParams); // 三维场景的参数，所有子图都一样
 
-    int num = (int) sceneManager.numLocalMaps();
-    if (num > MAX_NUM_LOCALMAPS) num = MAX_NUM_LOCALMAPS;
+    int num = (int) sceneManager.numLocalMaps();          // 子图的总数
+    if (num > MAX_NUM_LOCALMAPS) num = MAX_NUM_LOCALMAPS; // 子图的总数不能超过32
     indexData_host.numLocalMaps = num;
+    //! 遍历每个子图
     for (int localMapId = 0; localMapId < num; ++localMapId) {
-      indexData_host.poses_vs[localMapId] = sceneManager.getEstimatedGlobalPose(localMapId).GetM();
+      indexData_host.poses_vs[localMapId] = sceneManager.getEstimatedGlobalPose(localMapId).GetM();// 世界到子图位姿，T_sw
       indexData_host.poses_vs[localMapId].m30 /= sceneParams.voxelSize;
       indexData_host.poses_vs[localMapId].m31 /= sceneParams.voxelSize;
       indexData_host.poses_vs[localMapId].m32 /= sceneParams.voxelSize;

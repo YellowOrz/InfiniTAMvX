@@ -116,11 +116,13 @@ struct LinkPathComparison {
 template<class TVoxel, class TIndex>
 ORUtils::SE3Pose ITMVoxelMapGraphManager<TVoxel, TIndex>::findTransformation(int fromLocalMapId,
                                                                              int toLocalMapId) const {
+  // 获取两个子图的位姿
   ORUtils::SE3Pose fromLocalMapPose, toLocalMapPose;
   if ((fromLocalMapId >= 0) || ((size_t) fromLocalMapId < allData.size()))
     fromLocalMapPose = allData[fromLocalMapId]->estimatedGlobalPose;
   if ((toLocalMapId >= 0) || ((size_t) toLocalMapId < allData.size()))
     toLocalMapPose = allData[toLocalMapId]->estimatedGlobalPose;
+  // 计算相对位姿，从 from子图 到 to子图，即 T_tf = T_tw * (T_fw)^-1
   return ORUtils::SE3Pose(toLocalMapPose.GetM() * fromLocalMapPose.GetInvM());
 }
 }

@@ -4,7 +4,7 @@
 
 #include "../../Objects/Scene/ITMRepresentationAccess.h"
 
-#define MAX_NUM_LOCALMAPS 32
+#define MAX_NUM_LOCALMAPS 32  // 左右子图的最大数量
 
 namespace ITMLib {
 struct ITMMultiCache {};

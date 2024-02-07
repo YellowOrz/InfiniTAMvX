@@ -181,10 +181,10 @@ public:
    */
   int countVisibleBlocks(int localMapId, int minBlockId, int maxBlockId, bool invertIDs) const;
   /**
-   * @brief 
-   * @param[in] fromLocalMapId 
-   * @param[in] toLocalMapId 
-   * @return ORUtils::SE3Pose 
+   * @brief 获取两个子图之间的相对位姿
+   * @param[in] fromLocalMapId  一个子图的全局id
+   * @param[in] toLocalMapId    另一个子图的全局id
+   * @return ORUtils::SE3Pose 从 from子图 到 to子图的位姿，即 T_to_from = T_to_world * (T_from_world)^-1
    */
   ORUtils::SE3Pose findTransformation(int fromlocalMapId, int tolocalMapId) const;
 };

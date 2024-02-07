@@ -31,25 +31,26 @@ class ITMMultiEngine : public ITMMainEngine {
 
   ITMMultiMeshingEngine<TVoxel, TIndex> *meshingEngine;   // 负责mesh
 
-  ITMViewBuilder *viewBuilder;                      // 负责输入图像 && 预处理
-  ITMTrackingController *trackingController;        // 负责调用raycsting，为下一帧的跟踪做准备
-  ITMTracker *tracker;                              // 负责跟踪
-  ITMIMUCalibrator *imuCalibrator;                  // 负责IMU预积分
-  ITMDenseMapper<TVoxel, TIndex> *denseMapper;      // 负责 场景三维模型的融合 && swap in/out
+  ITMViewBuilder *viewBuilder;                          // 负责输入图像 && 预处理
+  ITMTrackingController *trackingController;            // 负责调用raycsting，为下一帧的跟踪做准备
+  ITMTracker *tracker;                                  // 负责跟踪
+  ITMIMUCalibrator *imuCalibrator;                      // 负责IMU预积分
+  ITMDenseMapper<TVoxel, TIndex> *denseMapper;          // 负责 场景三维模型的融合 && swap in/out
 
-  FernRelocLib::Relocaliser<float> *relocaliser;    // 负责重定位
+  FernRelocLib::Relocaliser<float> *relocaliser;        // 负责重定位
 
   ITMVoxelMapGraphManager<TVoxel, TIndex> *mapManager;  // 负责管理所有子图
   ITMActiveMapManager *mActiveDataManager;              // 负责管理活跃子图
   ITMGlobalAdjustmentEngine *mGlobalAdjustmentEngine;   // 负责全局优化
   bool mScheduleGlobalAdjustment;                       // 是否进行全局优化
 
-  Vector2i trackedImageSize;                        // 用于跟踪的图像分辨率
-  ITMRenderState *renderState_freeview;             // 渲染结果：自由视角
-  ITMRenderState *renderState_multiscene;           // 渲染结果：固定视角
-  int freeviewLocalMapIdx;                          // 自由视角下显示单个子图的全局id
+  Vector2i trackedImageSize;                            // 用于跟踪的图像分辨率
+  ITMRenderState *renderState_freeview;                 // 渲染结果：自由视角
+  ITMRenderState *renderState_multiscene;               // 渲染结果：固定视角
+  int freeviewLocalMapIdx;                              // 自由视角下显示单个子图的全局id
 
-  ITMView *view;                                    // 当前帧的指针。Pointer for storing the current input frame
+  ITMView *view;                                        // 当前帧的指针。Pointer for storing the current input frame
+
 /* ----------------------------------------------------- public ----------------------------------------------------- */
  public:
   ITMView *GetView() { return view; }
@@ -65,14 +66,24 @@ class ITMMultiEngine : public ITMMainEngine {
 
   void GetImage(ITMUChar4Image *out, GetImageType getImageType, ORUtils::SE3Pose *pose = NULL,
                 ITMIntrinsics *intrinsics = NULL);
-
+  /**
+   * @brief 切换自由视角下要显示的子图
+   * @param[in,out] pose    自由视角的相机位姿，从 子图（输如旧，输出新） 到 相机的位姿，即T_cam_sub
+   * @param[in] newIdx      子图的全局id
+   */
   void changeFreeviewLocalMapIdx(ORUtils::SE3Pose *pose, int newIdx);
+  /**
+   * @brief 设置自由视角下要显示的子图的全局id
+   * @param[in] newIdx      子图的全局id
+   */
   void setFreeviewLocalMapIdx(int newIdx) {
     freeviewLocalMapIdx = newIdx;
   }
+  /** 获取自由视角下要显示的子图的全局id */
   int getFreeviewLocalMapIdx(void) const {
     return freeviewLocalMapIdx;
   }
+  /** 获取主子图的全局id */
   int findPrimaryLocalMapIdx(void) const {
     return mActiveDataManager->findPrimaryLocalMapIdx();
   }

@@ -9,30 +9,27 @@
 
 using namespace ITMLib;
 
-template<class TVoxel, class TIndex>
-ITMRenderState *ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateRenderState(const ITMScene<TVoxel,
-                                                                                                  TIndex> *scene,
-                                                                                   const Vector2i &imgSize) const {
-  return new ITMRenderStateMultiScene<TVoxel, TIndex>(imgSize,
-                                                      scene->sceneParams->viewFrustum_min,
-                                                      scene->sceneParams->viewFrustum_max,
-                                                      MEMORYDEVICE_CPU);
+template <class TVoxel, class TIndex>
+ITMRenderState *
+ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateRenderState(const ITMScene<TVoxel, TIndex> *scene,
+                                                                   const Vector2i &imgSize) const {
+  return new ITMRenderStateMultiScene<TVoxel, TIndex>(imgSize, scene->sceneParams->viewFrustum_min,
+                                                      scene->sceneParams->viewFrustum_max, MEMORYDEVICE_CPU);
 }
 
-template<class TVoxel, class TIndex>
-void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::PrepareRenderState(const ITMVoxelMapGraphManager<TVoxel,
-                                                                                                       TIndex> &mapManager,
-                                                                         ITMRenderState *_state) {
-  ITMRenderStateMultiScene<TVoxel, TIndex> *state = (ITMRenderStateMultiScene<TVoxel, TIndex> *) _state;
+template <class TVoxel, class TIndex>
+void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::PrepareRenderState(
+    const ITMVoxelMapGraphManager<TVoxel, TIndex> &mapManager, ITMRenderState *_state) {
+  ITMRenderStateMultiScene<TVoxel, TIndex> *state = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_state;
 
   state->PrepareLocalMaps(mapManager);
 }
 
-template<class TVoxel, class TIndex>
+template <class TVoxel, class TIndex>
 void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ORUtils::SE3Pose *pose,
                                                                            const ITMIntrinsics *intrinsics,
                                                                            ITMRenderState *_renderState) const {
-  ITMRenderStateMultiScene<TVoxel, TIndex> *renderState = (ITMRenderStateMultiScene<TVoxel, TIndex> *) _renderState;
+  ITMRenderStateMultiScene<TVoxel, TIndex> *renderState = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_renderState;
 
   // reset min max image
   Vector2i imgSize = renderState->renderingRangeImage->noDims;
@@ -61,23 +58,19 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const
       Vector2f zRange;
       bool validProjection = false;
       if (blockData.ptr >= 0) {
-        validProjection = ProjectSingleBlock(blockData.pos,
-                                             localPose,
-                                             intrinsics->projectionParamsSimple.all,
-                                             imgSize,
-                                             voxelSize,
-                                             upperLeft,
-                                             lowerRight,
-                                             zRange);
+        validProjection = ProjectSingleBlock(blockData.pos, localPose, intrinsics->projectionParamsSimple.all, imgSize,
+                                             voxelSize, upperLeft, lowerRight, zRange);
       }
-      if (!validProjection) continue;
+      if (!validProjection)
+        continue;
 
-      Vector2i
-          requiredRenderingBlocks((int) ceilf((float) (lowerRight.x - upperLeft.x + 1) / (float) renderingBlockSizeX),
-                                  (int) ceilf((float) (lowerRight.y - upperLeft.y + 1) / (float) renderingBlockSizeY));
+      Vector2i requiredRenderingBlocks(
+          (int)ceilf((float)(lowerRight.x - upperLeft.x + 1) / (float)renderingBlockSizeX),
+          (int)ceilf((float)(lowerRight.y - upperLeft.y + 1) / (float)renderingBlockSizeY));
       int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;
 
-      if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS) continue;
+      if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS)
+        continue;
       int offset = numRenderingBlocks;
       numRenderingBlocks += requiredNumBlocks;
 
@@ -92,21 +85,23 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const
       for (int y = b.upperLeft.y; y <= b.lowerRight.y; ++y) {
         for (int x = b.upperLeft.x; x <= b.lowerRight.x; ++x) {
           Vector2f &pixel(minmaxData[x + y * imgSize.x]);
-          if (pixel.x > b.zRange.x) pixel.x = b.zRange.x;
-          if (pixel.y < b.zRange.y) pixel.y = b.zRange.y;
+          if (pixel.x > b.zRange.x)
+            pixel.x = b.zRange.x;
+          if (pixel.y < b.zRange.y)
+            pixel.y = b.zRange.y;
         }
       }
     }
   }
 }
 
-template<class TVoxel, class TIndex>
+template <class TVoxel, class TIndex>
 void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::RenderImage(const ORUtils::SE3Pose *pose,
                                                                   const ITMIntrinsics *intrinsics,
                                                                   ITMRenderState *_renderState,
                                                                   ITMUChar4Image *outputImage,
                                                                   IITMVisualisationEngine::RenderImageType type) const {
-  ITMRenderStateMultiScene<TVoxel, TIndex> *renderState = (ITMRenderStateMultiScene<TVoxel, TIndex> *) _renderState;
+  ITMRenderStateMultiScene<TVoxel, TIndex> *renderState = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_renderState;
 
   Vector2i imgSize = outputImage->noDims;
   Matrix4f invM = pose->GetInvM();
@@ -131,20 +126,10 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::RenderImage(const ORUtils:
     for (int locId = 0; locId < imgSize.x * imgSize.y; ++locId) {
       int y = locId / imgSize.x;
       int x = locId - y * imgSize.x;
-      int locId2 =
-          (int) floor((float) x / minmaximg_subsample) + (int) floor((float) y / minmaximg_subsample) * imgSize.x;
+      int locId2 = (int)floor((float)x / minmaximg_subsample) + (int)floor((float)y / minmaximg_subsample) * imgSize.x;
 
-      castRay<VD, ID, false>(pointsRay[locId],
-                             NULL,
-                             x,
-                             y,
-                             &renderState->voxelData_host,
-                             &renderState->indexData_host,
-                             invM,
-                             invProjParams,
-                             oneOverVoxelSize,
-                             mu,
-                             minmaximg[locId2]);
+      castRay<VD, ID, false>(pointsRay[locId], NULL, x, y, &renderState->voxelData_host, &renderState->indexData_host,
+                             invM, invProjParams, oneOverVoxelSize, mu, minmaximg[locId2]);
     }
   }
 
@@ -152,94 +137,79 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::RenderImage(const ORUtils:
   Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
 
-  if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) &&
-      (!TVoxel::hasColorInformation))
+  if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))
     type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
 
   switch (type) {
-    case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:
+#ifdef WITH_OPENMP
+#pragma omp parallel for
+#endif
+    for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+      Vector4f ptRay = pointsRay[locId];
+      processPixelColour<ITMMultiVoxel<TVoxel>, ITMMultiIndex<TIndex>>(outRendering[locId], ptRay.toVector3(),
+                                                                       ptRay.w > 0, &(renderState->voxelData_host),
+                                                                       &(renderState->indexData_host));
+    }
+    break;
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:
+    if (intrinsics->FocalLengthSignsDiffer()) {
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
       for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-        Vector4f ptRay = pointsRay[locId];
-        processPixelColour<ITMMultiVoxel<TVoxel>, ITMMultiIndex<TIndex> >(outRendering[locId],
-                                                                          ptRay.toVector3(),
-                                                                          ptRay.w > 0,
-                                                                          &(renderState->voxelData_host),
-                                                                          &(renderState->indexData_host));
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelNormals_ImageNormals<true, true>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
       }
-      break;
-    case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:
-      if (intrinsics->FocalLengthSignsDiffer()) {
+    } else {
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelNormals_ImageNormals<true, true>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
-        }
-      } else {
-#ifdef WITH_OPENMP
-#pragma omp parallel for
-#endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelNormals_ImageNormals<true, false>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
-        }
+      for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelNormals_ImageNormals<true, false>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
       }
-      break;
-    case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:
-      if (intrinsics->FocalLengthSignsDiffer()) {
+    }
+    break;
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:
+    if (intrinsics->FocalLengthSignsDiffer()) {
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelConfidence_ImageNormals<true, true>(outRendering,
-                                                          pointsRay,
-                                                          imgSize,
-                                                          x,
-                                                          y,
-                                                          voxelSize,
-                                                          lightSource);
-        }
-      } else {
-#ifdef WITH_OPENMP
-#pragma omp parallel for
-#endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelConfidence_ImageNormals<true, false>(outRendering,
-                                                           pointsRay,
-                                                           imgSize,
-                                                           x,
-                                                           y,
-                                                           voxelSize,
-                                                           lightSource);
-        }
+      for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelConfidence_ImageNormals<true, true>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
       }
-      break;
-    case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:
-    default:
-      if (intrinsics->FocalLengthSignsDiffer()) {
+    } else {
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelGrey_ImageNormals<true, true>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
-        }
-      } else {
-#ifdef WITH_OPENMP
-#pragma omp parallel for
-#endif
-        for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
-          int y = locId / imgSize.x, x = locId - y * imgSize.x;
-          processPixelGrey_ImageNormals<true, false>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
-        }
+      for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelConfidence_ImageNormals<true, false>(outRendering, pointsRay, imgSize, x, y, voxelSize,
+                                                         lightSource);
       }
-      break;
+    }
+    break;
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:
+  default:
+    if (intrinsics->FocalLengthSignsDiffer()) {
+#ifdef WITH_OPENMP
+#pragma omp parallel for
+#endif
+      for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelGrey_ImageNormals<true, true>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
+      }
+    } else {
+#ifdef WITH_OPENMP
+#pragma omp parallel for
+#endif
+      for (int locId = 0; locId < imgSize.x * imgSize.y; locId++) {
+        int y = locId / imgSize.x, x = locId - y * imgSize.x;
+        processPixelGrey_ImageNormals<true, false>(outRendering, pointsRay, imgSize, x, y, voxelSize, lightSource);
+      }
+    }
+    break;
   }
 }
-
