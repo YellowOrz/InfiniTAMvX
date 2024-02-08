@@ -8,7 +8,7 @@
 
 namespace ITMLib {
 struct ITMMultiCache {};
-
+/** 多子图的基础信息。全局id、位姿等*/
 template<class TIndex>
 class ITMMultiIndex {
  public:
@@ -16,30 +16,29 @@ class ITMMultiIndex {
   typedef ITMMultiCache IndexCache;
 
   struct IndexData {
-    int numLocalMaps;
-    typedef TIndex IndexType;
-    typename TIndex::IndexData *index[MAX_NUM_LOCALMAPS];
-    Matrix4f poses_vs[MAX_NUM_LOCALMAPS];
-    Matrix4f posesInv[MAX_NUM_LOCALMAPS];
+    int numLocalMaps;                                       // 子图总数
+    typedef TIndex IndexType;               
+    typename TIndex::IndexData *index[MAX_NUM_LOCALMAPS];   // 所有子图的hash table的指针
+    Matrix4f poses_vs[MAX_NUM_LOCALMAPS];                   // voxel坐标系下，所有子图的世界到子图位姿，T_sw
+    Matrix4f posesInv[MAX_NUM_LOCALMAPS];                   // 真实坐标系下，所有子图的子图到世界位姿，T_ws
   };
 };
-
+/** 多子图中的voxel数据结构 */
 template<class TVoxel>
 class ITMMultiVoxel {
  public:
-  typedef TVoxel VoxelType;
-  TVoxel *voxels[MAX_NUM_LOCALMAPS];
+  typedef TVoxel VoxelType;           // TODO: 没用到？
+  TVoxel *voxels[MAX_NUM_LOCALMAPS];  // 每个子图的三维场景中所有的voxel block array
 
   static const CONSTPTR(bool) hasColorInformation = TVoxel::hasColorInformation;
 };
 }
 
-template<class TMultiVoxel, class TMultiIndex>
+template <class TMultiVoxel, class TMultiIndex>
 _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const TMultiVoxel *voxelData,
-                                                                 const TMultiIndex *voxelIndex,
-                                                                 const Vector3f &point,
-                                                                 int &vmIndex,
-                                                                 ITMLib::ITMMultiCache &_cache) {
+                                                                 const TMultiIndex *voxelIndex, const Vector3f &point,
+                                                                 int &vmIndex, ITMLib::ITMMultiCache &_cache) {
+  // NOTE: TMultiVoxel是模板中的类型，因此下面必须要加typename
   typedef typename TMultiVoxel::VoxelType TVoxel;
   typedef typename TMultiIndex::IndexType TIndex;
 

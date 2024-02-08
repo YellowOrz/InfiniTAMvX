@@ -7,9 +7,7 @@
 #include "../../Utils/ITMSceneParams.h"
 
 namespace ITMLib {
-/** 用voxel hashing表示的三维模型
- * Represents the 3D world model as a hash of small voxel blocks
-*/
+/** 用voxel hashing表示的三维模型。Represents the 3D world model as a hash of small voxel blocks*/
 template<class TVoxel, class TIndex>
 class ITMScene {
  public:
@@ -17,8 +15,7 @@ class ITMScene {
    * Scene parameters like voxel size etc. */
   const ITMSceneParams *sceneParams;
 
-  /** hash table。
-   * Hash table to reference the 8x8x8 blocks */
+  /** hash table。Hash table to reference the 8x8x8 blocks */
   TIndex index;
 
   /** voxel block array（默认是8*8*8大小的voxel）。

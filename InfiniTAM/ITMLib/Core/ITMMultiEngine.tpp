@@ -446,13 +446,13 @@ void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
         out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
       else
         out->SetFrom(renderState_freeview->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
-    } else {                        // 显示所有子图     // TODO: 下次从这儿开始
+    } else {                        // 显示所有子图     
       if (renderState_multiscene == NULL)
         renderState_multiscene =
             multiVisualisationEngine->CreateRenderState(mapManager->getLocalMap(0)->scene, out->noDims);
-      multiVisualisationEngine->PrepareRenderState(*mapManager, renderState_multiscene);
+      multiVisualisationEngine->PrepareRenderState(*mapManager, renderState_multiscene);        // 获取所有的子图信息
       multiVisualisationEngine->CreateExpectedDepths(pose, intrinsics, renderState_multiscene);
-      multiVisualisationEngine->RenderImage(pose, intrinsics, renderState_multiscene,
+      multiVisualisationEngine->RenderImage(pose, intrinsics, renderState_multiscene,       // TODO: 下次从这儿开始
                                             renderState_multiscene->raycastImage, type);
       if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
         out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);

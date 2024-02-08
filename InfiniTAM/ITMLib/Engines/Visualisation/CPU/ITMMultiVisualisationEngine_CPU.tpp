@@ -25,7 +25,7 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::PrepareRenderState(
   state->PrepareLocalMaps(mapManager);
 }
 
-template <class TVoxel, class TIndex>
+template <class TVoxel, class TIndex> // TODO: 下次从这儿开始
 void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ORUtils::SE3Pose *pose,
                                                                            const ITMIntrinsics *intrinsics,
                                                                            ITMRenderState *_renderState) const {

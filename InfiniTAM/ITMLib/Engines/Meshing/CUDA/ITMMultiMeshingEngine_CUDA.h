@@ -11,7 +11,7 @@ class ITMMultiMeshingEngine_CUDA : public ITMMultiMeshingEngine<TVoxel, TIndex> 
  public:
   void MeshScene(ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager) {}
 };
-
+/** 上面模板类的特例 */
 template<class TVoxel>
 class ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMultiMeshingEngine<TVoxel, ITMVoxelBlockHash> {
  private:
@@ -19,6 +19,7 @@ class ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMultiMes
   Vector4s *visibleBlockGlobalPos_device;
 
  public:
+ // NOTE: ITMVoxelBlockHash是模板中的类型，因此下面必须要加typename
   typedef typename ITMMultiIndex<ITMVoxelBlockHash>::IndexData MultiIndexData;
   typedef ITMMultiVoxel<TVoxel> MultiVoxelData;
   typedef ITMVoxelMapGraphManager<TVoxel, ITMVoxelBlockHash> MultiSceneManager;
