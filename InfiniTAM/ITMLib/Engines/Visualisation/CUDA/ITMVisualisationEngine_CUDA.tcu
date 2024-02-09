@@ -169,7 +169,7 @@ void ITMVisualisationEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepth
                                                           renderingBlockList_device, noTotalBlocks_device);
     ORcudaKernelCheck;
   }
-  // 单帧中小块的数量有限制
+  //! 单帧中小块的数量有限制
   uint noTotalBlocks;
   ORcudaSafeCall(cudaMemcpy(&noTotalBlocks, noTotalBlocks_device, sizeof(uint), cudaMemcpyDeviceToHost));
   if (noTotalBlocks == 0)
@@ -177,9 +177,8 @@ void ITMVisualisationEngine_CUDA<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepth
   if (noTotalBlocks > (unsigned)MAX_RENDERING_BLOCKS)
     noTotalBlocks = MAX_RENDERING_BLOCKS;
 
-  // go through rendering blocks
+  // go through rendering blocks, fill minmaxData
   { //! 遍历小块，确定最后raycasting像素的最大和最小深度值。分小块是为了防止 多个block的包围盒的重叠区域太多，导致浪费吗？？？
-    // fill minmaxData
     dim3 blockSize(16, 16);   // TODO: 这里的16应该是为了跟renderingBlockSizeX、renderingBlockSizeY保持一致???
     dim3 gridSize((unsigned int)ceil((float)noTotalBlocks / 4.0f), 4);
     fillBlocks_device<<<gridSize, blockSize>>>(noTotalBlocks, renderingBlockList_device, imgSize, minmaxData);

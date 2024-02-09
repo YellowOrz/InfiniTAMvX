@@ -2,7 +2,7 @@
 
 #include "ITMVisualisationHelpers_CUDA.h"
 
-using namespace ITMLib;
+using namespace ITMLib; // TODO: 应该用namespace ITMLib{...}
 
 //device implementations
 __global__ void ITMLib::countVisibleBlocks_device(const int *visibleEntryIDs, int noVisibleEntries,
@@ -64,7 +64,7 @@ __global__ void ITMLib::projectAndSplitBlocks_device(const ITMHashEntry *hashEnt
   const ITMHashEntry &blockData(hashEntries[visibleEntryIDs[in_offset]]);
   //! 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
   Vector2i upperLeft, lowerRight;   // 包围盒的左上、右下坐标
-  Vector2f zRange;
+  Vector2f zRange;                  // 包围盒的深度范围
   bool validProjection = false;
   if (in_offset < noVisibleEntries) // TODO:in_offset>noVisibleEntries应该return
     if (blockData.ptr >= 0)         // >=0表示当前block有效 
@@ -76,11 +76,11 @@ __global__ void ITMLib::projectAndSplitBlocks_device(const ITMHashEntry *hashEnt
 
   size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 包围盒中小块数量
       // TODO: 按照renderingBlockSizeX和renderingBlockSizeY都为16，不可能有requiredNumBlocks>1
-  if (!validProjection) requiredNumBlocks = 0;    // TODO：直接return 就好？还是为了一定要有下面的computePrefixSum_device？
+  if (!validProjection) requiredNumBlocks = 0;    // NOTE: 不能return，因为一定要有下面的computePrefixSum_device
   // 通过前缀和 来找到每个小块 在最终数组里的位置
   int out_offset = computePrefixSum_device<uint>(requiredNumBlocks, noTotalBlocks, blockDim.x, threadIdx.x);
   if (!validProjection) return;
-  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS)) return;
+  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS)) return;  // 单帧中小块的数量有限制  
 
   CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);  // 创建小块
 }
@@ -90,31 +90,28 @@ __global__ void ITMLib::checkProjectAndSplitBlocks_device(const ITMHashEntry *ha
                                                           const Vector2i imgSize, float voxelSize,
                                                           RenderingBlock *renderingBlocks, uint *noTotalBlocks) {
   int targetIdx = threadIdx.x + blockDim.x * blockIdx.x;
-  if (targetIdx >= noHashEntries)
-    return;
+  if (targetIdx >= noHashEntries) return;   // TODO: 这里不能return把？因为下面有computePrefixSum_device
 
   const ITMHashEntry &hashEntry = hashEntries[targetIdx];
-
-  Vector2i upperLeft, lowerRight;
-  Vector2f zRange;
+  //! 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
+  Vector2i upperLeft, lowerRight;   // 包围盒的左上、右下坐标
+  Vector2f zRange;                  // 包围盒的深度范围
   bool validProjection = false;
-  if (hashEntry.ptr >= 0)
+  if (hashEntry.ptr >= 0)           // >=0表示当前block有效 // NOTE: 相比上面的函数少了noVisibleEntries，因为用于子图
     validProjection =
         ProjectSingleBlock(hashEntry.pos, pose_M, intrinsics, imgSize, voxelSize, upperLeft, lowerRight, zRange);
-
+  //! 将包围盒分小块，每块大小(renderingBlockSizeX,renderingBlockSizeY)=(16,16)。ceilf是向上取整。为啥要分块渲染？？？
   Vector2i requiredRenderingBlocks(ceilf((float)(lowerRight.x - upperLeft.x + 1) / renderingBlockSizeX),
                                    ceilf((float)(lowerRight.y - upperLeft.y + 1) / renderingBlockSizeY));
-  size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y;
-  if (!validProjection)
-    requiredNumBlocks = 0;
-
+  size_t requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 包围盒中小块数量
+      // TODO: 按照renderingBlockSizeX和renderingBlockSizeY都为16，不可能有requiredNumBlocks>1
+  if (!validProjection) requiredNumBlocks = 0;    // NOTE: 不能return，因为一定要有下面的computePrefixSum_device
+  // 通过前缀和 来找到每个小块 在最终数组里的位置
   int out_offset = computePrefixSum_device<uint>(requiredNumBlocks, noTotalBlocks, blockDim.x, threadIdx.x);
-  if (requiredNumBlocks == 0)
-    return;
-  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS))
-    return;
+  if (requiredNumBlocks == 0) return;
+  if ((out_offset == -1) || (out_offset + requiredNumBlocks > MAX_RENDERING_BLOCKS)) return;  // 单帧中小块的数量有限制
 
-  CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);
+  CreateRenderingBlocks(renderingBlocks, out_offset, upperLeft, lowerRight, zRange);  // 创建小块
 }
 
 __global__ void ITMLib::fillBlocks_device(uint noTotalBlocks, const RenderingBlock *renderingBlocks,

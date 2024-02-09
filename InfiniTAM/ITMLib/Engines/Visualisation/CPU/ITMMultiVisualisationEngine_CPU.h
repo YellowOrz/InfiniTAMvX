@@ -15,7 +15,7 @@ class ITMMultiVisualisationEngine_CPU : public ITMMultiVisualisationEngine<TVoxe
   /**
    * @brief 准备所有子图的相关信息，比如三维场景、位姿等
    * @param[in] sceneManager  管理所有子图
-   * @param[in] state         
+   * @param[out] state        渲染结果        
    */
   void PrepareRenderState(const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager, ITMRenderState *state);
   /**

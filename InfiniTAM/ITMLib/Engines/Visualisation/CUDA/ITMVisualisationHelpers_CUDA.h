@@ -57,7 +57,19 @@ __global__ void projectAndSplitBlocks_device(const ITMHashEntry *hashEntries, co
                                              int noVisibleEntries, const Matrix4f pose_M, const Vector4f intrinsics,
                                              const Vector2i imgSize, float voxelSize, RenderingBlock *renderingBlocks,
                                              uint *noTotalBlocks);
-/** 暂时没有地方用到 */
+/**
+ * @brief 将所有的voxel block投影到当前相机视角 && 分小块记录最大最小深度。用来辅助后续raycast
+ * @param[in] hashEntries       hash table
+ * @param[in] noHashEntries     entry总数
+ * @param[in] pose_M            当前相机位姿。world to local
+ * @param[in] intrinsics        相机内参
+ * @param[in] imgSize           成像的图片大小
+ * @param[in] voxelSize         真实的voxel size。单位米
+ * @param[out] renderingBlocks  voxel block投影到成像平面后的分块
+ * @param[out] noTotalBlocks    上面分块的总数。
+ * @note 这里找到的最大最小深度就是后面raycast的搜索范围。分块可以更加精细地确定深度范围，从而减少后面raycast的搜索
+ * @note 用于子图
+ */
 __global__ void checkProjectAndSplitBlocks_device(const ITMHashEntry *hashEntries, int noHashEntries,
                                                   const Matrix4f pose_M, const Vector4f intrinsics,
                                                   const Vector2i imgSize, float voxelSize,
