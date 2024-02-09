@@ -103,7 +103,7 @@ void ITMVisualisationEngine_CPU<TVoxel, TIndex>::CreateExpectedDepths(const ITMS
                                                                       const ORUtils::SE3Pose *pose,
                                                                       const ITMIntrinsics *intrinsics,
                                                                       ITMRenderState *renderState) const {
-  //! 准备 获取彩色图大小 && raycast得到的图片
+  //! 准备：获取彩色图大小 && raycast得到的图片
   Vector2i imgSize = renderState->renderingRangeImage->noDims;  // 深度范围图的尺寸。比渲染图片小 (见minmaximg_subsample)
   Vector2f *minmaxData = renderState->renderingRangeImage->GetData(MEMORYDEVICE_CPU); // 深度范围图
   //! 给每个像素赋值最小和最大深度（0.2-3）
@@ -132,8 +132,8 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
   //! 获取可见的entry的id   
   // NOTE: UI界面中是在FindVisibleBlocks更新的，raycasting中是在融合中更新的
   ITMRenderState_VH *renderState_vh = (ITMRenderState_VH *)renderState; // TODO:为啥要转换？
-  const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();
-  int noVisibleEntries = renderState_vh->noVisibleEntries;
+  const int *visibleEntryIDs = renderState_vh->GetVisibleEntryIDs();    // 获取可见entries列表（即正被tracker处理的）的id
+  int noVisibleEntries = renderState_vh->noVisibleEntries;              // 可见entry的数量
 
   // go through list of visible 8x8x8 blocks
   //! 遍历每个可见的entry，找到需要render的block
@@ -144,9 +144,9 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
     const ITMHashEntry &blockData(scene->index.GetEntries()[visibleEntryIDs[blockNo]]);
     // 将单个可见的block投影到 当前视角下，并计算包围盒 && 深度范围
     Vector2i upperLeft, lowerRight; // 包围盒的左上、右下坐标
-    Vector2f zRange;
-    bool validProjection = false;
-    if (blockData.ptr >= 0)         // >=0表示当前block有效
+    Vector2f zRange;                // 包围盒的深度范围
+    bool validProjection = false;   // 当前voxel block能否投影到到当前帧（即是否可见）
+    if (blockData.ptr >= 0)         // >=0表示当前voxel block有效
       validProjection = ProjectSingleBlock(blockData.pos, pose->GetM(), intrinsics->projectionParamsSimple.all, imgSize,
                                            voxelSize, upperLeft, lowerRight, zRange);
     if (!validProjection) continue;
@@ -155,12 +155,12 @@ void ITMVisualisationEngine_CPU<TVoxel, ITMVoxelBlockHash>::CreateExpectedDepths
                                      (int)ceilf((float)(lowerRight.y - upperLeft.y + 1) / (float)renderingBlockSizeY));
     int requiredNumBlocks = requiredRenderingBlocks.x * requiredRenderingBlocks.y; // 包围盒中小块数量
         // TODO: 按照renderingBlockSizeX和renderingBlockSizeY都为16，不可能有requiredNumBlocks>1
-    if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS)
-      continue; // 单帧中小块的数量有限制  // TODO:这里应该换成break,∵一次超过限制了，之后肯定都超过限制
+    if (numRenderingBlocks + requiredNumBlocks >= MAX_RENDERING_BLOCKS) // 单帧中小块的数量有限制  
+      continue;       // TODO:这里应该换成break,∵一次超过限制了，之后肯定都超过限制
     int offset = numRenderingBlocks;
     numRenderingBlocks += requiredNumBlocks;
-
-    CreateRenderingBlocks(&(renderingBlocks[0]), offset, upperLeft, lowerRight, zRange);  // 创建小块
+    // 创建小块
+    CreateRenderingBlocks(&(renderingBlocks[0]), offset, upperLeft, lowerRight, zRange);
   }
 
   // go through rendering blocks
@@ -235,7 +235,7 @@ static void GenericRaycast(const ITMScene<TVoxel, TIndex> *scene, const Vector2i
  * @param[in] renderState   raycast的结果，主要用到其中的raycastResult
  * @param[out] outputImage  渲染得到的图片
  * @param[in] type          渲染类型
- * @param[in] raycastType   raycast的类型
+ * @param[in] raycastType   raycast的类型。比如新生成 or 直接用旧的 or 在旧的基础上增量
  */
 template <class TVoxel, class TIndex>
 static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUtils::SE3Pose *pose,
@@ -258,9 +258,9 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
     pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);
   }
   //! 根据渲染类型，从点云得到图片
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));      // 相机光心位置。取位姿的最后一列的负数
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));              // 相机光心位置。取位姿的最后一列的负数
   Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);  // 后面渲染得到的图片
-  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();   // voxel block array
+  const TVoxel *voxelData = scene->localVBA.GetVoxelBlocks();       // voxel block array
   const typename TIndex::IndexData *voxelIndex = scene->index.getIndexData(); // hash table
 
   if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))
@@ -276,7 +276,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
       processPixelColour<TVoxel, TIndex>(outRendering[locId], ptRay.toVector3(), ptRay.w > 0, voxelData, voxelIndex);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 单位法向量的伪彩色图
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 单位法向量的伪彩色图，从三维场景中得到
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif
@@ -286,7 +286,7 @@ static void RenderImage_common(const ITMScene<TVoxel, TIndex> *scene, const ORUt
                                          lightSource);
     }
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度的伪彩色图
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度的伪彩色图，从三维场景中得到
 #ifdef WITH_OPENMP
 #pragma omp parallel for
 #endif

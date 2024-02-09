@@ -24,8 +24,8 @@ class ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMultiMes
   typedef ITMMultiVoxel<TVoxel> MultiVoxelData;
   typedef ITMVoxelMapGraphManager<TVoxel, ITMVoxelBlockHash> MultiSceneManager;
 
-  MultiIndexData *indexData_device, indexData_host;
-  MultiVoxelData *voxelData_device, voxelData_host;
+  MultiIndexData *indexData_device, indexData_host; // 多个子图的基础信息
+  MultiVoxelData *voxelData_device, voxelData_host; // 多个子图中的voxel数据结构
 
   void MeshScene(ITMMesh *mesh, const MultiSceneManager &sceneManager);
 

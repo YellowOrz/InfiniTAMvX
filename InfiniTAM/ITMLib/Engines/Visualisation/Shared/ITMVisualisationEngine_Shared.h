@@ -279,6 +279,7 @@ _CPU_AND_GPU_CODE_ inline int forwardProjectPixel(Vector4f pixel, const CONSTPTR
  * @param[in] lightSource     相机光心位置
  * @param[out] outNormal      计算到的法向量
  * @param[out] angle          法向量与相机光心的夹角
+ * @note                      还有一种是从有序点云中计算法向量
  */
 template <class TVoxel, class TIndex>
 _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(Vector3f) & point,
@@ -301,14 +302,15 @@ _CPU_AND_GPU_CODE_ inline void computeNormalAndAngle(THREADPTR(bool) & foundPoin
  * @tparam useSmoothing 是否使用更大的范围计算，从而达到平滑的目的
  * @tparam flipNormals 计算出来的法向量是否要翻转，∵某些相机内参的焦距为负
  * @param[in, out] foundPoint 该点是否有效。在图像边缘被强制设为无效（因为没法算法向量）
- * @param[in] x 像素坐标
- * @param[in] y 像素坐标
- * @param[in] pointsRay 有序点云（voxel坐标）。第四个维度是权重
- * @param[in] lightSource 相机光心位置。用来计算夹角
+ * @param[in] x               像素坐标
+ * @param[in] y               像素坐标
+ * @param[in] pointsRay       有序点云（voxel坐标）。第四个维度是权重
+ * @param[in] lightSource     相机光心位置。用来计算夹角
  * @param[in] voxelSize
- * @param[in] imgSize 有序点云对应的图像大小（x+y）
- * @param[out] outNormal 该点的法向量
- * @param[out] angle 该点的法向量与lightSource的夹角的cosine。范围0-1
+ * @param[in] imgSize         有序点云对应的图像大小（x+y）
+ * @param[out] outNormal      该点的法向量
+ * @param[out] angle          该点的法向量与lightSource的夹角的cosine。范围0-1
+ * @note                      还有一种是从三维场景中计算法向量
  */
 template <bool useSmoothing, bool flipNormals>
 _CPU_AND_GPU_CODE_ inline void
@@ -318,7 +320,7 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
                       THREADPTR(Vector3f) & outNormal, THREADPTR(float) & angle) {
   if (!foundPoint)
     return;
-  //! 取相邻像素
+  //! 取相邻像素（上下左右）
   Vector4f xp1_y, xm1_y, x_yp1, x_ym1;
   if (useSmoothing) {   // 如果要平滑，则用更大的
     if (y <= 2 || y >= imgSize.y - 3 || x <= 2 || x >= imgSize.x - 3) {   // 图像边缘的不算
@@ -338,7 +340,7 @@ computeNormalAndAngle(THREADPTR(bool) & foundPoint, const THREADPTR(int) & x, co
     xm1_y = pointsRay[(x - 1) + y * imgSize.x], x_ym1 = pointsRay[x + (y - 1) * imgSize.x];
   }
   //! 计算差分
-  Vector4f diff_x(0.0f, 0.0f, 0.0f, 0.0f), diff_y(0.0f, 0.0f, 0.0f, 0.0f);
+  Vector4f diff_x(0.0f, 0.0f, 0.0f, 0.0f), diff_y(0.0f, 0.0f, 0.0f, 0.0f);  // TODO: 用上中心点计算法向量
   bool doPlus1 = false;   // 是否重新计算
   if (xp1_y.w <= 0 || x_yp1.w <= 0 || xm1_y.w <= 0 || x_ym1.w <= 0) // 只要相邻点有一个无效，就重算
     doPlus1 = true;
@@ -624,7 +626,7 @@ processPixelNormals_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONST
   bool foundPoint = point.w > 0.0f;
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-  //! 根据法向量伪彩色渲染
+  //! 将法向量转成伪彩色
   if (foundPoint)
     drawPixelNormal(outRendering[locId], outNormal);
   else
@@ -646,6 +648,7 @@ _CPU_AND_GPU_CODE_ inline void
 processPixelConfidence_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CONSTPTR(Vector4f) * pointsRay,
                                     const THREADPTR(Vector2i) & imgSize, const THREADPTR(int) & x,
                                     const THREADPTR(int) & y, float voxelSize, Vector3f lightSource) {
+  //! 计算法向量和夹角的cosine
   Vector3f outNormal;
   float angle;
 
@@ -655,7 +658,7 @@ processPixelConfidence_ImageNormals(DEVICEPTR(Vector4u) * outRendering, const CO
   bool foundPoint = point.w > 0.0f;
   computeNormalAndAngle<useSmoothing, flipNormals>(foundPoint, x, y, pointsRay, lightSource, voxelSize, imgSize,
                                                    outNormal, angle);
-
+  //! 根据夹角将置信度转成伪彩色
   if (foundPoint)
     drawPixelConfidence(outRendering[locId], angle, point.w - 1.0f);  // -1是因为raycast的时候+1，见castray()
   else
