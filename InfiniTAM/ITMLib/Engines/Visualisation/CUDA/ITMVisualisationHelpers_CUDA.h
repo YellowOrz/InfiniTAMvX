@@ -424,7 +424,7 @@ __global__ void renderColour_device(Vector4u *outRendering, const Vector4f *ptsR
 
   if (x >= imgSize.x || y >= imgSize.y) return;
 
-  int locId = x + y * imgSize.x;
+  int locId = x + y * imgSize.x;    // 二维坐标转一维坐标
 
   Vector4f ptRay = ptsRay[locId];
 

@@ -10,7 +10,7 @@ class ITMMultiVisualisationEngine_CPU : public ITMMultiVisualisationEngine<TVoxe
  public:
   ITMMultiVisualisationEngine_CPU(void) {}
   ~ITMMultiVisualisationEngine_CPU(void) {}
-
+  /** new一个新的ITMRenderState */
   ITMRenderState *CreateRenderState(const ITMScene<TVoxel, TIndex> *scene, const Vector2i &imgSize) const;
   /**
    * @brief 准备所有子图的相关信息，比如三维场景、位姿等
@@ -29,8 +29,6 @@ class ITMMultiVisualisationEngine_CPU : public ITMMultiVisualisationEngine<TVoxe
                             ITMRenderState *renderState) const;
   /**
    * @brief 根据渲染类型，从raycast得到的点云中得到图片
-   * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
-   * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
    * @param[in] pose          当前视角的相机位姿。world to local
    * @param[in] intrinsics    当前视角的相机参数，用于投影图片
    * @param[in] renderState   raycast的结果，主要用到其中的raycastResult

@@ -10,7 +10,7 @@ namespace ITMLib {
 template <class TVoxel, class TIndex>
 class ITMVisualisationEngine_CUDA : public ITMVisualisationEngine<TVoxel, TIndex> {
 private:
-  uint *noTotalPoints_device;
+  uint *noTotalPoints_device;   // 渲染像素的总数，临时存放在GPU上
 
 public:
   explicit ITMVisualisationEngine_CUDA(void);
@@ -114,9 +114,9 @@ template <class TVoxel>
 class ITMVisualisationEngine_CUDA<TVoxel, ITMVoxelBlockHash>
     : public ITMVisualisationEngine<TVoxel, ITMVoxelBlockHash> {
 private:
-  uint *noTotalPoints_device;                 // ???(在GPU上的临时存放)
+  uint *noTotalPoints_device;                 // 渲染像素的总数(在GPU上的临时存放)
   RenderingBlock *renderingBlockList_device;  // render小块(在GPU上的临时存放)
-  uint *noTotalBlocks_device;                 // 可见entries数量(在GPU上的临时存放)
+  uint *noTotalBlocks_device;                 // 可见entries数量(在GPU上的临时存放) // TODO: 应该叫noVisibleBlocks_device
   int *noVisibleEntries_device;               // 可见entries列表(在GPU上的临时存放)
 
 public:

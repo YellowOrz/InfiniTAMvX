@@ -34,7 +34,7 @@ void ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>::PrepareRenderState(
     const ITMVoxelMapGraphManager<TVoxel, TIndex> &mapManager, ITMRenderState *_state) {
   ITMRenderStateMultiScene<TVoxel, TIndex> *state = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_state;
 
-  state->PrepareLocalMaps(mapManager);
+  state->PrepareLocalMaps(mapManager);  // 获取所有子图的相关信息，比如三维场景、位姿等
 }
 
 template <class TVoxel, class TIndex>
@@ -92,16 +92,15 @@ void ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>::RenderImage( // TODO:　�
     const ORUtils::SE3Pose *pose, const ITMIntrinsics *intrinsics, ITMRenderState *_renderState,
     ITMUChar4Image *outputImage, IITMVisualisationEngine::RenderImageType type) const {
   ITMRenderStateMultiScene<TVoxel, TIndex> *renderState = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_renderState;
+  //! 获取raycast的渲染结果
+  Vector2i imgSize = outputImage->noDims; // 渲染图片的分辨率
+  Matrix4f invM = pose->GetInvM();        // 相机位姿的逆
 
-  Vector2i imgSize = outputImage->noDims;
-  Matrix4f invM = pose->GetInvM();
-
-  // Generic Raycast
-  {
-    Vector4f projParams = intrinsics->projectionParamsSimple.all;
+  {//! raycasting的核心部分，得到点云。 Generic Raycast
+    Vector4f projParams = intrinsics->projectionParamsSimple.all; // 相机内参，即fx、fy、cx(px)、cy(py)
     float voxelSize = renderState->sceneParams.voxelSize;
-    float oneOverVoxelSize = 1.0f / voxelSize;
-    float mu = renderState->sceneParams.mu;
+    float oneOverVoxelSize = 1.0f / voxelSize;                    // voxel size的倒数
+    float mu = renderState->sceneParams.mu;                       // SDF的截断值对应的距离
 
     dim3 cudaBlockSize(16, 12);
     dim3 gridSize((int)ceil((float)imgSize.x / (float)cudaBlockSize.x),
@@ -114,26 +113,26 @@ void ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>::RenderImage( // TODO:　�
         renderState->renderingRangeImage->GetData(MEMORYDEVICE_CUDA), mu);
     ORcudaKernelCheck;
   }
-
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));
-  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CUDA);
-  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA);
+  //! 根据渲染类型，从点云得到图片
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));                          // 相机光心位置。取位姿的最后一列的负数
+  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CUDA);             // 后面渲染得到的图片
+  Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CUDA); // 上面raycast得到的点云
 
   dim3 cudaBlockSize(8, 8);
   dim3 gridSize((int)ceil((float)imgSize.x / (float)cudaBlockSize.x),
                 (int)ceil((float)imgSize.y / (float)cudaBlockSize.y));
 
   if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))
-    type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;
+    type = IITMVisualisationEngine::RENDER_SHADED_GREYSCALE;      // 想要color但是没有，强制设为grey
 
   switch (type) {
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME:            //! 彩色图，从三维场景中得到
     renderColour_device<ITMMultiVoxel<TVoxel>, ITMMultiIndex<TIndex>><<<gridSize, cudaBlockSize>>>(
         outRendering, pointsRay, renderState->voxelData_device, renderState->indexData_device, imgSize);
     ORcudaKernelCheck;
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:
-    if (intrinsics->FocalLengthSignsDiffer())
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_NORMAL:            //! 单位法向量的伪彩色图，从上面的点云得到
+    if (intrinsics->FocalLengthSignsDiffer())   // 相机内参的焦距为负，法向量要翻转
       renderNormals_ImageNormals_device<true><<<gridSize, cudaBlockSize>>>(
           outRendering, pointsRay, imgSize, renderState->sceneParams.voxelSize, lightSource);
     else
@@ -141,8 +140,8 @@ void ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>::RenderImage( // TODO:　�
           outRendering, pointsRay, imgSize, renderState->sceneParams.voxelSize, lightSource);
     ORcudaKernelCheck;
     break;
-  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:
-    if (intrinsics->FocalLengthSignsDiffer())
+  case IITMVisualisationEngine::RENDER_COLOUR_FROM_CONFIDENCE:        //! 置信度的伪彩色图，从上面的点云得到
+    if (intrinsics->FocalLengthSignsDiffer())   // 相机内参的焦距为负，法向量要翻转
       renderConfidence_ImageNormals_device<true><<<gridSize, cudaBlockSize>>>(
           outRendering, pointsRay, imgSize, renderState->sceneParams.voxelSize, lightSource);
     else
@@ -150,9 +149,9 @@ void ITMMultiVisualisationEngine_CUDA<TVoxel, TIndex>::RenderImage( // TODO:　�
           outRendering, pointsRay, imgSize, renderState->sceneParams.voxelSize, lightSource);
     ORcudaKernelCheck;
     break;
-  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:
+  case IITMVisualisationEngine::RENDER_SHADED_GREYSCALE:              //! 法向量夹角图（灰度），从上面的点云得到
   default:
-    if (intrinsics->FocalLengthSignsDiffer())
+    if (intrinsics->FocalLengthSignsDiffer())   // 相机内参的焦距为负，法向量要翻转
       renderGrey_ImageNormals_device<true><<<gridSize, cudaBlockSize>>>(
           outRendering, pointsRay, renderState->sceneParams.voxelSize, imgSize, lightSource);
     else

@@ -11,13 +11,13 @@ namespace ITMLib {
 template<class TVoxel, class TIndex>
 class ITMMultiVisualisationEngine_CUDA : public ITMMultiVisualisationEngine<TVoxel, TIndex> {
  private:
-  RenderingBlock *renderingBlockList_device;
-  uint *noTotalBlocks_device;
+  RenderingBlock *renderingBlockList_device;  // render小块(在GPU上的临时存放)
+  uint *noTotalBlocks_device;                 // entry总数(在GPU上的临时存放)
 
  public:
   ITMMultiVisualisationEngine_CUDA(void);
   ~ITMMultiVisualisationEngine_CUDA(void);
-
+  /** new一个新的ITMRenderState */
   ITMRenderState *CreateRenderState(const ITMScene<TVoxel, TIndex> *scene, const Vector2i &imgSize) const;
   /**
    * @brief 准备所有子图的相关信息，比如三维场景、位姿等

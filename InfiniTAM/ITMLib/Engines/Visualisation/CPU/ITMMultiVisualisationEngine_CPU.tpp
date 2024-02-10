@@ -22,7 +22,7 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::PrepareRenderState(
     const ITMVoxelMapGraphManager<TVoxel, TIndex> &mapManager, ITMRenderState *_state) {
   ITMRenderStateMultiScene<TVoxel, TIndex> *state = (ITMRenderStateMultiScene<TVoxel, TIndex> *)_state;
 
-  state->PrepareLocalMaps(mapManager);
+  state->PrepareLocalMaps(mapManager);  // 获取所有子图的相关信息，比如三维场景、位姿等
 }
 
 template <class TVoxel, class TIndex>
@@ -134,8 +134,8 @@ void ITMMultiVisualisationEngine_CPU<TVoxel, TIndex>::RenderImage(const ORUtils:
     }
   }
   //! 根据渲染类型，从点云得到图片
-  Vector3f lightSource = -Vector3f(invM.getColumn(2));                // 相机光心位置。取位姿的最后一列的负数
-  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);    // 后面渲染得到的图片
+  Vector3f lightSource = -Vector3f(invM.getColumn(2));                          // 相机光心位置。取位姿的最后一列的负数
+  Vector4u *outRendering = outputImage->GetData(MEMORYDEVICE_CPU);              // 后面渲染得到的图片
   Vector4f *pointsRay = renderState->raycastResult->GetData(MEMORYDEVICE_CPU);  // 上面raycast得到的点云
 
   if ((type == IITMVisualisationEngine::RENDER_COLOUR_FROM_VOLUME) && (!TVoxel::hasColorInformation))

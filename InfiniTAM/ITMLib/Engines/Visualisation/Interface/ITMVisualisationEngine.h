@@ -25,9 +25,11 @@ public:
   };
 
   virtual ~IITMVisualisationEngine(void) {}
-
+  /** 将深度图从float类型转uchar4类型 */
   static void DepthToUchar4(ITMUChar4Image *dst, const ITMFloatImage *src);
+  /** 将法向量从float4类型转uchar4类型 */
   static void NormalToUchar4(ITMUChar4Image *dst, const ITMFloat4Image *src);
+  /** 将权重图从float类型转uchar4类型 */
   static void WeightToUchar4(ITMUChar4Image *dst, const ITMFloatImage *src);
 };
 

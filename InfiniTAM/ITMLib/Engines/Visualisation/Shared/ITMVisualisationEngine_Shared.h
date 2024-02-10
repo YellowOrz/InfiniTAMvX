@@ -73,38 +73,24 @@ ProjectSingleBlock(const THREADPTR(Vector3s) & blockPos, const THREADPTR(Matrix4
     pt2d.y = (intrinsics.y * pt3d.y / pt3d.z + intrinsics.w) / minmaximg_subsample;
 
     // 确定最大的包围盒。remember bounding box, zmin and zmax
-    if (upperLeft.x > floor(pt2d.x))
-      upperLeft.x = (int)floor(pt2d.x);
-    if (lowerRight.x < ceil(pt2d.x))
-      lowerRight.x = (int)ceil(pt2d.x);
-    if (upperLeft.y > floor(pt2d.y))
-      upperLeft.y = (int)floor(pt2d.y);
-    if (lowerRight.y < ceil(pt2d.y))
-      lowerRight.y = (int)ceil(pt2d.y);
-    if (zRange.x > pt3d.z)
-      zRange.x = pt3d.z;
-    if (zRange.y < pt3d.z)
-      zRange.y = pt3d.z;
+    if (upperLeft.x > floor(pt2d.x)) upperLeft.x = (int)floor(pt2d.x);
+    if (lowerRight.x < ceil(pt2d.x)) lowerRight.x = (int)ceil(pt2d.x);
+    if (upperLeft.y > floor(pt2d.y)) upperLeft.y = (int)floor(pt2d.y);
+    if (lowerRight.y < ceil(pt2d.y)) lowerRight.y = (int)ceil(pt2d.y);
+    if (zRange.x > pt3d.z) zRange.x = pt3d.z;
+    if (zRange.y < pt3d.z) zRange.y = pt3d.z;
   }
 
   // 防止越界。do some sanity checks and respect image bounds
-  if (upperLeft.x < 0)
-    upperLeft.x = 0;
-  if (upperLeft.y < 0)
-    upperLeft.y = 0;
-  if (lowerRight.x >= imgSize.x)
-    lowerRight.x = imgSize.x - 1;
-  if (lowerRight.y >= imgSize.y)
-    lowerRight.y = imgSize.y - 1;
-  if (upperLeft.x > lowerRight.x)
-    return false;
-  if (upperLeft.y > lowerRight.y)
-    return false;
+  if (upperLeft.x < 0) upperLeft.x = 0;
+  if (upperLeft.y < 0) upperLeft.y = 0;
+  if (lowerRight.x >= imgSize.x) lowerRight.x = imgSize.x - 1;
+  if (lowerRight.y >= imgSize.y) lowerRight.y = imgSize.y - 1;
+  if (upperLeft.x > lowerRight.x) return false;
+  if (upperLeft.y > lowerRight.y) return false;
   // if (zRange.y <= VERY_CLOSE) return false; never seems to happen
-  if (zRange.x < VERY_CLOSE)
-    zRange.x = VERY_CLOSE;
-  if (zRange.y < VERY_CLOSE)
-    return false;
+  if (zRange.x < VERY_CLOSE) zRange.x = VERY_CLOSE;
+  if (zRange.y < VERY_CLOSE) return false;
 
   return true;
 }
@@ -134,10 +120,8 @@ _CPU_AND_GPU_CODE_ inline void CreateRenderingBlocks(DEVICEPTR(RenderingBlock) *
       b.upperLeft.y = upperLeft.y + by * renderingBlockSizeY;
       b.lowerRight.x = upperLeft.x + (bx + 1) * renderingBlockSizeX - 1;
       b.lowerRight.y = upperLeft.y + (by + 1) * renderingBlockSizeY - 1;
-      if (b.lowerRight.x > lowerRight.x)
-        b.lowerRight.x = lowerRight.x;
-      if (b.lowerRight.y > lowerRight.y)
-        b.lowerRight.y = lowerRight.y;
+      if (b.lowerRight.x > lowerRight.x) b.lowerRight.x = lowerRight.x;
+      if (b.lowerRight.y > lowerRight.y) b.lowerRight.y = lowerRight.y;
       // 深度值范围不变
       b.zRange = zRange;
     }
