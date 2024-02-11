@@ -451,15 +451,14 @@ void ITMMultiEngine<TVoxel, TIndex>::GetImage(ITMUChar4Image *out, GetImageType 
         renderState_multiscene =
             multiVisualisationEngine->CreateRenderState(mapManager->getLocalMap(0)->scene, out->noDims);
       multiVisualisationEngine->PrepareRenderState(*mapManager, renderState_multiscene);        // 获取所有的子图信息
-      multiVisualisationEngine->CreateExpectedDepths(pose, intrinsics, renderState_multiscene);
-      multiVisualisationEngine->RenderImage(pose, intrinsics, renderState_multiscene,       // TODO: 下次从这儿开始
+      multiVisualisationEngine->CreateExpectedDepths(pose, intrinsics, renderState_multiscene); // 计算 深度范围图
+      multiVisualisationEngine->RenderImage(pose, intrinsics, renderState_multiscene,           // 渲染图片
                                             renderState_multiscene->raycastImage, type);
       if (settings->deviceType == ITMLibSettings::DEVICE_CUDA)
         out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CUDA_TO_CPU);
       else
         out->SetFrom(renderState_multiscene->raycastImage, ORUtils::MemoryBlock<Vector4u>::CPU_TO_CPU);
     }
-
     break;
   }
   case ITMMultiEngine::InfiniTAM_IMAGE_UNKNOWN:

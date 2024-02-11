@@ -10,7 +10,7 @@ namespace ITMLib {
 template<class TVoxel, class TIndex>
 class ITMMultiMeshingEngine {
  public:
-  virtual ~ITMMultiMeshingEngine(void) {}
+  virtual ~ITMMultiMeshingEngine(void) {} // TODO:下次从这儿开始
 
   virtual void MeshScene(ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager) = 0;
 };

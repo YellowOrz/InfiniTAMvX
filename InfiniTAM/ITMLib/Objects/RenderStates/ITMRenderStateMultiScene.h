@@ -22,7 +22,7 @@ class ITMRenderStateMultiScene : public ITMRenderState {
   MultiIndexData *indexData_device;   // 在GPU上的存档
   MultiVoxelData *voxelData_device;
 #endif
-  MultiIndexData indexData_host;  // 记录多个子图的基础信息。比如全局id、位姿等
+  MultiIndexData indexData_host;  // 记录多个子图的基础信息。比如hash table、位姿等
   MultiVoxelData voxelData_host;  // 记录多个子图的voxel array指针
 
   ITMSceneParams sceneParams;     // 三维场景的参数。所有子图都一样
@@ -57,7 +57,7 @@ class ITMRenderStateMultiScene : public ITMRenderState {
     int num = (int) sceneManager.numLocalMaps();          // 子图的总数
     if (num > MAX_NUM_LOCALMAPS) num = MAX_NUM_LOCALMAPS; // 子图的总数不能超过32
     indexData_host.numLocalMaps = num;
-    //! 遍历每个子图
+    //! 遍历每个子图，获取相关信息
     for (int localMapId = 0; localMapId < num; ++localMapId) {
       // 获取每个子图在voxel坐标系下的世界到子图的位姿
       indexData_host.poses_vs[localMapId] = sceneManager.getEstimatedGlobalPose(localMapId).GetM();// 世界到子图位姿，T_sw

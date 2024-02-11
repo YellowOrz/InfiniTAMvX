@@ -20,7 +20,7 @@ class ITMTrackingController {
   void Track(ITMTrackingState *trackingState, const ITMView *view) {
     tracker->TrackCamera(trackingState, view);
   }
-
+  /** 给surfel用的 */
   template<typename TSurfel>
   void Prepare(ITMTrackingState *trackingState, const ITMSurfelScene<TSurfel> *scene, const ITMView *view,
                const ITMSurfelVisualisationEngine<TSurfel> *visualisationEngine, ITMSurfelRenderState *renderState) {

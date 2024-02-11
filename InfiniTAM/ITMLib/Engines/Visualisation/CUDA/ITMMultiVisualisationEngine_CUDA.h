@@ -26,7 +26,7 @@ class ITMMultiVisualisationEngine_CUDA : public ITMMultiVisualisationEngine<TVox
    */
   void PrepareRenderState(const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager, ITMRenderState *state);
   /**
-   * @brief 将raycasting中每条ray的最小和最大深度（即搜索范围）设置为常数。用来辅助后面 更快地投影 图像
+   * @brief 根据可见的block的投影，设置 raycasting中每条ray的搜索范围（最大最小深度）。用来辅助后面 更快地投影 图像
    * @param[in] pose          当前相机位姿。world to local
    * @param[in] intrinsics    相机内参，用于投影图片
    * @param[out] renderState  渲染相关变量。主要用到其中的renderingRangeImage，来记录raycasting中每条ray的深度范围
