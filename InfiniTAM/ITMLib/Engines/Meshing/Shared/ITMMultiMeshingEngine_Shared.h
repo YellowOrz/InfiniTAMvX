@@ -2,16 +2,13 @@
 
 #pragma once
 
-#include "ITMMultiMeshingEngine_Shared.h"
 #include "../../../Objects/Scene/ITMMultiSceneAccess.h"
+#include "ITMMultiMeshingEngine_Shared.h"
 
-template<class TVoxel, class TIndex>
-_CPU_AND_GPU_CODE_ inline bool findPointNeighborsMulti(THREADPTR(Vector3f) *p,
-                                                       THREADPTR(float) *sdf,
-                                                       Vector3i blockLocation,
-                                                       const CONSTPTR(TVoxel) *localVBA,
-                                                       const CONSTPTR(TIndex) *hashTables,
-                                                       int hashTableIdx) {
+template <class TVoxel, class TIndex>
+_CPU_AND_GPU_CODE_ inline bool findPointNeighborsMulti(THREADPTR(Vector3f) * p, THREADPTR(float) * sdf,
+                                                       Vector3i blockLocation, const CONSTPTR(TVoxel) * localVBA,
+                                                       const CONSTPTR(TIndex) * hashTables, int hashTableIdx) {
   int vmIndex;
   Vector3i localBlockLocation;
 
@@ -59,19 +56,28 @@ _CPU_AND_GPU_CODE_ inline bool findPointNeighborsMulti(THREADPTR(Vector3f) *p,
 
   return true;
 }
-
-template<class TVoxel, class TIndex>
-_CPU_AND_GPU_CODE_ inline int buildVertListMulti(THREADPTR(Vector3f) *vertList,
-                                                 Vector3i globalPos,
-                                                 Vector3i localPos,
-                                                 const CONSTPTR(TVoxel) *localVBA,
-                                                 const CONSTPTR(TIndex) *hashTable,
+/**
+ * 找到cube中在等值面上的点，作为后续三角面片的顶点
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @param[out] vertList     cube每条边上在等值面上的点，作为后续三角面片的顶点
+ * @param[in] globalPos     block左下角voxel的坐标（即全局坐标）
+ * @param[in] localPos      block内部每个voxel的坐标（即局部坐标）。最终voxel坐标=globalPos+localPos
+ * @param[in] localVBA      device上的voxel block array
+ * @param[in] hashTable     hash table
+ * @param[in] hashTableIdx  
+ * @return                  cube的类型
+ */
+template <class TVoxel, class TIndex>
+_CPU_AND_GPU_CODE_ inline int buildVertListMulti(THREADPTR(Vector3f) * vertList, Vector3i globalPos, Vector3i localPos,
+                                                 const CONSTPTR(TVoxel) * localVBA, const CONSTPTR(TIndex) * hashTable,
                                                  int hashTableIdx) {
+  //! 获取当前cube的8个顶点 && sdf值
   Vector3f points[8];
   float sdfVals[8];
-
   if (!findPointNeighborsMulti(points, sdfVals, globalPos + localPos, localVBA, hashTable, hashTableIdx)) return -1;
-
+  //! 根据一个正方形8个顶点里面哪些的sdf值<0，从而推断出当前cube属于事先设定表的id
+  // 顶点顺序参考图片（红色数字）http://paulbourke.net/geometry/polygonise/polygonise1.gif
+  // cube id用二进制表示，如果一个点的sdf<0，则id号对应点标号的位置为1。所以下面使用“或”操作
   int cubeIndex = 0;
   if (sdfVals[0] < 0) cubeIndex |= 1;
   if (sdfVals[1] < 0) cubeIndex |= 2;
@@ -83,7 +89,7 @@ _CPU_AND_GPU_CODE_ inline int buildVertListMulti(THREADPTR(Vector3f) *vertList,
   if (sdfVals[7] < 0) cubeIndex |= 128;
 
   if (edgeTable[cubeIndex] == 0) return -1;
-
+  //! 根据所属类型，插值得到每条边上在等值面上的点，作为后续三角面片的顶点
   if (edgeTable[cubeIndex] & 1) vertList[0] = sdfInterp(points[0], points[1], sdfVals[0], sdfVals[1]);
   if (edgeTable[cubeIndex] & 2) vertList[1] = sdfInterp(points[1], points[2], sdfVals[1], sdfVals[2]);
   if (edgeTable[cubeIndex] & 4) vertList[2] = sdfInterp(points[2], points[3], sdfVals[2], sdfVals[3]);

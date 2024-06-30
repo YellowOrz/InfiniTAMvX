@@ -6,9 +6,11 @@
 #include "../../../Objects/Scene/ITMPlainVoxelArray.h"
 
 namespace ITMLib {
+/** GPU版的抽网格接口（抽象类） */
 template<class TVoxel, class TIndex>
 class ITMMeshingEngine_CUDA : public ITMMeshingEngine<TVoxel, TIndex> {};
-/** 上面模板类的偏特化，针对hashing索引的三维模型 */
+
+/** GPU版的抽网格接口。上面模板类的偏特化，针对hashing索引的三维模型 */
 template<class TVoxel>
 class ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMeshingEngine<TVoxel, ITMVoxelBlockHash> {
  private:
@@ -26,7 +28,8 @@ class ITMMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMeshingEngine
   ITMMeshingEngine_CUDA(void);
   ~ITMMeshingEngine_CUDA(void);
 };
-/** 上面模板类的偏特化，针对下标索引的三维模型。但其实没有实现 */
+
+/** GPU版的抽网格接口。上面模板类的偏特化，针对下标索引的三维模型。但其实没有实现 */
 template <class TVoxel>
 class ITMMeshingEngine_CUDA<TVoxel, ITMPlainVoxelArray> : public ITMMeshingEngine<TVoxel, ITMPlainVoxelArray> {
  public:

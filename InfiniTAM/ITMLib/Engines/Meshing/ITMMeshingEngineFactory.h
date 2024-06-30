@@ -9,16 +9,13 @@
 
 namespace ITMLib {
 
-/**
- * \brief This struct provides functions that can be used to construct meshing engines.
- */
+/** 抽网格的工厂类。This struct provides functions that can be used to construct meshing engines. */
 struct ITMMeshingEngineFactory {
   // #################### PUBLIC STATIC MEMBER FUNCTIONS ####################
 
   /**
-   * \brief 构造mesh模块
-   * Makes a meshing engine.
-   * \param deviceType  The device on which the meshing engine should operate.
+   * @brief 设备类型选择mesh接口。Makes a meshing engine.
+   * @param[in] deviceType  The device on which the meshing engine should operate.
    */
   template <typename TVoxel, typename TIndex>
   static ITMMeshingEngine<TVoxel, TIndex> *MakeMeshingEngine(ITMLibSettings::DeviceType deviceType) {

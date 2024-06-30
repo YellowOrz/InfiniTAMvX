@@ -6,11 +6,18 @@
 #include "../../../Objects/Scene/ITMMultiSceneAccess.h"
 
 namespace ITMLib {
+/** GPU版的多子图抽网格接口 */
 template<class TVoxel, class TIndex>
 class ITMMultiMeshingEngine_CUDA : public ITMMultiMeshingEngine<TVoxel, TIndex> {
  public:
+  /**
+   * @brief 从多个子图中抽取mesh
+   * @param[out] mesh
+   * @param[in] sceneManager  子图管理器
+   */
   void MeshScene(ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, TIndex> &sceneManager) {}
 };
+
 /** 上面模板类的特例 */
 template<class TVoxel>
 class ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash> : public ITMMultiMeshingEngine<TVoxel, ITMVoxelBlockHash> {

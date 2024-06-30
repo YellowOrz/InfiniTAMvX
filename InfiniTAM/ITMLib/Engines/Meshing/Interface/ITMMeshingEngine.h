@@ -8,10 +8,15 @@
 #include "../../../Objects/Scene/ITMScene.h"
 
 namespace ITMLib {
+/** 抽网格的接口（抽象类） */
 template<class TVoxel, class TIndex>
 class ITMMeshingEngine {
  public:
-
+  /**
+   * @brief 从三维场景中抽取mesh
+   * @param[out] mesh
+   * @param[in] scene  三维场景
+   */
   virtual void MeshScene(ITMMesh *mesh, const ITMScene<TVoxel, TIndex> *scene) = 0;
 
   ITMMeshingEngine(void) {}

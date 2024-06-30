@@ -346,11 +346,11 @@ _CPU_AND_GPU_CODE_ inline bool findPointNeighbors(THREADPTR(Vector3f) * p, THREA
 }
 /**
  * @brief 根据sdf值，对两个point做插值，得到等值面（sdf=0）上的point
- * @param[in] p1 point1
- * @param[in] p2 point2
+ * @param[in] p1    point1
+ * @param[in] p2    point2
  * @param[in] valp1 p1的sdf值
  * @param[in] valp2 p2的sdf值
- * @return 等值面（sdf=0）上的point
+ * @return          等值面（sdf=0）上的point
  */
 _CPU_AND_GPU_CODE_ inline Vector3f sdfInterp(const THREADPTR(Vector3f) & p1, const THREADPTR(Vector3f) & p2,
                                              float valp1, float valp2) {
@@ -367,10 +367,10 @@ _CPU_AND_GPU_CODE_ inline Vector3f sdfInterp(const THREADPTR(Vector3f) & p1, con
  * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
  * @param[out] vertList cube每条边上在等值面上的点，作为后续三角面片的顶点
  * @param[in] globalPos block左下角voxel的坐标（即全局坐标）
- * @param[in] localPos block内部每个voxel的坐标（即局部坐标）。最终voxel坐标=globalPos+localPos
- * @param[in] localVBA device上的voxel block array
+ * @param[in] localPos  block内部每个voxel的坐标（即局部坐标）。最终voxel坐标=globalPos+localPos
+ * @param[in] localVBA  device上的voxel block array
  * @param[in] hashTable hash table
- * @return cube的类型
+ * @return              cube的类型
  */
 template <class TVoxel>
 _CPU_AND_GPU_CODE_ inline int buildVertList(THREADPTR(Vector3f) * vertList, Vector3i globalPos, Vector3i localPos,

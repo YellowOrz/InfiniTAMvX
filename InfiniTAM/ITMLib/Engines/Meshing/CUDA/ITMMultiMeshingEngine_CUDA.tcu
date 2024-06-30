@@ -33,7 +33,7 @@ __global__ void meshScene_device(ITMMesh::Triangle *triangles, unsigned int *noT
  */
 template <class TMultiIndex>
 __global__ void findAllocateBlocks(Vector4s *visibleBlockGlobalPos, const TMultiIndex *hashTables, int noTotalEntries);
-
+/** 构造函数 */
 template <class TVoxel> ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::ITMMultiMeshingEngine_CUDA(void) {
   ORcudaSafeCall(
       cudaMalloc((void **)&visibleBlockGlobalPos_device, SDF_LOCAL_BLOCK_NUM * sizeof(Vector4s) * MAX_NUM_LOCALMAPS));
@@ -42,7 +42,7 @@ template <class TVoxel> ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::I
   ORcudaSafeCall(cudaMalloc((void **)&indexData_device, sizeof(MultiIndexData)));
   ORcudaSafeCall(cudaMalloc((void **)&voxelData_device, sizeof(MultiVoxelData)));
 }
-
+/** 析构函数 */
 template <class TVoxel> ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~ITMMultiMeshingEngine_CUDA(void) {
   ORcudaSafeCall(cudaFree(visibleBlockGlobalPos_device));
   ORcudaSafeCall(cudaFree(noTriangles_device));
@@ -52,13 +52,13 @@ template <class TVoxel> ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::~
 }
 
 template <class TVoxel>
-void ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::MeshScene( // TODO:下次从这儿开始
+void ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::MeshScene(
     ITMMesh *mesh, const ITMVoxelMapGraphManager<TVoxel, ITMVoxelBlockHash> &sceneManager) {
   const ITMSceneParams &sceneParams = *(sceneManager.getLocalMap(0)->scene->sceneParams); // 三维场景的参数，所有子图都一样
   int numLocalMaps = (int)sceneManager.numLocalMaps();                                    // 子图的总数
 
   { //! 遍历每个子图，获取相关信息。prepare MultiIndex etc.
-    if (numLocalMaps > MAX_NUM_LOCALMAPS) numLocalMaps = MAX_NUM_LOCALMAPS;
+    if (numLocalMaps > MAX_NUM_LOCALMAPS) numLocalMaps = MAX_NUM_LOCALMAPS;               // 限制能处理的子图数量
     indexData_host.numLocalMaps = numLocalMaps;
     for (int localMapId = 0; localMapId < numLocalMaps; ++localMapId) {
       // 获取每个子图在voxel坐标系下的世界到子图的位姿
@@ -68,7 +68,7 @@ void ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::MeshScene( // TODO:�
       indexData_host.poses_vs[localMapId].m32 /= sceneParams.voxelSize;
       // 获取每个子图在voxel坐标系下的子图到世界的位姿  // TODO: 在ITMRenderStateMultiScene.h中是真实坐标系，不是voxel坐标系
       indexData_host.posesInv[localMapId] = sceneManager.getEstimatedGlobalPose(localMapId).GetInvM();
-      indexData_host.posesInv[localMapId].m30 /= sceneParams.voxelSize;
+      indexData_host.posesInv[localMapId].m30 /= sceneParams.voxelSize; // TODO: 不用除voxelSize
       indexData_host.posesInv[localMapId].m31 /= sceneParams.voxelSize;
       indexData_host.posesInv[localMapId].m32 /= sceneParams.voxelSize;
       // 获取每个子图的hash table的指针
@@ -82,6 +82,7 @@ void ITMMultiMeshingEngine_CUDA<TVoxel, ITMVoxelBlockHash>::MeshScene( // TODO:�
   }
 
   ITMMesh::Triangle *triangles = mesh->triangles->GetData(MEMORYDEVICE_CUDA); // 获取之后三角面片存储位置的指针
+      // TODO: 应该triangles->Clear();
 
   typedef ITMMultiVoxel<TVoxel> VD;             // 多子图中的voxel数据结构
   typedef ITMMultiIndex<ITMVoxelBlockHash> ID;  // 多子图的基础信息。hash table、位姿等
