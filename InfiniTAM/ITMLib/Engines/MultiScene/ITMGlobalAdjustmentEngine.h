@@ -26,7 +26,7 @@ namespace ITMLib {
 */
 class ITMGlobalAdjustmentEngine {
  private:
-  struct PrivateData;
+  struct PrivateData;                       // 并行线程中，用到的锁等变量 // TODO：为啥要再弄个结构体？
 
  public:
   ITMGlobalAdjustmentEngine(void);
@@ -41,14 +41,17 @@ class ITMGlobalAdjustmentEngine {
   bool isBusyEstimating(void) const;
 
   /**
-   * @brief ？？？根据当前观测更新位姿图
-   * @details 如果线程Check whether thread is busy, if it is, return false, otherwise create a copy of all new measurements and make it busy
+   * @brief 将所有子图的位姿和link信息添加到 位姿图中
+   * Check whether thread is busy, if it is, return false, otherwise create a copy of all new measurements and make it busy
    * @param[in] src 所有子图的管理器
-   * @return true   更新成功
-   * @return false  更新失败
+   * @return        是否更新成功。当优化进行时，更新失败
    */
   bool updateMeasurements(const ITMMapGraphManager &src);
-
+  /**
+   * @brief 进行一次全局优化
+   * @param[in] blockingWait  当位姿图更新的时候是否等待。不等待的话直接返回false
+   * @return                  是否优化成功。当位姿图为空 or 位姿图更新中但是不等待，优化失败    
+   */
   bool runGlobalAdjustment(bool blockingWait = false);
 
   bool startSeparateThread(void);
@@ -57,13 +60,17 @@ class ITMGlobalAdjustmentEngine {
 
  private:
   void estimationThreadMain(void);
-
+  /**
+   * @brief 将所有子图的位姿和link信息添加到 位姿图中
+   * @param[in] src   所有子图
+   * @param[in] dest  位姿图
+   */
   static void MultiSceneToPoseGraph(const ITMMapGraphManager &src, MiniSlamGraph::PoseGraph &dest);
   static void PoseGraphToMultiScene(const MiniSlamGraph::PoseGraph &src, ITMMapGraphManager &dest);
 
-  MiniSlamGraph::PoseGraph *workingData;
-  MiniSlamGraph::PoseGraph *processedData;
+  MiniSlamGraph::PoseGraph *workingData;    // 待优化的位姿图
+  MiniSlamGraph::PoseGraph *processedData;  // 优化好的位姿图
 
-  PrivateData *privateData;
+  PrivateData *privateData;                 // 并行线程以及其中用到的锁等变量
 };
 }

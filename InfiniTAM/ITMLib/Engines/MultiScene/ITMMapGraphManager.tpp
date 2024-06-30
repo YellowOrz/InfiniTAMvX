@@ -45,7 +45,8 @@ void ITMVoxelMapGraphManager<TVoxel, TIndex>::removeLocalMap(int localMapId) {
 
 template<class TVoxel, class TIndex>
 ITMPoseConstraint &ITMVoxelMapGraphManager<TVoxel, TIndex>::getRelation(int fromLocalMap, int toLocalMap) {
-  ConstraintList &m = getLocalMap(fromLocalMap)->relations;
+  // TODO: 不像getRelation_constbu一样检测有效性
+  ConstraintList &m = getLocalMap(fromLocalMap)->relations; // 第一个子图的所有link // NOTE: ConstraintList是map
   return m[toLocalMap];
 }
 

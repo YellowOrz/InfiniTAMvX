@@ -18,7 +18,7 @@ void Matrix::addDiagonal(double lambda) {
   int nr = numRows();
   int nc = numCols();
   if (nc < nr) nr = nc;
-  for (int i = 0; i < nr; i++) {
+  for (int i = 0; i < nr; i++) {    // 遍历所有对角元素
     diag(i) += lambda;
   }
 }
@@ -27,12 +27,12 @@ void Matrix::multDiagonal(double lambda) {
   int nr = numRows();
   int nc = numCols();
   if (nc < nr) nr = nc;
-  for (int i = 0; i < nr; i++) {
+  for (int i = 0; i < nr; i++) {    // 遍历所有对角元素
     double &ele = diag(i);
     if (!almostZero(ele)) {
       ele *= (1.0 + lambda);
     } else {
-      ele = lambda * 1e-10;
+      ele = lambda * 1e-10;         // ?为啥为零要区别对待？又不是除法
     }
   }
 }

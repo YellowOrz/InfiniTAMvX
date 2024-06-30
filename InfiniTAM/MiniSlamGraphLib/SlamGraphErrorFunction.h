@@ -6,12 +6,12 @@
 #include "SlamGraph.h"
 
 namespace MiniSlamGraph {
-
+/** 误差优化函数 */
 class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
 {
  public:
-  class Parameters //: public K_OPTIM::OptimizationParameter
-  {
+  /** 优化参数，其实就只有位姿图的节点 */ // TODO: 下次从这儿开始
+  class Parameters/* : public K_OPTIM::OptimizationParameter */ {
    public:
     Parameters(const SlamGraph &graph);
     Parameters(const Parameters &src);
@@ -29,11 +29,10 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
     }
 
    private:
-    SlamGraph::NodeIndex mNodes;
+    SlamGraph::NodeIndex mNodes;  // 位姿图的所有节点
   };
-
-  class EvaluationPoint /*: public K_OPTIM::ErrorFunctionLeastSquares::EvaluationPoint*/
-  {
+  
+  class EvaluationPoint /*: public K_OPTIM::ErrorFunctionLeastSquares::EvaluationPoint*/ {
    public:
     EvaluationPoint(const SlamGraphErrorFunction *parent, Parameters *para);
     ~EvaluationPoint(void);

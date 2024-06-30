@@ -7,6 +7,7 @@
 #include "../ORUtils/SE3Pose.h"
 
 namespace MiniSlamGraph {
+/** 位姿图中类型为SE3的边 */
 class GraphEdgeSE3 : public GraphEdge {
  public:
   typedef ORUtils::SE3Pose SE3;

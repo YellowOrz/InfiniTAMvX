@@ -11,6 +11,7 @@
 #include "SparseBlockMatrix.h"
 
 namespace MiniSlamGraph {
+/** 位姿图中的边 */
 class GraphEdge {
  public:
   typedef std::map<int, GraphNode *> NodeIndex;
@@ -46,23 +47,20 @@ class GraphEdge {
   */
   virtual bool computeJacobian(const NodeIndex &nodes, int id, double *j) const = 0;
 
-  /** This method computes the contribution of an Edge/Constraint to the
-      overall error function. It comes with a default implementation
-      using the simple squared differences.
-  */
+  /** This method computes the contribution of an Edge/Constraint to the overall error function. It comes with a default
+   * implementation using the simple squared differences.
+   */
   virtual double computeError(const NodeIndex &nodes) const;
 
-  /** This method computes the contribution of an Edge/Constraint to the
-      overall gradient vector and hessian matrix. It comes with a default
-      implementation suitable for simple squared differences.
-  */
-  virtual void computeGradientAndHessian(const NodeIndex &nodes,
-                                         const ParameterIndex &index,
-                                         VariableLengthVector &gradient,
-                                         SparseBlockMatrix &hessian) const;
+  /** This method computes the contribution of an Edge/Constraint to the overall gradient vector and hessian matrix. It
+   * comes with a default implementation suitable for simple squared differences.
+   */
+  virtual void computeGradientAndHessian(const NodeIndex &nodes, const ParameterIndex &index,
+                                         VariableLengthVector &gradient, SparseBlockMatrix &hessian) const;
 
- private:
-  int idFrom, idTo;
+private:
+  int idFrom;   // 起始节点对应的子图的全局id
+  int idTo;     // 终止节点对应的子图的全局id
 };
 
 }

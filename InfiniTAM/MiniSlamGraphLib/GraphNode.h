@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 namespace MiniSlamGraph {
+/** 图节点 */
 class GraphNode {
  public:
   GraphNode(void) {
@@ -32,7 +33,7 @@ class GraphNode {
   void setId(int id) { mId = id; }
 
  private:
-  bool mFixed;
-  int mId;
+  bool mFixed;  // 当前节点是否固定。固定后就不参与优化
+  int mId;      // 对应子图的全局id
 };
 }

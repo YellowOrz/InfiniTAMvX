@@ -50,7 +50,7 @@ static void jacobianToHessian_offdiagonal(double *jacobian_from,
 double GraphEdge::computeError(const GraphEdge::NodeIndex &nodes) const {
   int dim = getMeasureDimensions();
   std::vector<double> residual(dim);
-  computeResidualVector(nodes, &(residual[0]));
+  computeResidualVector(nodes, &(residual[0])); // TODO: 下次从这儿开始
 
   // TODO: information matrix
   double ret = 0.0f;

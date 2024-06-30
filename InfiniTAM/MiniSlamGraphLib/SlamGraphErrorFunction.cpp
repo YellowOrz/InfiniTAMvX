@@ -142,13 +142,13 @@ int SlamGraphErrorFunction::numParameters(void) const {
   return mGraph->getParameters().numTotalParameters();
 }
 
-SlamGraphErrorFunction::EvaluationPoint *SlamGraphErrorFunction::evaluateAt(/*K_OPTIM::Optimization*/Parameters *para) const {
+SlamGraphErrorFunction::EvaluationPoint *SlamGraphErrorFunction::evaluateAt(
+    /*K_OPTIM::Optimization*/ Parameters *para) const {
   return new EvaluationPoint(this, (Parameters *) para);
 }
 
-void SlamGraphErrorFunction::applyDelta(const /*K_OPTIM::Optimization*/Parameters &para_old,
-                                        const double *delta, /*K_OPTIM::Optimization*/
-                                        Parameters &para_new) const {
+void SlamGraphErrorFunction::applyDelta(const /*K_OPTIM::Optimization*/ Parameters &para_old,
+    const double *delta, /*K_OPTIM::Optimization*/ Parameters &para_new) const {
   const SlamGraph::NodeIndex &list_old = ((const Parameters &) para_old).getNodes();
   SlamGraph::NodeIndex &list_new = ((Parameters &) para_new).getNodes();
   const ParameterIndex &paraIndex = mGraph->getParameters();

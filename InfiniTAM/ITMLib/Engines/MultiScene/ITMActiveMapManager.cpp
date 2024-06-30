@@ -339,16 +339,17 @@ int ITMActiveMapManager::CheckSuccess_newlink(int dataID, int primaryDataID, int
   if (primaryDataID >= 0)
     primaryLocalMapIndex = activeData[primaryDataID].localMapIndex;
   // NOTE: 没有主子图的话不能return -1，因为可能是
-  const ITMPoseConstraint &previousInformation =                // 主子图中记录的与当前子图的constrain
+  const ITMPoseConstraint &previousInformation =                // 主子图中记录的与指定子图的constrain
       localMapManager->getRelation_const(primaryLocalMapIndex, link.localMapIndex);
-  /* dataID之对应回环or新建的子图。因为回环检测可能存在的错误是无法确定的，所以从主子图中找到constrain，而不是从当前子图中找constrain。
-  hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the accumulated poses seen in previous frames? This should only really make a difference, if there is a large disagreement between the two, in which case one might argue that most likely something went wrong with a loop-closure, and we are not really sure the "Estimate" is true or just based on an erroneous loop closure. We therefore want to be consistent with previous observations not estimations...
+  /* dataID之对应回环or新建的子图。因为回环检测可能存在的错误是无法确定的，所以从主子图中找到constrain，而不是从指定子图中找constrain。
+  hmm... do we want the "Estimate" (i.e. the pose corrected by pose graph optimization) or the "Observations" (i.e. the 
+  accumulated poses seen in previous frames? This should only really make a difference, if there is a large disagreement between the two, in which case one might argue that most likely something went wrong with a loop-closure, and we are not really sure the "Estimate" is true or just based on an erroneous loop closure. We therefore want to be consistent with previous observations not estimations...
   */
   
-  ORUtils::SE3Pose previousEstimate = previousInformation.GetAccumulatedObservations(); // 约束信息中的位姿，当前子图=>主子图
+  ORUtils::SE3Pose previousEstimate = previousInformation.GetAccumulatedObservations(); // link中的位姿，主子图=>指定子图
   int previousEstimate_weight = previousInformation.GetNumAccumulatedObservations();    // 约束信息中的权重
 
-  //! 估计主子图与指定子图的相对位姿，并找到inlier
+  //! 估计主子图到指定子图的相对位姿，并找到inlier
   int inliers_local;
   ORUtils::SE3Pose inlierPose_local;
   if (inliers == NULL)    // 输入为空的话新建一个
@@ -370,8 +371,8 @@ int ITMActiveMapManager::CheckSuccess_newlink(int dataID, int primaryDataID, int
 }
 
 void ITMActiveMapManager::AcceptNewLink(int fromData, int toData, const ORUtils::SE3Pose &pose, int weight) {
-  int fromLocalMapIdx = activeData[fromData].localMapIndex;
-  int toLocalMapIdx = activeData[toData].localMapIndex;
+  int fromLocalMapIdx = activeData[fromData].localMapIndex; // 子图1的全局id
+  int toLocalMapIdx = activeData[toData].localMapIndex;     // 子图2的全局id
 
   { //! 子图1里添加 子图2到子图1的位姿（即link）
     ITMPoseConstraint &c = localMapManager->getRelation(fromLocalMapIdx, toLocalMapIdx);
@@ -396,11 +397,11 @@ bool ITMActiveMapManager::maintainActiveData(void) {
     if (link.type == RELOCALISATION) {                                      //! 处理 重定位 的活跃子图
       int success = CheckSuccess_relocalisation(i);
       if (success == 1) {
-        if (moveToDataIdx < 0)            // 重定位成功时还没候选人，则该子图成为候选人 // ?这里不用localMapGraphChanged=true?
+        if (moveToDataIdx < 0)        // 重定位成功时还没候选人，则该子图成为候选人 // ?这里不用localMapGraphChanged=true?
           moveToDataIdx = i;
-        else                              // 再次重定位成功，不是之前的主子图，就设置当前子图为lost。∵一次最多一个重定位成功？
+        else                          // 再次重定位成功，不是之前的主子图，就设置当前子图为lost。∵一次最多一个重定位成功？
           link.type = LOST;  
-      } else if (success == -1)           // 重定位失败
+      } else if (success == -1)       // 重定位失败
         link.type = LOST;
     }
     

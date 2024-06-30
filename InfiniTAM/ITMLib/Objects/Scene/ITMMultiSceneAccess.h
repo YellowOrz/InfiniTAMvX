@@ -7,7 +7,7 @@
 #define MAX_NUM_LOCALMAPS 32 // 左右子图的最大数量
 
 namespace ITMLib {
-struct ITMMultiCache {};
+struct ITMMultiCache {};  // TODO: 待实现
 /** 多子图的基础信息。hash table、位姿等*/
 template <class TIndex> class ITMMultiIndex {
 public:
@@ -18,7 +18,7 @@ public:
     int numLocalMaps; // 子图总数
     typedef TIndex IndexType;
     typename TIndex::IndexData *index[MAX_NUM_LOCALMAPS]; // 所有子图的hash table的指针
-    Matrix4f poses_vs[MAX_NUM_LOCALMAPS]; // voxel坐标系下，所有子图的世界到子图位姿，T_sw
+    Matrix4f poses_vs[MAX_NUM_LOCALMAPS]; // voxel坐标系下，所有子图的世界到子图位姿，T_sw。用于读取voxel
     Matrix4f posesInv[MAX_NUM_LOCALMAPS]; // 真实坐标系下，所有子图的子图到世界位姿，T_ws
   };
 };
@@ -31,7 +31,17 @@ public:
   static const CONSTPTR(bool) hasColorInformation = TVoxel::hasColorInformation;
 };
 } // namespace ITMLib
-
+/**
+ * 读从多个子图中取某个voxel坐标（取整）的TSDF值（取平均、没有插值） && 更新cache
+ * @tparam TVoxel voxel的存储类型。比如用short还是float存TSDF值，要不要存RGB
+ * @tparam TIndex voxel的索引方法。用 hashing 还是 下标（跟KinectFusion一样）
+ * @param[in] voxelData   多个子图的voxel block array
+ * @param[in] voxelIndex  多个子图的hash table
+ * @param[in] point       要读取TSDF值的voxel坐标。注意是小数
+ * @param[out] vmIndex    voxel坐标所属block在hash table中的index，如果找不到则为0
+ * @param[in, out] cache  [没用上] 因为还没实现ITMMultiCache
+ * @return                voxel坐标的TSDF值
+ */
 template <class TMultiVoxel, class TMultiIndex>
 _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const TMultiVoxel *voxelData,
                                                                  const TMultiIndex *voxelIndex, const Vector3f &point,
@@ -40,25 +50,27 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_uninterpolated(const TMultiVox
   typedef typename TMultiVoxel::VoxelType TVoxel;
   typedef typename TMultiIndex::IndexType TIndex;
 
-  float sum_sdf = 0.0f;   // TODO：下次从这儿开始
-  int sum_weights = 0;
+  float sum_sdf = 0.0f;   // 多个子图中同一位置voxel的sdf值之和
+  int sum_weights = 0;    // 多个子图中同一位置voxel的weight之和
   vmIndex = false;
+  //! 每个子图都读取指定位置的voxel
   for (int localMapId = 0; localMapId < voxelIndex->numLocalMaps; ++localMapId) {
+    // 当前子图中的voxel 坐标
     Vector3f point_local = voxelIndex->poses_vs[localMapId] * point;
-
+    // 读取当前子图中指定位置的voxel
     int vmIndex_tmp;
     typename TIndex::IndexCache cache;
     const TVoxel &v = readVoxel(
         voxelData->voxels[localMapId], voxelIndex->index[localMapId],
         Vector3i((int)ROUND(point_local.x), (int)ROUND(point_local.y), (int)ROUND(point_local.z)), vmIndex_tmp, cache);
     if (!vmIndex_tmp) continue;
-
+    // 求和
     vmIndex = true;
     sum_sdf += (float)v.w_depth * (float)v.sdf;
     sum_weights += v.w_depth;
   }
   if (sum_weights == 0) return 1.0f;
-  return TVoxel::valueToFloat(sum_sdf / (float)sum_weights);
+  return TVoxel::valueToFloat(sum_sdf / (float)sum_weights);  // 取平均
 }
 
 template <class TMultiVoxel, class TMultiIndex>
@@ -76,7 +88,6 @@ _CPU_AND_GPU_CODE_ inline float readFromSDF_float_interpolated(const TMultiVoxel
 
     int vmIndex_tmp, maxW;
     typename TIndex::IndexCache cache;
-
     float sdf = readFromSDF_float_interpolated(voxelData->voxels[localMapId], voxelIndex->index[localMapId],
                                                point_local, vmIndex_tmp, cache, maxW);
     if (!vmIndex_tmp) continue;

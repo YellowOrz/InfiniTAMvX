@@ -13,8 +13,8 @@ class GenericCholesky {
 
  public:
   /**
-   * @brief Cholesky分解？？？
-   * 参考视频教程https://www.bilibili.com/video/BV1Ag411M76G
+   * @brief Cholesky分解
+   * @details 参考视频教程https://www.bilibili.com/video/BV1Ag411M76G
    * @param[in] mat 
    * @param[in] size 
    */

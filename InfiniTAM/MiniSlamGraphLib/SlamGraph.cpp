@@ -11,7 +11,7 @@ SlamGraph::~SlamGraph(void) {
   for (NodeIndex::iterator it = mNodes.begin(); it != mNodes.end(); ++it) delete it->second;
 }
 
-SlamGraph::NodeIndex SlamGraph::cloneNodeIndex(const SlamGraph::NodeIndex &src) {
+SlamGraph::NodeIndex SlamGraph::cloneNodeIndex(const SlamGraph::NodeIndex &src) { // TODO：把返回弄成引用，减少拷贝
   NodeIndex ret;
   for (NodeIndex::const_iterator it = src.begin(); it != src.end(); ++it)
     ret[it->first] = it->second->clone();
@@ -37,9 +37,11 @@ void SlamGraph::addEdge(GraphEdge *edge) {
 }
 
 void SlamGraph::prepareEvaluations(void) {
+  // 遍历图中每个节点
   for (NodeIndex::const_iterator it = mNodes.begin(); it != mNodes.end(); ++it) {
+    // 跳过固定的节点
     if (it->second->isFixed()) continue;
-
+    // 获取每个节点的维度（其实就是6，因为只有SE3一种节点）
     int num = it->second->numParameters();
     mParameterIndex.addIndex(it->first, num);
   }

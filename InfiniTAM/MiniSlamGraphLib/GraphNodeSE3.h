@@ -7,9 +7,11 @@
 #include "../ORUtils/SE3Pose.h"
 
 namespace MiniSlamGraph {
+/** 基于位姿的图节点 */
 class GraphNodeSE3 : public GraphNode {
  public:
   typedef ORUtils::SE3Pose SE3;
+  /** 各种构造函数 */
   GraphNodeSE3(void) {}
   GraphNodeSE3(const GraphNodeSE3 &src) : GraphNode(src) { mPose.SetFrom(&(src.mPose)); }
   GraphNodeSE3(const SE3 &pose) : mPose(pose) {}
@@ -17,7 +19,11 @@ class GraphNodeSE3 : public GraphNode {
   GraphNodeSE3 *clone(void) const {
     return new GraphNodeSE3(*this);
   }
-
+  /**
+   * @brief 更新位姿
+   * @param[in] delta           位姿的变化量
+   * @param[in] startingPoint   位姿的初始值
+   */
   void applyDelta(const double *delta, const GraphNode *startingPoint = NULL) {
     SE3 startingPose;
     if (startingPoint == NULL) startingPose.SetFrom(&mPose);

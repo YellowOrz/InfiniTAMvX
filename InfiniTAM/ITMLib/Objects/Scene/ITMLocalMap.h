@@ -30,13 +30,13 @@ struct ITMPoseConstraint {  // TODO: 应该改名叫link，不会与ActiveDataDe
     //	accu_poses = (accu_poses * (float)accu_num + relative_pose)/(float)(accu_num+1);
     accu_num++;
   }
-  /** 获取 加权平均后的位姿 */
+  /** 获取 加权平均后的位姿（关联子图=>当前子图） */
   ORUtils::SE3Pose GetAccumulatedObservations(void) const { return accu_poses; }
   /** 获取 权重 */
   int GetNumAccumulatedObservations(void) const { return accu_num; }
 
  private:
-  ORUtils::SE3Pose accu_poses;  // 加权平均后的位姿
+  ORUtils::SE3Pose accu_poses;  // 加权平均后的位姿，关联子图=>当前子图
   int accu_num;                 // 权重
 };
 
@@ -51,6 +51,7 @@ class ITMLocalMap {
   ITMTrackingState *trackingState;      // 当前子图参与跟踪的变量的指针。包含子图中的相机位姿（即子图坐标系到当前帧的位姿，T_ls
   ConstraintList relations;             // 当前子图相关的所有子图id 以及 对应的位姿（即link）
   ORUtils::SE3Pose estimatedGlobalPose; // 子图位姿，即世界坐标系下到子图的第1帧（对应子图坐标系） 的位姿，T_sw
+  /** 构造函数 */
   ITMLocalMap(const ITMLibSettings *settings, const ITMVisualisationEngine<TVoxel, TIndex> *visualisationEngine,
               const Vector2i &trackedImageSize) {
     MemoryDeviceType
@@ -61,6 +62,7 @@ class ITMLocalMap {
     renderState = visualisationEngine->CreateRenderState(scene, trackedImageSize);
     trackingState = new ITMTrackingState(trackedImageSize, memoryType);
   }
+  /** 析构函数 */
   ~ITMLocalMap(void) {
     delete scene;
     delete renderState;

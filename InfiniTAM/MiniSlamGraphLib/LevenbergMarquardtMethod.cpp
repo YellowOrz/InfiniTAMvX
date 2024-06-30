@@ -30,10 +30,7 @@ bool stepConsideredSmallMAX(const SlamGraphErrorFunction &f, const double *step)
 }
 
 static inline double stepQuality(SlamGraphErrorFunction::EvaluationPoint *x,
-                                 SlamGraphErrorFunction::EvaluationPoint *x2,
-                                 const double *step,
-                                 const double *grad,
-                                 const Matrix *B) {
+    SlamGraphErrorFunction::EvaluationPoint *x2, const double *step, const double *grad, const Matrix *B) {
   int numPara = B->numRows();
   double actual_reduction = x->f() - x2->f();
   double predicted_reduction = 0.0;
@@ -50,13 +47,13 @@ static inline double stepQuality(SlamGraphErrorFunction::EvaluationPoint *x,
   return actual_reduction / predicted_reduction;
 }
 
-int LevenbergMarquardtMethod::minimize(const SlamGraphErrorFunction &f,
-                                       SlamGraphErrorFunction::Parameters &initialization) {
+int LevenbergMarquardtMethod::minimize(
+    const SlamGraphErrorFunction &f, SlamGraphErrorFunction::Parameters &initialization) {
   int ret = 0;
-  int numPara = f.numParameters();
-  std::vector<double> d(numPara);
-  double lambda = 0.01;
-  int step_counter = 0;
+  int numPara = f.numParameters();  // 优化的参数量，其实就是节点数量
+  std::vector<double> d(numPara);   //
+  double lambda = 0.01;             // 优化的步长
+  int step_counter = 0;             // 优化的步数
 
   SlamGraphErrorFunction::EvaluationPoint *x = f.evaluateAt(initialization.clone());
   SlamGraphErrorFunction::EvaluationPoint *x2 = NULL;
@@ -66,16 +63,12 @@ int LevenbergMarquardtMethod::minimize(const SlamGraphErrorFunction &f,
     delete x;
     return -1;
   }
-
+  //! 开始不停的迭代，进行优化
   do {
-    // debug output
-#ifdef DEBUG
+#ifdef DEBUG  // debug output
     fprintf(stderr, "step number: %i\n", step_counter);
     //x->getParameter().print();
     fprintf(stderr, "function value: %f\n", x->f());
-#endif
-
-#ifdef DEBUG
     fprintf(stderr, "LM: lambda %f\n", lambda);
 #endif
     const double *grad;
@@ -86,9 +79,9 @@ int LevenbergMarquardtMethod::minimize(const SlamGraphErrorFunction &f,
 
     bool success;
     {
-      Matrix *A = B->clone();
+      Matrix *A = B->clone(); // TDDO: 为啥要用指针？是为了用完马上delete？
       /*if (regularize_sphere) A->addDiagonal(lambda);
-      else*/ A->multDiagonal(lambda);
+      else*/ A->multDiagonal(lambda);   // 对角元素增大lambda倍 ??? why?
       success = A->solve(grad, &(d[0]));
       delete A;
     }

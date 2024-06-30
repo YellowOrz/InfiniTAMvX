@@ -42,15 +42,15 @@ class ITMActiveMapManager {
    * @param[in] dataID        指定子图的活跃id
    * @param[in] primaryDataID 主子图的活跃id。可以为-1，即没有主子图吗？？？
    * @param[in] inliers       指定子图的约束中的inlier数量
-   * @param[in] inlierPose    指定子图的约束中的inlier直接平均得到的位姿，当前子图=>主子图
+   * @param[in] inlierPose    指定子图的约束中的inlier直接平均得到的位姿，主子图=>当前子图
    * @return int              0，重定位成功；-1，重定位失败；0，下次再试试看
    */
   int CheckSuccess_newlink(int dataID, int primaryDataID, int *inliers, ORUtils::SE3Pose *inlierPose) const;
   /**
    * @brief 在两个子图之间添加link（即观测，也是加权后的位姿）
-   * @param[in] fromData    子图1的全局id。// TODO: 应该叫id1
-   * @param[in] toData      子图2的全局id。// TODO: 应该叫id2
-   * @param[in] pose        toData到fromData的位姿
+   * @param[in] fromData    子图1的活跃id。// TODO: 应该叫id1
+   * @param[in] toData      子图2的活跃id。// TODO: 应该叫id2
+   * @param[in] pose        子图2到子图1的位姿，即T_ft
    * @param[in] weight      上面位姿的权重
    */
   void AcceptNewLink(int fromData, int toData, const ORUtils::SE3Pose &pose, int weight);
