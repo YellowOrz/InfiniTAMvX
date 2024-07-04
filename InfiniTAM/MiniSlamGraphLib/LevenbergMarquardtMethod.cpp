@@ -55,10 +55,10 @@ int LevenbergMarquardtMethod::minimize(
   double lambda = 0.01;             // 优化的步长
   int step_counter = 0;             // 优化的步数
 
-  SlamGraphErrorFunction::EvaluationPoint *x = f.evaluateAt(initialization.clone());
+  SlamGraphErrorFunction::EvaluationPoint *x = f.evaluateAt(initialization.clone());  // 初始化 评估点，内部会计算误差
   SlamGraphErrorFunction::EvaluationPoint *x2 = NULL;
   initialization.clear();
-
+  //! 确保初始误差不是无穷大
   if (!portable_finite((float) x->f())) {
     delete x;
     return -1;

@@ -24,11 +24,15 @@ class GraphEdgeSE3 : public GraphEdge {
 
   void setMeasurementSE3(const SE3 &pose);
   SE3 getMeasurementSE3(void) const;
-
+  /**
+   * @brief 计算 边/约束 的误差向量
+   * @param[in] nodes   所有的节点。会根据成员变量 @p idFrom 和 @p idTo 找到相关的节点。
+   * @param[out] dest   误差矩阵的MQT形式（四元数+平移向量）
+   */
   void computeResidualVector(const NodeIndex &nodes, double *dest) const;
   bool computeJacobian(const NodeIndex &nodes, int id, double *j) const;
 
  private:
-  double mMeasuredPose[6];
+  double mMeasuredPose[6];  // 测量位姿。MQT形式（四元数+平移向量） // ?一般来说是多次观测的加权平均？
 };
 }

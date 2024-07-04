@@ -3,14 +3,15 @@
 #pragma once
 
 namespace MiniSlamGraph {
+/** 块稀疏矩阵（BSR）的接口，支持任意大小。Sparse matrix with blocks of arbitrary size. */
 class SparseBlockMatrix {
  public:
   virtual ~SparseBlockMatrix(void) {}
 
-  /** Get number of rows, columns and overall elements in the matrix. */
+  /** 获取矩阵中的行数、列数、元素总数。Get number of rows, columns and overall elements in the matrix. */
   virtual void getStats(int &numRows, int &numCols, int &numEntries) const = 0;
 
-  /** For each allocated element, write row index, column index and value
+  /** 转成三元组（行号、列号、元素值）。For each allocated element, write row index, column index and value
       to the given arrays in triplet format.
   */
   virtual int toTriplets(int *rowIndices, int *colIndices, double *data) const = 0;
@@ -18,7 +19,7 @@ class SparseBlockMatrix {
   /** Convert to Compressed Columns format. */
   virtual void toCompressedColumns(int *rowIndices, int *colPointers, double *data) const = 0;
 
-  /** Convert to dense matrix. */
+  /** 转成稠密矩阵，行优先存储。Convert to dense matrix. */
   virtual void densify(double *dest, int rowStride) const = 0;
 
   /** Add a block of data to the matrix. */

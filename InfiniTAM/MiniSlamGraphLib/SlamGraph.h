@@ -34,19 +34,26 @@ class SlamGraph {
    * Before any calls to evaluateF() or related functions, the evaluations have to be initialized with prepareEvaluations(). This will internally assign the parameters of all nodes to places in the gradient vector and hessian matrix.
    */
   void prepareEvaluations(void);
-  const ParameterIndex &getParameters(void) const {
-    return mParameterIndex;
+  const ParameterIndex &getParameters(void) const { return mParameterIndex;
   }
-
+  /**
+   * @brief 计算所有边的误差，并返回误差的平方和
+   * @param[in] override_nodes
+   * @return                    误差的平方和
+   */
   virtual double evaluateF(const NodeIndex *override_nodes = NULL) const;
-  virtual void evaluateGradientAndHessian(VariableLengthVector *&g, SparseBlockMatrix *&H,
-                                          const NodeIndex *override_nodes = NULL) const;
+  virtual void evaluateGradientAndHessian(
+      VariableLengthVector *&g, SparseBlockMatrix *&H, const NodeIndex *override_nodes = NULL) const;
 
 protected:
-  /** This function is internally called by evaluateGradientAndHessian()
-      and is supposed to allocate the structures for the gradient vector
-      and, most crucially, the sparse Hessian matrix.
-  */
+  /**
+   * @brief 给一阶导和二阶导分配内存
+   * @details This function is internally called by evaluateGradientAndHessian()
+   * and is supposed to allocate the structures for the gradient vectorand, most crucially, the sparse Hessian matrix.
+   * @param[out] g  一阶导
+   * @param[out] H  二阶导。以稀疏形式存储
+   * @note          在evaluateGradientAndHessian()中调用
+   */
   virtual void allocateGradientAndHessian(VariableLengthVector *&g, SparseBlockMatrix *&H) const = 0;
 
  private:

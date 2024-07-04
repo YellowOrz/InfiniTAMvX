@@ -52,18 +52,17 @@ double SlamGraph::evaluateF(const NodeIndex *nodes) const {
 
   double ret = 0.0f;
   for (EdgeList::const_iterator it = mEdges.begin(); it != mEdges.end(); ++it) {
-    ret += (*it)->computeError(*nodes);
+    ret += (*it)->computeError(*nodes);  // 计算单条边的误差
   }
   return ret;
 }
 
-void SlamGraph::evaluateGradientAndHessian(VariableLengthVector *&g,
-                                           SparseBlockMatrix *&H,
-                                           const NodeIndex *nodes) const {
+void SlamGraph::evaluateGradientAndHessian(
+    VariableLengthVector *&g, SparseBlockMatrix *&H, const NodeIndex *nodes) const {
   if (nodes == NULL) nodes = &mNodes;
-
+  // 给一阶导、二阶导分配内存
   allocateGradientAndHessian(g, H);
-
+  // 遍历图中每条边，计算一阶导和二阶导
   for (EdgeList::const_iterator it = mEdges.begin(); it != mEdges.end(); ++it) {
     (*it)->computeGradientAndHessian(*nodes, mParameterIndex, *g, *H);
   }

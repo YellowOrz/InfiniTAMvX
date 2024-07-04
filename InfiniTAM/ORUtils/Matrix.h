@@ -26,7 +26,7 @@ class VectorX;
 //////////////////////////////////////////////////////////////////////////
 //						Basic Matrix Structure
 //////////////////////////////////////////////////////////////////////////
-
+/** 4*4矩阵，按列存储 */
 template<class T>
 struct Matrix4_ {
   union {
@@ -36,10 +36,10 @@ struct Matrix4_ {
       T m20, m21, m22, m23;    // |2, 6, 10, 14|    |m02, m12, m22, m32|
       T m30, m31, m32, m33;    // |3, 7, 11, 15|    |m03, m13, m23, m33|
     };
-    T m[16];
+    T m[16];  // 按列存储，为了适配OpenGL
   };
 };
-
+/** 3*3矩阵，按列存储 */
 template<class T>
 struct Matrix3_ {
   union { // Warning: see the header in this file for the special matrix order
@@ -48,10 +48,10 @@ struct Matrix3_ {
       T m10, m11, m12; // |1, 4, 7|     |m01, m11, m21|
       T m20, m21, m22; // |2, 5, 8|     |m02, m12, m22|
     };
-    T m[9];
+    T m[9];   // 按列存储，为了适配OpenGL
   };
 };
-
+/** s*s矩阵，按列存储 */
 template<class T, int s>
 struct MatrixSQX_ {
   int dim;
@@ -62,6 +62,8 @@ struct MatrixSQX_ {
 //////////////////////////////////////////////////////////////////////////
 // Matrix class with math operators
 //////////////////////////////////////////////////////////////////////////
+
+/** 4*4矩阵，按列存储，带数学操作 */
 template<class T>
 class Matrix4 : public Matrix4_<T> {
  public:
@@ -308,7 +310,7 @@ class Matrix4 : public Matrix4_<T> {
     return os;
   }
 };
-
+/** 3*3矩阵，按列存储，带数学操作 */
 template<class T>
 class Matrix3 : public Matrix3_<T> {
  public:
@@ -485,7 +487,7 @@ class Matrix3 : public Matrix3_<T> {
     return os;
   }
 };
-
+/** s*s矩阵，按列存储，带数学操作 */
 template<class T, int s>
 class MatrixSQX : public MatrixSQX_<T, s> {
  public:

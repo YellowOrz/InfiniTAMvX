@@ -5,7 +5,11 @@
 #include <math.h>
 
 using namespace MiniSlamGraph;
-
+/**
+ * @brief 判断旋转矩阵转四元数 是哪种类型
+ * @param[in] matrix  旋转矩阵
+ * @return            低几种类型（共四种）
+ */
 static int QuaternionFromRotationMatrix_variant(const double *matrix) {
   int variant = 0;
   if ((matrix[4] > -matrix[8]) && (matrix[0] > -matrix[4]) && (matrix[0] > -matrix[8])) {
@@ -47,11 +51,6 @@ void QuaternionHelpers::RotationMatrixFromQuaternion(const double *q, double *ma
 }
 
 void QuaternionHelpers::QuaternionFromRotationMatrix(const double *matrix, double *q) {
-  /* taken from "James Diebel. Representing Attitude: Euler Angles,
-     Quaternions, and Rotation Vectors. Technical Report, Stanford
-     University, Palo Alto, CA."
-  */
-
   // choose the numerically best variant...
   int variant = QuaternionFromRotationMatrix_variant(matrix);
   double denom = 1.0;

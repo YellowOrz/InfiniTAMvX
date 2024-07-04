@@ -14,7 +14,7 @@ namespace MiniSlamGraph {
 /** 位姿图中的边 */
 class GraphEdge {
  public:
-  typedef std::map<int, GraphNode *> NodeIndex;
+  typedef std::map<int, GraphNode *> NodeIndex; // 所有节点信息， 从 节点id 到 节点指针 的映射
 
   virtual ~GraphEdge(void) {}
 
@@ -27,10 +27,14 @@ class GraphEdge {
   virtual void setMeasurement(const double *v) = 0;
   virtual void getMeasurement(double *v) const = 0;
 
-  /** This method is supposed to compute the residual vector of the
+  /**
+   * @brief 计算 当前 边/约束 的误差向量
+   * @details This method is supposed to compute the residual vector of the
       Edge/Contraint. The result will be written to a vector of length
       getMeasureDimensions().
-  */
+   * @param[in] nodes   所有的节点。会根据成员变量 @p idFrom 和 @p idTo 找到相关的节点。
+   * @param[out] dest   误差向量。具体维度由getMeasureDimensions()决定。但是在这里就是误差矩阵的MQT形式（四元数+平移向量）
+   */
   virtual void computeResidualVector(const NodeIndex &nodes, double *dest) const = 0;
 
   /** This method is supposed to compute the Jacobian of the
@@ -47,8 +51,13 @@ class GraphEdge {
   */
   virtual bool computeJacobian(const NodeIndex &nodes, int id, double *j) const = 0;
 
-  /** This method computes the contribution of an Edge/Constraint to the overall error function. It comes with a default
-   * implementation using the simple squared differences.
+  /**
+   * @brief 计算 当前 边/约束 的误差
+   * @details This method computes the contribution of an Edge/Constraint to the overall error function. It comes with a
+   * default implementation using the simple squared differences.
+   * @param[in] nodes   所有的节点。
+   * @return            误差的平方
+   * @note              内部会调用computeResidualVector()来计算误差向量，然后计算误差向量的模长，即为误差
    */
   virtual double computeError(const NodeIndex &nodes) const;
 

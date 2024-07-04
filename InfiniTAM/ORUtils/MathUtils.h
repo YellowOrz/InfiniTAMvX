@@ -32,7 +32,11 @@
 
 #ifndef __METALC__
 
-// 确保数据在不同终端中不会产生差异
+/**
+ * @brief 查看float是否是有限的（即不是nan和inf）
+ * @param[in] a
+ * @return        true, 有限; false, 不是有限
+ */
 inline bool portable_finite(float a) {
   volatile float temp = a;
   if (temp != a) return false;

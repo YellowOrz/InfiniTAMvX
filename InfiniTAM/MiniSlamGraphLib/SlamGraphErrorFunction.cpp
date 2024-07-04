@@ -98,7 +98,7 @@ const Matrix *SlamGraphErrorFunction::EvaluationPoint::hessian_GN(void) {
 }
 
 void SlamGraphErrorFunction::EvaluationPoint::cacheGH(void) {
-  if (cacheG != NULL) return;
+  if (cacheG != NULL) return; // 倒数不为空，不用再算了  //? 什么时候会不为空？
   SparseBlockMatrix *H_tmp = NULL;
   mParent->getGraph()->evaluateGradientAndHessian(cacheG, H_tmp, &(mPara->getNodes()));
 
@@ -144,7 +144,7 @@ int SlamGraphErrorFunction::numParameters(void) const {
 
 SlamGraphErrorFunction::EvaluationPoint *SlamGraphErrorFunction::evaluateAt(
     /*K_OPTIM::Optimization*/ Parameters *para) const {
-  return new EvaluationPoint(this, (Parameters *) para);
+  return new EvaluationPoint(this, (Parameters *) para);  // FIXME: 在在哪儿delete？
 }
 
 void SlamGraphErrorFunction::applyDelta(const /*K_OPTIM::Optimization*/ Parameters &para_old,

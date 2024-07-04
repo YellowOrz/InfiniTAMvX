@@ -171,7 +171,7 @@ void ITMGlobalAdjustmentEngine::MultiSceneToPoseGraph(const ITMMapGraphManager &
 
       odometry->setFromNodeId(localMapId);                                  // 设置起点对应子图的全局id
       odometry->setToNodeId(it->first);                                     // 设置终点对应子图的全局id
-      odometry->setMeasurementSE3(it->second.GetAccumulatedObservations()); // 获取终点子图 到 起点子图的位姿
+      odometry->setMeasurementSE3(it->second.GetAccumulatedObservations()); // 获取终点子图 到 起点子图的位姿（加权平均）
 
       //TODO odometry->setInformation
       dest.addEdge(odometry);

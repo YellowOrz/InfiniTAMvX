@@ -6,11 +6,10 @@
 #include "SlamGraph.h"
 
 namespace MiniSlamGraph {
-/** 误差优化函数 */
-class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
-{
+/** 误差优化函数 */ // ? 为啥要搞成这么复杂，SlamGraphErrorFunction，里面包了Parameters和EvaluationPoint两个类，但是又没有相关的成员变量
+class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/ {
  public:
-  /** 优化参数，其实就只有位姿图的节点 */ // TODO: 下次从这儿开始
+  /** 优化参数，其实就只有位姿图的节点 */
   class Parameters/* : public K_OPTIM::OptimizationParameter */ {
    public:
     Parameters(const SlamGraph &graph);
@@ -31,12 +30,12 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
    private:
     SlamGraph::NodeIndex mNodes;  // 位姿图的所有节点
   };
-  
+  /** 用于计算优化问题中的目标函数、误差、导数 */
   class EvaluationPoint /*: public K_OPTIM::ErrorFunctionLeastSquares::EvaluationPoint*/ {
    public:
     EvaluationPoint(const SlamGraphErrorFunction *parent, Parameters *para);
     ~EvaluationPoint(void);
-
+    /** 得到误差。误差在构造函数里就算好了 */
     double f(void);
     const double *nabla_f(void);
     const Matrix *hessian_GN(void);
@@ -45,9 +44,9 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
    private:
     void cacheGH(void);
 
-    const SlamGraphErrorFunction *mParent;
-    const Parameters *mPara;
-    double cacheF;
+    const SlamGraphErrorFunction *mParent;  // 误差优化函数。包含了
+    const Parameters *mPara;                // 优化参数，其实就只有位姿图的节点
+    double cacheF;                          // 误差的平方
     VariableLengthVector *cacheG;
     Matrix *cacheH;
   };
@@ -57,7 +56,11 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
   ~SlamGraphErrorFunction(void);
 
   int numParameters(void) const;
-
+  /**
+   * @brief 初始化 评估点，其内部会计算误差
+   * @param[in] para  优化参数
+   * @return          评估点，记录了误差
+   */
   EvaluationPoint *evaluateAt(/*K_OPTIM::Optimization*/Parameters *para) const;
 
   void applyDelta(const /*K_OPTIM::Optimization*/Parameters &para_old,
@@ -74,8 +77,8 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/
   }
 
  private:
-  const SlamGraph *mGraph;
-  void *mSparsityPattern;
+  const SlamGraph *mGraph;  // 位姿图
+  void *mSparsityPattern;   // ?稀疏矩阵的存储结构
 };
 }
 

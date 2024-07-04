@@ -9,6 +9,11 @@
 
 using namespace MiniSlamGraph;
 
+/**
+ * @brief 将相机位姿从矩阵形式转换为MQT形式
+ * @param[in] m     矩阵形式
+ * @param[out] qt   MQT形式（旋转为四元数，平移为向量）
+ */
 static void MatrixToMQT(const ORUtils::Matrix4<float> &m, double *qt) {
   double R[9];
   for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) R[r * 3 + c] = m.m[c * 4 + r];
@@ -18,7 +23,11 @@ static void MatrixToMQT(const ORUtils::Matrix4<float> &m, double *qt) {
   for (int i = 0; i < 3; ++i) qt[i] = qtmp[i + 1];
   for (int i = 0; i < 3; ++i) qt[3 + i] = m.m[3 * 4 + i];
 }
-
+/**
+ * @brief 将相机位姿从MQT形式转换为矩阵形式
+ * @param[in] qt    MQT形式（旋转为四元数，平移为向量）
+ * @param[out] m    矩阵形式
+ */
 static void MQTToMatrix(const double *qt, ORUtils::Matrix4<float> &m) {
   double qtmp[4];
   for (int i = 0; i < 3; ++i) qtmp[i + 1] = qt[i];
@@ -31,7 +40,11 @@ static void MQTToMatrix(const double *qt, ORUtils::Matrix4<float> &m) {
   m.m[0 * 4 + 3] = m.m[1 * 4 + 3] = m.m[2 * 4 + 3] = 0.0f;
   m.m[3 * 4 + 3] = 1.0f;
 }
-
+/**
+ * @brief
+ * @param idx
+ * @return
+ */
 static ORUtils::Matrix4<float> se3_generator(int idx) {
   ORUtils::Matrix4<float> ret;
   ret.setZeros();
@@ -45,7 +58,7 @@ static ORUtils::Matrix4<float> se3_generator(int idx) {
   }
   return ret;
 }
-
+/** 设置 测量位姿。一般来说是多次观测的加权平均？ */
 void GraphEdgeSE3::setMeasurementSE3(const SE3 &pose) {
   MatrixToMQT(pose.GetM(), mMeasuredPose);
 }
@@ -57,19 +70,21 @@ GraphEdgeSE3::SE3 GraphEdgeSE3::getMeasurementSE3(void) const {
 }
 
 void GraphEdgeSE3::computeResidualVector(const GraphEdgeSE3::NodeIndex &nodes, double *dest) const {
-  // get poses of "from" and "to" nodes
-  const GraphNodeSE3 *fromNode = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second;
-  const GraphNodeSE3 *toNode = (const GraphNodeSE3 *) nodes.find(toNodeId())->second;
+  // 得到from和to两个节点的位姿。get poses of "from" and "to" nodes
+  const GraphNodeSE3 *fromNode = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second; // T_fw
+  const GraphNodeSE3 *toNode = (const GraphNodeSE3 *) nodes.find(toNodeId())->second;     // T_tw
   const SE3 &fromPose = fromNode->getPose();
   const SE3 &toPose = toNode->getPose();
 
-  // get measured pose as a matrix
+  // 将测量位姿转成矩阵形式。get measured pose as a matrix
   ORUtils::Matrix4<float> m;
-  MQTToMatrix(mMeasuredPose, m);
+  MQTToMatrix(mMeasuredPose, m);  // T_m 约等于 T_tf，因为存在误差
 
-  //compute residual
-  ORUtils::Matrix4<float> residualPose(fromPose.GetM() * toPose.GetInvM() * m);
+  // 计算from和to到测量位姿的误差？？？compute residual
+  ORUtils::Matrix4<float> residualPose(fromPose.GetM() * toPose.GetInvM() * m); // 解释见下面
   MatrixToMQT(residualPose, dest);
+  // NOTE: 如果测量绝对精准的话，T_m = T_tw * (T_fw)^-1 = T_tw * T_wf = T_tf（类似视觉SLAM十四讲的公式10.3）
+  // 但是存在误差导致等式无法成立，将右边的挪过去，得到误差为 = T_fw * (T_tw)^-1 * T_tf（视觉SLAM十四讲的公式10.4是将左边的挪过去，都一样）
 }
 
 bool GraphEdgeSE3::computeJacobian(const NodeIndex &nodes, int id, double *jacobian) const {

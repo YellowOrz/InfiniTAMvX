@@ -50,19 +50,17 @@ static void jacobianToHessian_offdiagonal(double *jacobian_from,
 double GraphEdge::computeError(const GraphEdge::NodeIndex &nodes) const {
   int dim = getMeasureDimensions();
   std::vector<double> residual(dim);
-  computeResidualVector(nodes, &(residual[0])); // TODO: 下次从这儿开始
+  computeResidualVector(nodes, &(residual[0])); // 计算误差向量
 
   // TODO: information matrix
   double ret = 0.0f;
-  for (int i = 0; i < dim; ++i) ret += residual[i] * residual[i];
+  for (int i = 0; i < dim; ++i) ret += residual[i] * residual[i]; // 误差向量的平方和即为误差
 
-  return 0.5f * ret;
+  return 0.5f * ret;  // 视觉slam十四讲 公式6.35 中也乘了0.5,但其实去掉这个0.5对结果没有影响
 }
 
-void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes,
-                                          const ParameterIndex &index,
-                                          VariableLengthVector &gradient,
-                                          SparseBlockMatrix &hessian) const {
+void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes, const ParameterIndex &index,
+    VariableLengthVector &gradient, SparseBlockMatrix &hessian) const { // TODO: 下次从这里开始
   int id_from = fromNodeId();
   int id_to = toNodeId();
   int row_f = index.findIndex(id_from);
@@ -90,11 +88,7 @@ void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes,
   if (do_from) {
     std::vector<double> Hblock_diag_f(numPara_from * numPara_from);
     std::vector<double> Gblock_f(numPara_from);
-    jacobianToHessian_diagonalpart(&(residual[0]),
-                                   &(jacobian_from[0]),
-                                   dimMeasure,
-                                   numPara_from,
-                                   &(Gblock_f[0]),
+    jacobianToHessian_diagonalpart(&(residual[0]), &(jacobian_from[0]), dimMeasure, numPara_from, &(Gblock_f[0]),
                                    &(Hblock_diag_f[0]));
 
     gradient.addData(row_f, numPara_from, &(Gblock_f[0]));
@@ -106,11 +100,7 @@ void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes,
     std::vector<double> Hblock_diag_t(numPara_to * numPara_to);
     std::vector<double> Gblock_t(numPara_to);
 
-    jacobianToHessian_diagonalpart(&(residual[0]),
-                                   &(jacobian_to[0]),
-                                   dimMeasure,
-                                   numPara_to,
-                                   &(Gblock_t[0]),
+    jacobianToHessian_diagonalpart(&(residual[0]), &(jacobian_to[0]), dimMeasure, numPara_to, &(Gblock_t[0]),
                                    &(Hblock_diag_t[0]));
 
     gradient.addData(row_t, numPara_to, &(Gblock_t[0]));
@@ -120,12 +110,8 @@ void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes,
   // off diagonal part
   if (do_from && do_to) {
     std::vector<double> Hblock_off(numPara_from * numPara_to);
-    jacobianToHessian_offdiagonal(&(jacobian_from[0]),
-                                  &(jacobian_to[0]),
-                                  dimMeasure,
-                                  numPara_from,
-                                  numPara_to,
-                                  &(Hblock_off[0]));
+    jacobianToHessian_offdiagonal(&(jacobian_from[0]), &(jacobian_to[0]), dimMeasure, numPara_from,
+                                  numPara_to, &(Hblock_off[0]));
 
     hessian.addBlock(row_f, row_t, numPara_from, numPara_to, &(Hblock_off[0]));
     hessian.addBlockTranspose(row_t, row_f, numPara_to, numPara_from, &(Hblock_off[0]));
