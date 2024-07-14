@@ -60,32 +60,35 @@ double GraphEdge::computeError(const GraphEdge::NodeIndex &nodes) const {
 }
 
 void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes, const ParameterIndex &index,
-    VariableLengthVector &gradient, SparseBlockMatrix &hessian) const { // TODO: 下次从这里开始
-  int id_from = fromNodeId();
-  int id_to = toNodeId();
-  int row_f = index.findIndex(id_from);
-  int row_t = index.findIndex(id_to);
+    VariableLengthVector &gradient, SparseBlockMatrix &hessian) const {
+  //! 准备
+  int id_from = fromNodeId();                                             // 起始节点对应的子图的全局id
+  int id_to = toNodeId();                                                 // 终止节点对应的子图的全局id
+  int row_f = index.findIndex(id_from);                                   // 起始节点的参数量
+  int row_t = index.findIndex(id_to);                                     // 终止节点的参数量
   //fprintf(stderr, "grad and hessian for edge from %i to %i (rows %i %i)\n", id_from, id_to, row_f, row_t);
-  bool do_from = (row_f >= 0);
-  bool do_to = (row_t >= 0);
 
-  GraphNode *fromNode = nodes.find(id_from)->second;
-  GraphNode *toNode = nodes.find(id_to)->second;
-  int numPara_from = fromNode->numParameters();
-  int numPara_to = toNode->numParameters();
-  int dimMeasure = getMeasureDimensions();
-
-  std::vector<double> residual(dimMeasure);
-  std::vector<double> jacobian_from(dimMeasure * numPara_from);
-  std::vector<double> jacobian_to(dimMeasure * numPara_to);
+  GraphNode *fromNode = nodes.find(id_from)->second;                      // 起始节点
+  GraphNode *toNode = nodes.find(id_to)->second;                          // 终止节点
+  int numPara_from = fromNode->numParameters();                           //? 就是row_f
+  int numPara_to = toNode->numParameters();                               //? 就是row_t
+  int dimMeasure = getMeasureDimensions();                                // 观测的维度
 
   // TODO: "Measurement Matrix"
+  //! 计算误差向量
+  std::vector<double> residual(dimMeasure);
   computeResidualVector(nodes, &(residual[0]));
-  if (do_from) computeJacobian(nodes, id_from, &(jacobian_from[0]));
+
+  //! 计算一阶导
+  std::vector<double> jacobian_from(dimMeasure * numPara_from);
+  std::vector<double> jacobian_to(dimMeasure * numPara_to);
+  bool do_from = (row_f >= 0);  //? 什么情况会导致false？
+  bool do_to = (row_t >= 0);
+  if (do_from) computeJacobian(nodes, id_from, &(jacobian_from[0]));  // TODO: 下次从这里开始
   if (do_to) computeJacobian(nodes, id_to, &(jacobian_to[0]));
 
-  // deal with "from" node
-  if (do_from) {
+  //! 计算二阶导
+  if (do_from) {  // deal with "from" node
     std::vector<double> Hblock_diag_f(numPara_from * numPara_from);
     std::vector<double> Gblock_f(numPara_from);
     jacobianToHessian_diagonalpart(&(residual[0]), &(jacobian_from[0]), dimMeasure, numPara_from, &(Gblock_f[0]),
@@ -94,9 +97,7 @@ void GraphEdge::computeGradientAndHessian(const GraphEdge::NodeIndex &nodes, con
     gradient.addData(row_f, numPara_from, &(Gblock_f[0]));
     hessian.addBlock(row_f, row_f, numPara_from, numPara_from, &(Hblock_diag_f[0]));
   }
-
-  // deal with "to" node
-  if (do_to) {
+  if (do_to) {    // deal with "to" node
     std::vector<double> Hblock_diag_t(numPara_to * numPara_to);
     std::vector<double> Gblock_t(numPara_to);
 

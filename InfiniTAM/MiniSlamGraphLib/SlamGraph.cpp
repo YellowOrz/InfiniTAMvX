@@ -62,7 +62,7 @@ void SlamGraph::evaluateGradientAndHessian(
   if (nodes == NULL) nodes = &mNodes;
   // 给一阶导、二阶导分配内存
   allocateGradientAndHessian(g, H);
-  // 遍历图中每条边，计算一阶导和二阶导
+  // 遍历图中每条边，计算一阶导和二阶导（H矩阵）
   for (EdgeList::const_iterator it = mEdges.begin(); it != mEdges.end(); ++it) {
     (*it)->computeGradientAndHessian(*nodes, mParameterIndex, *g, *H);
   }

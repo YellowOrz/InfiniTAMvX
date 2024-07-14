@@ -18,12 +18,16 @@ class QuaternionHelpers {
    */
   static void QuaternionFromRotationMatrix(const double *matrix, double *q);
 
-  /** Compute the derivative of the transformation in QuaternionFromRotationMatrix()
-      w.r.t. the elements of the rotation matrix @p matrix and write them
-      to @p dq_dR. The first 9 elements of @p dq_dR will be the
-      derivatives of the real part of the quaternion w.r.t. R11, R12, ...,
-      followed by three similar rows for the imaginary parts.
-  */
+  /**
+   * @brief 计算四元数对软转矩阵的偏导？
+   * @details Compute the derivative of the transformation in QuaternionFromRotationMatrix() w.r.t. the elements of the
+   * rotation matrix @p matrix and write them to @p dq_dR. The first 9 elements of @p dq_dR will be the derivatives of
+   * the real part of the quaternion w.r.t. R11, R12, ..., followed by three similar rows for the imaginary parts.
+   * @param matrix
+   * @param dq_dR
+   * @note 来源"James Diebel. Representing Attitude: Euler Angles, Quaternions, and Rotation Vectors. Technical Report,
+   * Stanford University, Palo Alto, CA."
+   */
   static void dQuaternion_dRotationMatrix(const double *matrix, double *dq_dR);
 };
 }

@@ -11,7 +11,7 @@ namespace MiniSlamGraph {
 class GraphEdgeSE3 : public GraphEdge {
  public:
   typedef ORUtils::SE3Pose SE3;
-
+  /** 测量误差的维度 */
   int getMeasureDimensions(void) const {
     return 6;
   }
@@ -33,6 +33,6 @@ class GraphEdgeSE3 : public GraphEdge {
   bool computeJacobian(const NodeIndex &nodes, int id, double *j) const;
 
  private:
-  double mMeasuredPose[6];  // 测量位姿。MQT形式（四元数+平移向量） // ?一般来说是多次观测的加权平均？
+  double mMeasuredPose[6];  // 观测位姿（多次加权平均过的），从from到to，即T_tf。MQT形式（四元数+平移向量）// TODO: 为啥不弄成Vector6?这样可以get的时候引用
 };
 }

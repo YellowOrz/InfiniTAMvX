@@ -79,7 +79,7 @@ int LevenbergMarquardtMethod::minimize(
 
     bool success;
     {
-      Matrix *A = B->clone(); // TDDO: 为啥要用指针？是为了用完马上delete？
+      Matrix *A = B->clone(); // TDDO: 为啥要用指针？是为了用完马上delete？但都用花括号括起来了，不用指针也能马上释放啊
       /*if (regularize_sphere) A->addDiagonal(lambda);
       else*/ A->multDiagonal(lambda);   // 对角元素增大lambda倍 ??? why?
       success = A->solve(grad, &(d[0]));

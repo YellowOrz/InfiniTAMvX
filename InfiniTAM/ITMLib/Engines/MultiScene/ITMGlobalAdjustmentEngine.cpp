@@ -163,7 +163,7 @@ void ITMGlobalAdjustmentEngine::MultiSceneToPoseGraph(const ITMMapGraphManager &
 
     dest.addNode(pose);
   }
-  //! 把每个子图 与其他子图的link作为图的edge
+  //! 把每个子图 与其他子图（即localMapId）的link作为图的edge
   for (int localMapId = 0; localMapId < (int)src.numLocalMaps(); ++localMapId) {
     const ConstraintList &constraints = src.getConstraints(localMapId);
     for (ConstraintList::const_iterator it = constraints.begin(); it != constraints.end(); ++it) {
@@ -171,7 +171,7 @@ void ITMGlobalAdjustmentEngine::MultiSceneToPoseGraph(const ITMMapGraphManager &
 
       odometry->setFromNodeId(localMapId);                                  // 设置起点对应子图的全局id
       odometry->setToNodeId(it->first);                                     // 设置终点对应子图的全局id
-      odometry->setMeasurementSE3(it->second.GetAccumulatedObservations()); // 获取终点子图 到 起点子图的位姿（加权平均）
+      odometry->setMeasurementSE3(it->second.GetAccumulatedObservations()); // 获取终点子图 到 起点子图的位姿（加权平均），T_tf
 
       //TODO odometry->setInformation
       dest.addEdge(odometry);

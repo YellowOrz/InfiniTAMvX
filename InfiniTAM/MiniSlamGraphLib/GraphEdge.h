@@ -14,21 +14,24 @@ namespace MiniSlamGraph {
 /** 位姿图中的边 */
 class GraphEdge {
  public:
-  typedef std::map<int, GraphNode *> NodeIndex; // 所有节点信息， 从 节点id 到 节点指针 的映射
+  typedef std::map<int, GraphNode *> NodeIndex; // 所有节点信息， 从 节点对应的子图的全局id 到 节点指针 的映射
 
   virtual ~GraphEdge(void) {}
-
+  /** 起始节点对应的子图的全局id */
   int fromNodeId(void) const { return idFrom; }
+  /** 设置 起始节点对应的子图的全局id */
   void setFromNodeId(int id) { idFrom = id; }
+  /** 终止节点对应的子图的全局id */
   int toNodeId(void) const { return idTo; }
+  /** 设置 终止节点对应的子图的全局id */
   void setToNodeId(int id) { idTo = id; }
-
+  /** 观测的维度 */
   virtual int getMeasureDimensions(void) const = 0;
   virtual void setMeasurement(const double *v) = 0;
   virtual void getMeasurement(double *v) const = 0;
 
   /**
-   * @brief 计算 当前 边/约束 的误差向量
+   * @brief 计算当前边（即约束）的误差向量
    * @details This method is supposed to compute the residual vector of the
       Edge/Contraint. The result will be written to a vector of length
       getMeasureDimensions().
@@ -37,22 +40,24 @@ class GraphEdge {
    */
   virtual void computeResidualVector(const NodeIndex &nodes, double *dest) const = 0;
 
-  /** This method is supposed to compute the Jacobian of the
-      Edge/Contraint. Here the "Jacobian" means the derivative of the
-      residual vector from computeResidualVector() w.r.t. the parameters
-      of the Node with id @p id. The result is stored in a row-major
-      "matrix" @p j, where each row contains the derivatives of a single
-      entry of the residual vector w.r.t. all the parameters. This means
-      the derivative of residual @p i_r w.r.t. parameter @p i_p is
-      addressed as @p j[i_r * dimMeasure + i_p] .
-      If the node identified py @p id does not affect the residual, @p j
-      is untouched and the return value is set to false. In all other
-      cases, the return value is set to true.
-  */
+  /**
+   * @brief 计算指定节点的一阶导（雅可比矩阵）
+   * @details This method is supposed to compute the Jacobian of the Edge/Contraint. Here the "Jacobian" means the
+   * derivative of the residual vector from computeResidualVector() w.r.t. the parameters of the Node with id @p id. The
+   * result is stored in a row-major "matrix" @p j, where each row contains the derivatives of a single entry of the
+   * residual vector w.r.t. all the parameters. This means the derivative of residual @p i_r w.r.t. parameter @p i_p is
+   * addressed as @p j[i_r * dimMeasure + i_p] .
+   * If the node identified py @p id does not affect the residual, @p j is untouched and the return value is set to
+   * false. In all other cases, the return value is set to true.
+   * @param[in] nodes   所有的节点
+   * @param[in] id      对应的子图的全局id
+   * @param[out] j      一阶导（雅可比矩阵）
+   * @return
+   */
   virtual bool computeJacobian(const NodeIndex &nodes, int id, double *j) const = 0;
 
   /**
-   * @brief 计算 当前 边/约束 的误差
+   * @brief 计算当前边（即约束）的误差
    * @details This method computes the contribution of an Edge/Constraint to the overall error function. It comes with a
    * default implementation using the simple squared differences.
    * @param[in] nodes   所有的节点。
@@ -61,8 +66,14 @@ class GraphEdge {
    */
   virtual double computeError(const NodeIndex &nodes) const;
 
-  /** This method computes the contribution of an Edge/Constraint to the overall gradient vector and hessian matrix. It
-   * comes with a default implementation suitable for simple squared differences.
+  /**
+   * @brief 计算当前边（即约束）的一阶导和二阶导（H矩阵）
+   * @details This method computes the contribution of an Edge/Constraint to the overall gradient vector and hessian
+   * matrix. It comes with a default implementation suitable for simple squared differences.
+   * @param[in] nodes       所有节点
+   * @param[in] index       指定节点信息
+   * @param[out] gradient   一阶导
+   * @param[out] hessian    二阶导（H矩阵）
    */
   virtual void computeGradientAndHessian(const NodeIndex &nodes, const ParameterIndex &index,
                                          VariableLengthVector &gradient, SparseBlockMatrix &hessian) const;

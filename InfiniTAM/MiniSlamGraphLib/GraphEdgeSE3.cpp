@@ -41,16 +41,16 @@ static void MQTToMatrix(const double *qt, ORUtils::Matrix4<float> &m) {
   m.m[3 * 4 + 3] = 1.0f;
 }
 /**
- * @brief
- * @param idx
- * @return
+ * @brief 生成一个微小的变换矩阵
+ * @param[in] idx   0-2，对应三个方向的微小平移，3-5，对应三个轴的微小旋转
+ * @return          微小的变换矩阵
  */
 static ORUtils::Matrix4<float> se3_generator(int idx) {
   ORUtils::Matrix4<float> ret;
   ret.setZeros();
-  if (idx < 3) {
-    ret.m[3 * 4 + idx] = 1.0f;
-  } else {
+  if (idx < 3) {  // 对应三个方向的微小平移
+    ret.m[3 * 4 + idx] = 1.0f;  // NOTE: 按列存储
+  } else {        // 对应的三个轴的微小旋转
     int r = (idx + 1) % 3;
     int c = (idx + 2) % 3;
     ret.m[c * 4 + r] = -1.0f;
@@ -58,7 +58,7 @@ static ORUtils::Matrix4<float> se3_generator(int idx) {
   }
   return ret;
 }
-/** 设置 测量位姿。一般来说是多次观测的加权平均？ */
+/** 设置 观测位姿。一般来说是多次观测的加权平均？ */
 void GraphEdgeSE3::setMeasurementSE3(const SE3 &pose) {
   MatrixToMQT(pose.GetM(), mMeasuredPose);
 }
@@ -76,48 +76,48 @@ void GraphEdgeSE3::computeResidualVector(const GraphEdgeSE3::NodeIndex &nodes, d
   const SE3 &fromPose = fromNode->getPose();
   const SE3 &toPose = toNode->getPose();
 
-  // 将测量位姿转成矩阵形式。get measured pose as a matrix
+  // 将观测位姿转成矩阵形式。get measured pose as a matrix
   ORUtils::Matrix4<float> m;
   MQTToMatrix(mMeasuredPose, m);  // T_m 约等于 T_tf，因为存在误差
 
-  // 计算from和to到测量位姿的误差？？？compute residual
+  // 计算from和to到观测位姿的误差？？？compute residual
   ORUtils::Matrix4<float> residualPose(fromPose.GetM() * toPose.GetInvM() * m); // 解释见下面
   MatrixToMQT(residualPose, dest);
-  // NOTE: 如果测量绝对精准的话，T_m = T_tw * (T_fw)^-1 = T_tw * T_wf = T_tf（类似视觉SLAM十四讲的公式10.3）
+  // NOTE: 如果观测绝对精准的话，T_m = T_tw * (T_fw)^-1 = T_tw * T_wf = T_tf（类似视觉SLAM十四讲的公式10.3）
   // 但是存在误差导致等式无法成立，将右边的挪过去，得到误差为 = T_fw * (T_tw)^-1 * T_tf（视觉SLAM十四讲的公式10.4是将左边的挪过去，都一样）
 }
 
 bool GraphEdgeSE3::computeJacobian(const NodeIndex &nodes, int id, double *jacobian) const {
-  const GraphNodeSE3 *node_f = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second;
-  const GraphNodeSE3 *node_t = (const GraphNodeSE3 *) nodes.find(toNodeId())->second;
+  const GraphNodeSE3 *node_f = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second; // T_fw
+  const GraphNodeSE3 *node_t = (const GraphNodeSE3 *) nodes.find(toNodeId())->second;   // T_tw
   const SE3 &fromPose = node_f->getPose();
   const SE3 &toPose = node_t->getPose();
 
-  // get measured pose as a matrix
-  ORUtils::Matrix4<float> m;
-  MQTToMatrix(mMeasuredPose, m);
-
   //compute residual
-  ORUtils::Matrix4<float> AB(fromPose.GetM() * toPose.GetInvM());
+  ORUtils::Matrix4<float> AB(fromPose.GetM() * toPose.GetInvM());   // = T_fw * (T_tw)^-1 = T_ft
 
-  ORUtils::Matrix4<float> dAB_dx[6];
+  // 在3个平移方向和3个旋转方向上，分别计算扰动后的位姿
+  ORUtils::Matrix4<float> dAB_dx[6];  // 扰动后的位姿，前三个对应平移，后三个对应旋转
   if (id == node_f->getId()) {
-    for (int i = 0; i < 6; ++i) dAB_dx[i] = se3_generator(i) * AB;
+    for (int i = 0; i < 6; ++i) dAB_dx[i] = se3_generator(i) * AB;  // 左扰动？
   } else if (id == node_t->getId()) {
-    for (int i = 0; i < 6; ++i) dAB_dx[i] = AB * se3_generator(i) * -1.0f;
+    for (int i = 0; i < 6; ++i) dAB_dx[i] = AB * se3_generator(i) * -1.0f;  // 右扰动？
   } else return false;
 
+  ORUtils::Matrix4<float> m;  // 观测位姿转成矩阵形式，T_tf。get measured pose as a matrix
+  MQTToMatrix(mMeasuredPose, m);
   double dQ_dR[4 * 9];
   {
-    ORUtils::Matrix4<float> ABm = AB * m;
+    ORUtils::Matrix4<float> ABm = AB * m; // = T_ft * T_tf = T_ff
     double ABm_array[9];
-    for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) ABm_array[r * 3 + c] = ABm.m[c * 4 + r];
+    for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) ABm_array[r * 3 + c] = ABm.m[c * 4 + r];  // 将旋转转成行存储
     QuaternionHelpers::dQuaternion_dRotationMatrix(ABm_array, dQ_dR);
   }
-  for (int gi = 0; gi < 6; ++gi) {
+  for (int gi = 0; gi < 6; ++gi) {  // TODO: 下次从这儿开始
     ORUtils::Matrix4<float> d_inner_dx = dAB_dx[gi] * m;
     for (int qi = 0; qi < 3; ++qi) {
       jacobian[qi * 6 + gi] = 0.0f;
+      // 计算雅可比矩阵的前3*3，对应旋转？
       for (int r = 0; r < 3; ++r)
         for (int c = 0; c < 3; ++c)
           jacobian[qi * 6 + gi] += dQ_dR[(qi + 1) * 9 + (r * 3 + c)]
