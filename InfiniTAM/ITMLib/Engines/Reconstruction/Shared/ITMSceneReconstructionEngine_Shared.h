@@ -354,7 +354,7 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
     hashIdx = hashIndex(blockPos);  //compute index in hash table 
     ITMHashEntry hashEntry = hashTable[hashIdx];
 
-    // 查找对应block   //check if hash table contains entry
+    // 在ordered entries中找对应block   //check if hash table contains entry
     bool isFound = false;
     if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= -1) {  // 判断IS_EQUAL3是因为存在哈希冲突，>=-1说明已经分配过
       // 记录entry对应block的可见类型，=1是正常可见，=2是可见但是被swap out
@@ -362,8 +362,7 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
       entriesVisibleType[hashIdx] = (hashEntry.ptr == -1) ? 2 : 1; 
       isFound = true;
     }
-    // 上面没找到可能是因为哈希冲突，继续遍历entry对应的bucket（其实InfiniTAM的bucket size=1）
-    if (!isFound) {   
+    if (!isFound) {      // 没找到，继续遍历excess list（也叫unordered entries）
       bool isExcess = false;  // 是否存在于excess list（也叫unordered entries）
       if (hashEntry.ptr >= -1) { // >= -1说明已经被分配空间了。seach excess list only if there is no room in ordered part
         isExcess = true;
@@ -379,8 +378,7 @@ buildHashAllocAndVisibleTypePP(DEVICEPTR(uchar) * entriesAllocType, DEVICEPTR(uc
           }
         }
       }
-      // 遍历完bucket后还是没找到，说明这个block还没分配内存
-      if (!isFound) {   
+      if (!isFound) {         // excess list里面也没有，说明这个block还没分配内存
         entriesAllocType[hashIdx] = isExcess ? 2 : 1;   // 记录存放位置。=1存放于order list，=2存放于excess(unorder) list
         if (!isExcess) // entriesVisibleType只记录order entry的可见类型。因为其长度为bucket num。new entry is visible
           entriesVisibleType[hashIdx] = 1; 

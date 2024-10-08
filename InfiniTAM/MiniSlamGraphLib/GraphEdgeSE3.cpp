@@ -71,7 +71,7 @@ GraphEdgeSE3::SE3 GraphEdgeSE3::getMeasurementSE3(void) const {
 
 void GraphEdgeSE3::computeResidualVector(const GraphEdgeSE3::NodeIndex &nodes, double *dest) const {
   // 得到from和to两个节点的位姿。get poses of "from" and "to" nodes
-  const GraphNodeSE3 *fromNode = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second; // T_fw
+  const GraphNodeSE3 *fromNode = (const GraphNodeSE3 *) nodes.find(fromNodeId())->second; // T_fw // TODO: 找不到咋办？
   const GraphNodeSE3 *toNode = (const GraphNodeSE3 *) nodes.find(toNodeId())->second;     // T_tw
   const SE3 &fromPose = fromNode->getPose();
   const SE3 &toPose = toNode->getPose();
@@ -99,9 +99,9 @@ bool GraphEdgeSE3::computeJacobian(const NodeIndex &nodes, int id, double *jacob
   // 在3个平移方向和3个旋转方向上，分别计算扰动后的位姿
   ORUtils::Matrix4<float> dAB_dx[6];  // 扰动后的位姿，前三个对应平移，后三个对应旋转
   if (id == node_f->getId()) {
-    for (int i = 0; i < 6; ++i) dAB_dx[i] = se3_generator(i) * AB;  // 左扰动？
+    for (int i = 0; i < 6; ++i) dAB_dx[i] = se3_generator(i) * AB;          //? 左扰动？
   } else if (id == node_t->getId()) {
-    for (int i = 0; i < 6; ++i) dAB_dx[i] = AB * se3_generator(i) * -1.0f;  // 右扰动？
+    for (int i = 0; i < 6; ++i) dAB_dx[i] = AB * se3_generator(i) * -1.0f;  //? 右扰动？
   } else return false;
 
   ORUtils::Matrix4<float> m;  // 观测位姿转成矩阵形式，T_tf。get measured pose as a matrix
@@ -110,19 +110,22 @@ bool GraphEdgeSE3::computeJacobian(const NodeIndex &nodes, int id, double *jacob
   {
     ORUtils::Matrix4<float> ABm = AB * m; // = T_ft * T_tf = T_ff
     double ABm_array[9];
-    for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) ABm_array[r * 3 + c] = ABm.m[c * 4 + r];  // 将旋转转成行存储
-    QuaternionHelpers::dQuaternion_dRotationMatrix(ABm_array, dQ_dR);
+    for (int r = 0; r < 3; ++r)           // 将旋转从列转成行存储
+      for (int c = 0; c < 3; ++c)
+        ABm_array[r * 3 + c] = ABm.m[c * 4 + r];
+    QuaternionHelpers::dQuaternion_dRotationMatrix(ABm_array, dQ_dR); //? 为啥要计算四元数关于旋转矩阵的导数？？？
   }
-  for (int gi = 0; gi < 6; ++gi) {  // TODO: 下次从这儿开始
+  // 计算6个扰动位姿的一阶导
+  for (int gi = 0; gi < 6; ++gi) {
     ORUtils::Matrix4<float> d_inner_dx = dAB_dx[gi] * m;
+    // 对旋转的一阶导
     for (int qi = 0; qi < 3; ++qi) {
       jacobian[qi * 6 + gi] = 0.0f;
-      // 计算雅可比矩阵的前3*3，对应旋转？
       for (int r = 0; r < 3; ++r)
-        for (int c = 0; c < 3; ++c)
-          jacobian[qi * 6 + gi] += dQ_dR[(qi + 1) * 9 + (r * 3 + c)]
-              * d_inner_dx.m[c * 4 + r];
+        for (int c = 0; c < 3; ++c) //? 为什么这么计算
+          jacobian[qi * 6 + gi] += dQ_dR[(qi + 1) * 9 + (r * 3 + c)] * d_inner_dx.m[c * 4 + r];
     }
+    // 对平移的一阶导
     for (int ti = 0; ti < 3; ++ti) {
       jacobian[(ti + 3) * 6 + gi] = d_inner_dx.m[3 * 4 + ti];
     }

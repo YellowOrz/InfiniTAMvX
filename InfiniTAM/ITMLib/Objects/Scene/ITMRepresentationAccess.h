@@ -60,15 +60,15 @@ _CPU_AND_GPU_CODE_ inline int findVoxel(const CONSTPTR(ITMLib::ITMVoxelBlockHash
   while (true) {
     ITMHashEntry hashEntry = voxelIndex[hashIdx];
 
-    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= 0) {
+    if (IS_EQUAL3(hashEntry.pos, blockPos) && hashEntry.ptr >= 0) {   // 找到voxel了
       vmIndex = true;
       cache.blockPos = blockPos;
       cache.blockPtr = hashEntry.ptr * SDF_BLOCK_SIZE3;
       return cache.blockPtr + linearIdx;
     }
 
-    if (hashEntry.offset < 1) break;  // <1说明没有哈希冲突
-    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // -1是因为offset在记录的时候+1
+    if (hashEntry.offset < 1) break;  // <1没有哈希冲突，说明没找到voxel
+    hashIdx = SDF_BUCKET_NUM + hashEntry.offset - 1;  // 有哈希冲突的话，去扩展列表里面找；-1是因为offset在记录的时候+1
   }
 
   vmIndex = false;

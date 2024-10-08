@@ -98,8 +98,9 @@ const Matrix *SlamGraphErrorFunction::EvaluationPoint::hessian_GN(void) {
 }
 
 void SlamGraphErrorFunction::EvaluationPoint::cacheGH(void) {
-  if (cacheG != NULL) return; // 倒数不为空，不用再算了  //? 什么时候会不为空？
-  SparseBlockMatrix *H_tmp = NULL;
+  if (cacheG != NULL) return;       // 如果算过了就不用再算了，因为可能多次调用
+  //! 计算整个graph的梯度和二阶导
+  SparseBlockMatrix *H_tmp = NULL;  // 二阶导存成稀疏矩阵
   mParent->getGraph()->evaluateGradientAndHessian(cacheG, H_tmp, &(mPara->getNodes()));
 
 #ifdef COMPILE_WITH_CSPARSE

@@ -26,7 +26,7 @@ class GraphEdge {
   /** 设置 终止节点对应的子图的全局id */
   void setToNodeId(int id) { idTo = id; }
   /** 观测的维度 */
-  virtual int getMeasureDimensions(void) const = 0;
+virtual int getMeasureDimensions(void) const = 0;
   virtual void setMeasurement(const double *v) = 0;
   virtual void getMeasurement(double *v) const = 0;
 
@@ -41,7 +41,7 @@ class GraphEdge {
   virtual void computeResidualVector(const NodeIndex &nodes, double *dest) const = 0;
 
   /**
-   * @brief 计算指定节点的一阶导（雅可比矩阵）
+   * @brief 计算指定节点的一阶导矩阵（雅可比矩阵）
    * @details This method is supposed to compute the Jacobian of the Edge/Contraint. Here the "Jacobian" means the
    * derivative of the residual vector from computeResidualVector() w.r.t. the parameters of the Node with id @p id. The
    * result is stored in a row-major "matrix" @p j, where each row contains the derivatives of a single entry of the
@@ -51,8 +51,8 @@ class GraphEdge {
    * false. In all other cases, the return value is set to true.
    * @param[in] nodes   所有的节点
    * @param[in] id      对应的子图的全局id
-   * @param[out] j      一阶导（雅可比矩阵）
-   * @return
+   * @param[out] j      一阶导矩阵（雅可比矩阵），维度=dimMeasure*numPara
+   * @return            是否存在一阶导
    */
   virtual bool computeJacobian(const NodeIndex &nodes, int id, double *j) const = 0;
 
@@ -67,13 +67,13 @@ class GraphEdge {
   virtual double computeError(const NodeIndex &nodes) const;
 
   /**
-   * @brief 计算当前边（即约束）的一阶导和二阶导（H矩阵）
+   * @brief 计算当前边（即约束）的梯度和二阶导（H矩阵）
    * @details This method computes the contribution of an Edge/Constraint to the overall gradient vector and hessian
    * matrix. It comes with a default implementation suitable for simple squared differences.
    * @param[in] nodes       所有节点
    * @param[in] index       指定节点信息
-   * @param[out] gradient   一阶导
-   * @param[out] hessian    二阶导（H矩阵）
+   * @param[out] gradient   所有edge的梯度
+   * @param[out] hessian    所有edge的二阶导（一个大的稀疏矩阵矩阵，对角线上每个block是每条边的H矩阵）
    */
   virtual void computeGradientAndHessian(const NodeIndex &nodes, const ParameterIndex &index,
                                          VariableLengthVector &gradient, SparseBlockMatrix &hessian) const;

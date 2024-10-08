@@ -7,7 +7,7 @@
 #include "../ORUtils/SE3Pose.h"
 
 namespace MiniSlamGraph {
-/** 位姿图中类型为SE3的边 */
+/** 位姿图中类型为SE3的边（约束） */
 class GraphEdgeSE3 : public GraphEdge {
  public:
   typedef ORUtils::SE3Pose SE3;
@@ -25,11 +25,19 @@ class GraphEdgeSE3 : public GraphEdge {
   void setMeasurementSE3(const SE3 &pose);
   SE3 getMeasurementSE3(void) const;
   /**
-   * @brief 计算 边/约束 的误差向量
+   * @brief 计算当前edge的误差向量
    * @param[in] nodes   所有的节点。会根据成员变量 @p idFrom 和 @p idTo 找到相关的节点。
    * @param[out] dest   误差矩阵的MQT形式（四元数+平移向量）
    */
   void computeResidualVector(const NodeIndex &nodes, double *dest) const;
+  /**
+   * @brief 计算当前edge的一个节点的一阶导
+   * @param[in] nodes   所有的节点。会根据成员变量 @p idFrom 和 @p idTo 找到相关的节点。
+   * @param[in] id      当前edge中的一个节点对应的子图全局id，即@p idFrom 或者 @p idTo  // TODO: 弄成二选一的变量更好
+   * @param[out] j      一阶导矩阵（雅可比矩阵），维度=dimMeasure*numPara
+   * @return            是否存在一阶导
+   * @note              id!=idFrom || id!=idTo 时，返回false
+   */
   bool computeJacobian(const NodeIndex &nodes, int id, double *j) const;
 
  private:

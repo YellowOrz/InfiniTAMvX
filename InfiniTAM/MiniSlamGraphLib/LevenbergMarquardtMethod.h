@@ -12,7 +12,7 @@ class LevenbergMarquardtMethod {
     * @brief 最小化误差函数
     * @param[in] function       误差函数
     * @param[in] initialization 优化参数，其实就是位姿图的节点
-    * @return int 
+    * @return int
     */
   static int minimize(const SlamGraphErrorFunction &function, SlamGraphErrorFunction::Parameters &initialization);
 };

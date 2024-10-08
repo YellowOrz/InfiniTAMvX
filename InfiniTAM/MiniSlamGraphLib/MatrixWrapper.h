@@ -46,60 +46,62 @@ class Matrix {
   virtual void multDiagonal(double lambda);
 };
 
-/** This is a reimplementation of Matrix for symmetric, positive definite
-    matrices. The method solve() then uses Cholesky decomposition.
+/** 正定矩阵。其中solve()使用Cholesky分解。
+ * This is a reimplementation of Matrix for symmetric, positive definite matrices. The method solve() then uses Cholesky decomposition.
 */
 class MatrixSymPosDef : public Matrix {
  public:
-  /** will allocate new memory */
+  /** 构造函数。会分配内存。will allocate new memory */
   MatrixSymPosDef(int dim);
-  /** copy constructor */
+  /** 拷贝构造。copy constructor */
   MatrixSymPosDef(const MatrixSymPosDef &src);
 
   ~MatrixSymPosDef(void);
 
-  /** */
+  /** 深拷贝 */
   MatrixSymPosDef *clone(void) const {
     return new MatrixSymPosDef(*this);
   }
 
-  /** */
+  /** 将当前矩阵当作A,使用Cholesky分解求解Ax=b */
   bool solve(const double *b, double *x) const;
   /** */
   bool multisolve(const double *B, double *X, int num, int ldb = -1) const;
 
-  /** */
+  /** 行数 */
   int numRows(void) const { return size; }
-  /** */
+  /** 列数 */
   int numCols(void) const { return size; }
 
-  /** */
+  /** 获取元素 */
   const double &ele(int row, int col) const {
     return memory[row + col * size];
   }
-  /** */
+  /** 获取元素 */
   double &ele(int row, int col) {
     return memory[row + col * size];
   }
 
-  /** */
+  /** 获取对角线元素 */
   virtual const double &diag(int i) const {
     return ele(i, i);
   }
-  /** */
+  /** 获取对角线元素 */
   virtual double &diag(int i) {
     return ele(i, i);
   }
-
+  /** 获取内存指针 */
   const double *getMemory(void) const { return memory; }
+  /** 获取内存指针 */
   double *getMemory(void) { return memory; }
 
-  /** Compute the matrix-vector product A * b. */
+  /** 将当前矩阵当作A,计算矩阵乘法A*b=x。
+   * Compute the matrix-vector product A * b. */
   virtual void multiply(const double *b, double *result) const;
 
  private:
-  double *memory;
-  int size;
+  double *memory; // 矩阵内存指针。行优先
+  int size; // 矩阵高、宽
 };
 
 }

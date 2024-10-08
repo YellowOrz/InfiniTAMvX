@@ -71,15 +71,12 @@ int LevenbergMarquardtMethod::minimize(
     fprintf(stderr, "function value: %f\n", x->f());
     fprintf(stderr, "LM: lambda %f\n", lambda);
 #endif
-    const double *grad;
-    const Matrix *B;
-
-    grad = x->nabla_f();
-    B = x->hessian_GN();
+    const double *grad = x->nabla_f();    // 获取整张graph的梯度
+    const Matrix *B = x->hessian_GN();    // 获取整张graph的二阶导
 
     bool success;
-    {
-      Matrix *A = B->clone(); // TDDO: 为啥要用指针？是为了用完马上delete？但都用花括号括起来了，不用指针也能马上释放啊
+    { //! 求解方程
+      Matrix *A = B->clone(); // TODO: 为啥要用指针？是为了用完马上delete？但都用花括号括起来了，不用指针也能马上释放啊
       /*if (regularize_sphere) A->addDiagonal(lambda);
       else*/ A->multDiagonal(lambda);   // 对角元素增大lambda倍 ??? why?
       success = A->solve(grad, &(d[0]));
@@ -87,14 +84,13 @@ int LevenbergMarquardtMethod::minimize(
     }
 
     if (success) {
-      if (stepConsideredSmallMAX(f, &(d[0]))) break;
-      for (int i = 0; i < numPara; i++) d[i] = -d[i];
+      if (stepConsideredSmallMAX(f, &(d[0]))) break;  // 步长太小，说明收敛，退出
       // make step
-      SlamGraphErrorFunction::Parameters *tmp_para = x->getParameter().clone();
+      for (int i = 0; i < numPara; i++) d[i] = -d[i];
+      SlamGraphErrorFunction::Parameters *tmp_para = x->getParameter().clone(); // TODO: 下次从这儿开始
       f.applyDelta(x->getParameter(), &(d[0]), *tmp_para);
 
-      // check whether step reduces error function and
-      // compute a new value of lambda
+      // check whether step reduces error function and ompute a new value of lambda
       x2 = f.evaluateAt(tmp_para);
       double q = stepQuality(x, x2, &(d[0]), grad, B);
       if (q > TR_QUALITY_GAMMA1) {

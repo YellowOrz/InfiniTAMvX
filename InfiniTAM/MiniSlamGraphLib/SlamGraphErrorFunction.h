@@ -37,18 +37,29 @@ class SlamGraphErrorFunction /*: public K_OPTIM::ErrorFunctionLeastSquares*/ {
     ~EvaluationPoint(void);
     /** 得到误差。误差在构造函数里就算好了 */
     double f(void);
+    /**
+     * @brief 获取整张graph的梯度
+     * @return  整张graph的梯度。每个edge的梯度首尾相连成一个很长的向量
+     * @note    获取之前会看看要不要计算
+     */
     const double *nabla_f(void);
+    /**
+     * @brief 获取整张graph的二阶导
+     * @return  整张graph的二阶导。其实类型是MatrixSymPosDef
+     * @note    获取之前会看看要不要计算
+     */
     const Matrix *hessian_GN(void);
     const Parameters &getParameter(void) const { return *mPara; }
 
    private:
+    /** 计算整张graph的梯度和二阶导 */
     void cacheGH(void);
 
     const SlamGraphErrorFunction *mParent;  // 误差优化函数。包含了
     const Parameters *mPara;                // 优化参数，其实就只有位姿图的节点
     double cacheF;                          // 误差的平方
-    VariableLengthVector *cacheG;
-    Matrix *cacheH;
+    VariableLengthVector *cacheG;           // 整张graph的梯度。每个edge的梯度首尾相连成一个很长的向量
+    Matrix *cacheH;                         // 整张graph的二阶导。其实类型是MatrixSymPosDef
   };
 
   SlamGraphErrorFunction(const SlamGraph &graph);

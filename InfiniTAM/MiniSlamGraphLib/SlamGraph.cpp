@@ -59,14 +59,14 @@ double SlamGraph::evaluateF(const NodeIndex *nodes) const {
 
 void SlamGraph::evaluateGradientAndHessian(
     VariableLengthVector *&g, SparseBlockMatrix *&H, const NodeIndex *nodes) const {
-  if (nodes == NULL) nodes = &mNodes;
-  // 给一阶导、二阶导分配内存
+  if (nodes == NULL) nodes = &mNodes; // TODO: nodes不是const吗？怎么可以修改值？
+  // 给梯度向量、二阶导矩阵分配内存
   allocateGradientAndHessian(g, H);
-  // 遍历图中每条边，计算一阶导和二阶导（H矩阵）
+  // 遍历图中每条边，计算梯度向量和二阶导矩阵（H矩阵）
   for (EdgeList::const_iterator it = mEdges.begin(); it != mEdges.end(); ++it) {
     (*it)->computeGradientAndHessian(*nodes, mParameterIndex, *g, *H);
   }
-
+  // TODO: 为啥要再这样设置一下？
   g->setOverallSize(mParameterIndex.numTotalParameters());
 }
 

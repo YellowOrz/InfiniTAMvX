@@ -38,20 +38,26 @@ class SlamGraph {
   }
   /**
    * @brief 计算所有边的误差，并返回误差的平方和
-   * @param[in] override_nodes
+    * @param[in] override_nodes 所有节点。若为nullptr，则设置为mNodes
    * @return                    误差的平方和
    */
   virtual double evaluateF(const NodeIndex *override_nodes = NULL) const;
+  /**
+   * @brief 计算所有边的梯度和H矩阵
+   * @param[out] g              所有边的梯度。首尾相连
+   * @param[out] H              所有边的hessian矩阵。以稀疏形式存储
+   * @param[in] override_nodes  所有节点。若为nullptr，则设置为mNodes
+   */
   virtual void evaluateGradientAndHessian(
       VariableLengthVector *&g, SparseBlockMatrix *&H, const NodeIndex *override_nodes = NULL) const;
 
 protected:
   /**
-   * @brief 给一阶导和二阶导分配内存
+   * @brief 给梯度向量和hessian矩阵分配内存
    * @details This function is internally called by evaluateGradientAndHessian()
    * and is supposed to allocate the structures for the gradient vectorand, most crucially, the sparse Hessian matrix.
-   * @param[out] g  一阶导
-   * @param[out] H  二阶导。以稀疏形式存储
+   * @param[out] g  梯度向量
+   * @param[out] H  hessian矩阵。以稀疏形式存储
    * @note          在evaluateGradientAndHessian()中调用
    */
   virtual void allocateGradientAndHessian(VariableLengthVector *&g, SparseBlockMatrix *&H) const = 0;
