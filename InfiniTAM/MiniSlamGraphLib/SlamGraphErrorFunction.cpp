@@ -145,7 +145,7 @@ int SlamGraphErrorFunction::numParameters(void) const {
 
 SlamGraphErrorFunction::EvaluationPoint *SlamGraphErrorFunction::evaluateAt(
     /*K_OPTIM::Optimization*/ Parameters *para) const {
-  return new EvaluationPoint(this, (Parameters *) para);  // FIXME: 在在哪儿delete？
+  return new EvaluationPoint(this, (Parameters *) para);  // NOTE: 调用evaluateAt()的地方负责delete这块内存
 }
 
 void SlamGraphErrorFunction::applyDelta(const /*K_OPTIM::Optimization*/ Parameters &para_old,
@@ -157,8 +157,8 @@ void SlamGraphErrorFunction::applyDelta(const /*K_OPTIM::Optimization*/ Paramete
   SlamGraph::NodeIndex::const_iterator old_it = list_old.begin();
   SlamGraph::NodeIndex::iterator new_it = list_new.begin();
   for (; new_it != list_new.end(); ++new_it, ++old_it) {
-    int idx = paraIndex.findIndex(new_it->first);
+    int idx = paraIndex.findIndex(new_it->first);   // 获取当前节点的参数在总数组中的起始位置
     if (idx < 0) continue;
-    new_it->second->applyDelta(&(delta[idx]), old_it->second);
+    new_it->second->applyDelta(&(delta[idx]), old_it->second);  // 更新当前节点的参数
   }
 }

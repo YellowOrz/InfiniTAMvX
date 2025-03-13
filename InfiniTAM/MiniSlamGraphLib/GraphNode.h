@@ -19,6 +19,12 @@ class GraphNode {
   virtual ~GraphNode(void) {}
 
   virtual GraphNode *clone(void) const = 0;
+  /**
+   * @brief                     更新节点的变量
+   * @param[in] delta           变量的变化量
+   * @param[in] startingPoint   变量的初始值
+   * @note                      更新后的变量存在当前节点
+   */
   virtual void applyDelta(const double *delta, const GraphNode *startingPoint = NULL) = 0;
 
   virtual int numParameters(void) const = 0;

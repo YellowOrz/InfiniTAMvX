@@ -34,15 +34,19 @@ class ITMGlobalAdjustmentEngine {
 
   bool hasNewEstimates(void) const;
 
-  // Check whether pose graph optimisation has converged and produced a
-  // new result. if it hasn't return false, otherwise copy them over
+  /**
+   * @brief           把全局优化的结果更新到子图中
+   * @param[out] dest 待更新的子图
+   * @return          更新是否成功。当优化好的位姿图为空时，=flase
+   * @details Check whether pose graph optimisation has converged and produced a new result. if it hasn't return false, otherwise copy them over
+   */
   bool retrieveNewEstimates(ITMMapGraphManager &dest);
 
   bool isBusyEstimating(void) const;
 
   /**
    * @brief 将所有子图的位姿和link信息添加到 位姿图中
-   * Check whether thread is busy, if it is, return false, otherwise create a copy of all new measurements and make it busy
+   * @details Check whether thread is busy, if it is, return false, otherwise create a copy of all new measurements and make it busy
    * @param[in] src 所有子图的管理器
    * @return        是否更新成功。当优化进行时，更新失败
    */
@@ -56,9 +60,11 @@ class ITMGlobalAdjustmentEngine {
 
   bool startSeparateThread(void);
   bool stopSeparateThread(void);
+  /** 通知并行的全局优化线程该干活了 */
   void wakeupSeparateThread(void);
 
  private:
+  /** 并行全局优化的线程调用的函数 */
   void estimationThreadMain(void);
   /**
    * @brief 将所有子图的位姿和link信息添加到 位姿图中
@@ -66,6 +72,11 @@ class ITMGlobalAdjustmentEngine {
    * @param[in] dest  位姿图
    */
   static void MultiSceneToPoseGraph(const ITMMapGraphManager &src, MiniSlamGraph::PoseGraph &dest);
+  /**
+   * @brief           把位姿图中的位姿添加到每个子图中
+   * @param[in] src   位姿图
+   * @param[out] dest 待更新的子图
+   */
   static void PoseGraphToMultiScene(const MiniSlamGraph::PoseGraph &src, ITMMapGraphManager &dest);
 
   MiniSlamGraph::PoseGraph *workingData;    // 待优化的位姿图

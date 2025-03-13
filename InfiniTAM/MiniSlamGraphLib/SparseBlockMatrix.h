@@ -16,7 +16,7 @@ class SparseBlockMatrix {
   */
   virtual int toTriplets(int *rowIndices, int *colIndices, double *data) const = 0;
 
-  /** Convert to Compressed Columns format. */
+  /** 转换为列压缩的格式。Convert to Compressed Columns format. */
   virtual void toCompressedColumns(int *rowIndices, int *colPointers, double *data) const = 0;
 
   /** 转成稠密矩阵，行优先存储。Convert to dense matrix. */

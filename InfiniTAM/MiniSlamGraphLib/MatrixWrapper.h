@@ -17,8 +17,10 @@ class Matrix {
   /** Virtual copy constructor */
   virtual Matrix *clone(void) const = 0;
 
-  /** 将A*b存入x中。b和x必须有正确的维度。稀疏矩阵可能提供非常高效的实现！
-   * Multiply A*b and store result in x. Both b and x are assumed to
+  /**
+   * @brief 将当前矩阵*b，然后存入x中
+   * @note  b和x必须维度正确。稀疏矩阵可能提供非常高效的实现！
+   * @details Multiply A*b and store result in x. Both b and x are assumed to
       have correct dimensions. Sparse matrices may provide very
       efficient implementations!
   */

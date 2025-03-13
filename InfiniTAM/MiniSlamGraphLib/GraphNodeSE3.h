@@ -20,9 +20,10 @@ class GraphNodeSE3 : public GraphNode {
     return new GraphNodeSE3(*this);
   }
   /**
-   * @brief 更新位姿
+   * @brief                     更新位姿
    * @param[in] delta           位姿的变化量
    * @param[in] startingPoint   位姿的初始值
+   * @note                      更新后的位姿存在当前节点，更新方式=delta*初始值
    */
   void applyDelta(const double *delta, const GraphNode *startingPoint = NULL) {
     SE3 startingPose;

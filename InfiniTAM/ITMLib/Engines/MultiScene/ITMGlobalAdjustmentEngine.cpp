@@ -86,7 +86,7 @@ bool ITMGlobalAdjustmentEngine::updateMeasurements(const ITMMapGraphManager &src
   return true;
 }
 
-bool ITMGlobalAdjustmentEngine::runGlobalAdjustment(bool blockingWait) {  // TODO：下次从这儿开始
+bool ITMGlobalAdjustmentEngine::runGlobalAdjustment(bool blockingWait) {
 #ifndef NO_CPP11  // ∵c++11才开始支持mutex
   //! 保证位姿图不为空。first make sure there is new data and we have exclusive access to it
   if (workingData == NULL) return false;
@@ -102,7 +102,7 @@ bool ITMGlobalAdjustmentEngine::runGlobalAdjustment(bool blockingWait) {  // TOD
   //! 拷贝位姿图，为下一次做准备。copy data to output buffer
   // ??? 不直接更新到processedData是因为扫描还在进行，会访问位姿图（比如添加新的节点）
   privateData->processedData_mutex.lock();
-  if (processedData != NULL) delete processedData;
+  if (processedData != NULL) delete processedData;  // TODO: 再加上processedData = NULL;
   processedData = workingData;
   workingData = NULL;
   privateData->processedData_mutex.unlock();
@@ -180,11 +180,15 @@ void ITMGlobalAdjustmentEngine::MultiSceneToPoseGraph(const ITMMapGraphManager &
 }
 
 void ITMGlobalAdjustmentEngine::PoseGraphToMultiScene(const MiniSlamGraph::PoseGraph &src, ITMMapGraphManager &dest) {
+  // 遍历每个子图
   for (int localMapId = 0; localMapId < (int) dest.numLocalMaps(); ++localMapId) {
+    // 在PoseGraph中找到对应节点
     MiniSlamGraph::SlamGraph::NodeIndex::const_iterator it = src.getNodeIndex().find(localMapId);
     if (it == src.getNodeIndex().end()) continue;
+    // 获取新的位姿
     const MiniSlamGraph::GraphNodeSE3 *pose = (const MiniSlamGraph::GraphNodeSE3 *) it->second;
     ORUtils::SE3Pose outpose = pose->getPose();
+    // 子图应用新的位姿
     dest.setEstimatedGlobalPose(localMapId, outpose);
   }
 }

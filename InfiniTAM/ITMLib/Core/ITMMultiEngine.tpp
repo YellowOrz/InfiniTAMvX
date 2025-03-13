@@ -319,7 +319,7 @@ ITMTrackingState::TrackingResult ITMMultiEngine<TVoxel, TIndex>::ProcessFrame(IT
       mScheduleGlobalAdjustment = false;
     }
   }
-  mGlobalAdjustmentEngine->retrieveNewEstimates(*mapManager);
+  mGlobalAdjustmentEngine->retrieveNewEstimates(*mapManager); // 优化后更新子图的位姿  //? 应该放在if (mScheduleGlobalAdjustment)内吧？因为没有全局优化哪里的更新？
 
   return primaryLocalMapTrackingResult;
 }
